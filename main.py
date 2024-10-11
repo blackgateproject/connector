@@ -16,9 +16,8 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlmodel import Field, Session, SQLModel, create_engine, select
-from web3 import Web3
-
 from starlette.responses import JSONResponse
+from web3 import Web3
 
 # Blockchain and Database setup
 BLOCKCHAIN_URL = "http://127.0.0.1:8545"  # Hardhat blockchain
@@ -193,6 +192,10 @@ def on_startup():
 class User(SQLModel, table=True):
     id: int = Field(default=None, primary_key=True)
     email_hash: str
+    fName: str  # First Name
+    lName: str  # Last Name
+    email: str  # Email
+    phone: str  # Phone
     vc: str = Field(default=None, nullable=True)  # Allow vc to be nullable
 
 
@@ -231,7 +234,16 @@ def hash_pii(fName, lName, email, phone):
 @app.post("/register_did")
 def register_did(did_data: DIDRequest, db: Session = Depends(get_session)):
     try:
+        if (
+            not did_data.fName
+            or not did_data.lName
+            or not did_data.email
+            or not did_data.phone
+        ):
+            raise HTTPException(status_code=400, detail="Missing PII data")
+
         print(f"[SUCCESS]: Received PII: {did_data.model_dump()}\n")
+
         # Hash the PII
         email_hash = hash_pii(
             did_data.fName, did_data.lName, did_data.email, did_data.phone
@@ -272,8 +284,15 @@ def register_did(did_data: DIDRequest, db: Session = Depends(get_session)):
         # Print Transaction Hash
         print(f"[SUCCESS]: Transaction Hash: {tx_hash.hex()}\n")
 
-        # Store PII hash in database
-        new_user = User(email_hash=email_hash, vc="None")
+        # Store PII and email hash in the database
+        new_user = User(
+            email_hash=email_hash,
+            fName=did_data.fName,
+            lName=did_data.lName,
+            email=did_data.email,
+            phone=did_data.phone,
+            vc="None",
+        )
         db.add(new_user)
         db.commit()
 
@@ -368,3 +387,18 @@ def verify_vc(email: str, issuance_date: str):
     except Exception as e:
         logging.error(f"Error in verify_vc: {str(e)}")
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/get_all_users", response_model=List[User])
+def get_all_users(db: Session = Depends(get_session)):
+    try:
+        statement = select(User)
+        users = db.exec(statement).all()
+
+        if not users:
+            raise HTTPException(status_code=404, detail="No users found")
+
+        return users
+    except Exception as e:
+        logging.error(f"Error in get_all_users: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
