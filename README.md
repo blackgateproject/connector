@@ -12,3 +12,10 @@ Temporary middle-man type server just to get the DID and PII stuff going
 - Forward VC requests to the BC
 
 """
+
+## Commands to run
+
+```
+pip install -r requirements.txt
+fastapi run dev
+```
