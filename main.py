@@ -402,3 +402,16 @@ def get_all_users(db: Session = Depends(get_session)):
     except Exception as e:
         logging.error(f"Error in get_all_users: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/total_users")
+def get_total_users(db: Session = Depends(get_session)):
+    try:
+        statement = select(User)
+        users = db.exec(statement).all()
+        total_users = len(users)
+
+        return {"total_users": total_users}
+    except Exception as e:
+        logging.error(f"Error in get_total_users: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
