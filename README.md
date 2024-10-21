@@ -34,7 +34,7 @@ winget install Docker.DockerDesktop
 
 ### Startup a local supabase instance, Docker desktop is required
 
-* For windows, most likely WSL2, enable the following
+* For windows, most likely WSL2, enable the following in Docker Desktop>General
   * "Expose daemon on tcp://localhost:2375 without TLS"
   * "Add the *.docker.internal names to the host's /etc/hosts file"
 
@@ -64,7 +64,7 @@ create table
   ) tablespace pg_default;
 ```
 
-### Deploy the edge functions to the local instance (Not tested yet) by running 
+### Deploy the edge functions to the local instance (Not tested yet) by running
 
 ```
 npx supbase functions deploy
