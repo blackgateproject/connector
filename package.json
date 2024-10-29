@@ -2,6 +2,8 @@
   "dependencies": {
     "@supabase/realtime-js": "github:supabase/realtime-js",
     "@supabase/supabase-js": "^2.45.6",
+    "bcrypt": "^5.1.1",
+    "bcryptjs": "^2.4.3",
     "supabase": "^1.204.3"
   }
 }
