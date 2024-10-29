@@ -12,12 +12,9 @@ Supabase edge functions are used to ensure that the dashboard can only request/s
 
 # Commands to run
 
-## Switching to Supabase
-
 ```
 npm install @supabase/supabase-js
 npx supabase init
-
 ```
 
 ### Install deno via winget (Get the extension as well)
