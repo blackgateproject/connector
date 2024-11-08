@@ -6,9 +6,17 @@ Backend for the dashboard, critical data as well as user logs are maintained her
 - ~~Forward PII sent from dashboard to the BC~~
 
   - ~~Use a very basic DB to store PII hashes that were used to generate the DID~~
+
 - ~~Forward VC requests to the BC~~
 
 Supabase edge functions are used to ensure that the dashboard can only request/send data based on the required function being called.
+
+**Nuking edge functions, not worth the time investment**
+
+- Reason:
+  - Use of 3rd party cdn libs does not sit right w me
+  - Setting up a fastapi server to handle backend tasks, this should not have been this hard
+  - Keeping Supabase as a docker container still, just no more edge functions
 
 # Commands to run
 
@@ -31,9 +39,9 @@ winget install Docker.DockerDesktop
 
 ### Startup a local supabase instance, Docker desktop is required
 
-* For windows, most likely WSL2, enable the following in Docker Desktop>General
-  * "Expose daemon on tcp://localhost:2375 without TLS"
-  * "Add the *.docker.internal names to the host's /etc/hosts file"
+- For windows, most likely WSL2, enable the following in Docker Desktop>General
+  - "Expose daemon on tcp://localhost:2375 without TLS"
+  - "Add the \*.docker.internal names to the host's /etc/hosts file"
 
 ```
 npx supabase start
