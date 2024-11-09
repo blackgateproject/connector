@@ -4,14 +4,16 @@ import shutil
 import string
 import time
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from typing import Annotated
 
 import requests
-from bcrypt import gensalt, hashpw, checkpw, kdf
+from bcrypt import checkpw, gensalt, hashpw, kdf
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.encoders import jsonable_encoder
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi_csrf_protect import CsrfProtect
@@ -35,23 +37,31 @@ def get_csrf_config():
     return CsrfSettings()
 
 
-# # CSRF Util function for get Requests
-# async def getCSRF(request: Request, csrf_protect: CsrfProtect = Depends()):
-#     try:
-#         csrf_token, signed_token = csrf_protect.generate_csrf_tokens()
-#     except CsrfProtectError as e:
-#         return JSONResponse(status_code=e.status_code, content={"detail": e.message})
-#     return csrf_token, signed_token
+# CSRF Util function for get Requests
+async def getCSRF(request: Request, csrf_protect: CsrfProtect = Depends()):
+    try:
+        csrf_token, signed_token = csrf_protect.generate_csrf_tokens()
+    except CsrfProtectError as e:
+        return JSONResponse(status_code=e.status_code, content={"detail": e.message})
+    return csrf_token, signed_token
 
-# # CSRF Util function for POST Requests
-# async def postCSRF(request: Request, csrf_protect: CsrfProtect = Depends()):
-#     try:
-#         csrf_protect.validate_csrf(request)
-#         return True
-#     except CsrfProtectError as e:
-#         return JSONResponse(status_code=e.status_code, content={"detail": e.message})
 
-# Route frontend to backend
+# CSRF Util function for POST Requests
+async def postCSRF(request: Request, csrf_protect: CsrfProtect = Depends()):
+    try:
+        csrf_protect.validate_csrf(request)
+        return True
+    except CsrfProtectError as e:
+        return JSONResponse(status_code=e.status_code, content={"detail": e.message})
+
+
+# CORS Configuration
+origins = [
+    # "http://localhost:5173",
+    # "http://localhost:5174",
+    # "http://localhost:8000",
+    "*"
+]
 
 
 # Print Hello message on server startup and Bye on server shutdown
@@ -64,6 +74,15 @@ async def lifespan(app: FastAPI):
 
 # Main entrypoint
 app = FastAPI(lifespan=lifespan)
+
+# CORS Middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 # CSRF Middleware
@@ -87,7 +106,7 @@ async def get_csrf_token(csrf_protect: CsrfProtect = Depends()):
 
 
 # Verify User
-@app.post("/functions/v1/verify_user/")
+@app.post("/functions/v1/verifyUser/")
 async def verify_user(
     requests: Request,
     # csrf_token: str = Form(...),
@@ -98,10 +117,13 @@ async def verify_user(
     # except CsrfProtectError as e:
     #     return JSONResponse(status_code=e.status_code, content={"detail": e.message})
 
-    # Get user and pw from request headers
-    email = str(requests.headers.get("email"))
-    pw = str(requests.headers.get("pw"))
-    print(f"Email: {email}\nEmail Datatype: {type(email)}\nPassword: {pw}\nPassword Datatype: {type(pw)}")
+    # Get user and pw from request body
+    body = await requests.json()
+    email = body.get("email")
+    pw = body.get("password")
+    print(
+        f"Email: {email}\nEmail Datatype: {type(email)}\nPassword: {pw}\nPassword Datatype: {type(pw)}"
+    )
 
     # Create a supabase client
     supaURL = "http://localhost:54321"
@@ -122,11 +144,69 @@ async def verify_user(
     else:
         # Check if anythign was returned, if not then return invalid user/password
         if len(data["data"]) == 0:
-            print("ERR: User/password not found. Empty json body returned from supabase.")
+            print(
+                "ERR: User/password not found. Empty json body returned from supabase."
+            )
             return JSONResponse(
                 status_code=400, content={"Error": "User/password not found"}
             )
         else:
             # Data now has the pw_hash, role and last access time.
-            # Verify the pw_hash which was salted
-            print(data["data"])
+            # Verify the pw_hash which was salted upto the period for e.g. $2a$10$pLkuqVPvfg1ckUSFkJrHj.YdXOezUk8kMrnPWATTq/5gIcRYBoE32
+            # The first 29 characters are the salt
+            # After verifying the password, update the last access time and return a header with Authorization: True and role: role
+            pw_hash = data["data"][0]["pw_hash"]
+            role = data["data"][0]["role"]
+            last_access = data["data"][0]["last_access_at"]
+
+            print(f"pw_hash: {pw_hash}\nrole: {role}\nlast_access: {last_access}")
+
+            # Verify the correct role exists for the user given email i.e email domain should match the stored role. email.split("@")[1] gives the domain, need to get rid of the .com
+            if role != email.split("@")[1][:-4]:
+                print(
+                    f"ERR: Role does not match email domain\nEmail Role: {email.split('@')[1][:-4]}\nRole: {role}"
+                )
+                return JSONResponse(
+                    status_code=400,
+                    content={"Error": "Role does not match email domain"},
+                )
+
+            # Verify the password
+            if checkpw(pw.encode("utf-8"), pw_hash.encode("utf-8")):
+                print("Password verified")
+                # Update the last access time
+                # print(f"Updating last access time to {datetime.now(timezone.utc).isoformat()}")
+                # data = (
+                #     supabase.table("users")
+                #     .update({"last_access_at": f"str(datetime.now(timezone.utc).isoformat())"})
+                #     .filter("email", "eq", email)
+                #     # .eq("email", email)
+                #     .execute()
+                # )
+                # if data["status_code"] != 200:
+                #     print(
+                #         f"Backend Error: Unable to update LastAccessTime. Got status code {data['status_code']}"
+                #     )
+                #     return JSONResponse(
+                #         status_code=400,
+                #         content={
+                #             "Error": f"From Backend: Unable to update LastAccessTime. Got status code {data['status_code']}"
+                #         },
+                #     )
+                # else:
+                #     print("Last access time updated")
+                #     return JSONResponse(
+                #         status_code=200,
+                #         content={"Authorization": "True", "Role": role},
+                #     )
+                response = JSONResponse(
+                    status_code=200,
+                    content={"authenticated": True, "role": role},
+                )
+                # csrf_protect.unset_csrf_cookie(response)
+                return response
+            else:
+                print("ERR: Incorrect Password")
+                return JSONResponse(
+                    status_code=400, content={"Error": "Incorrect Password"}
+                )
