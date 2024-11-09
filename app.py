@@ -1,3 +1,4 @@
+import json
 import os
 import random
 import shutil
@@ -9,6 +10,7 @@ from typing import Annotated
 
 import requests
 from bcrypt import checkpw, gensalt, hashpw, kdf
+from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,7 +23,11 @@ from fastapi_csrf_protect.exceptions import CsrfProtectError
 from pydantic import BaseModel, EmailStr
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import FileResponse, PlainTextResponse
-from supabase_py import Client, create_client
+from supabase import Client, create_client
+
+# Global Variables to hold Supabase URL and Key
+supaURL = ""
+supaKey = ""
 
 
 # CSRF Configuration
@@ -68,6 +74,15 @@ origins = [
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("\n\n===== Server Up =====\n\n")
+    # Fetch Supabase URL and Key from ENV vars
+    try:
+        load_dotenv("./.env")
+        supaURL: str = os.getenv("SUPABASE_URL")
+        supaKey: str = os.getenv("SUPABASE_KEY")
+        print(f"SUPABASE_URL: {supaURL}\nSUPABASE_KEY: {supaKey}")
+    except KeyError:
+        print("ERR: Supabase URL or Key not found in ENV vars")
+
     yield
     print("\n\n===== Server Shutting down! =====\n\n")
 
@@ -126,87 +141,69 @@ async def verify_user(
     )
 
     # Create a supabase client
-    supaURL = "http://localhost:54321"
-    supaKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0"
-    supabase: Client = create_client(supaURL, supaKey)
+    supabase: Client = create_client(
+        os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY")
+    )
 
     # Check if the user exists in supabase. NOTE:: APIdocs on supabase are not clear, use the filter function with the modifier passed as a str arg
     print(f"Checking email {email} in supabase")
-    data = supabase.table("users").select("*").filter("email", "eq", email).execute()
+    data = supabase.table("users").select("*", count="exact").filter("email", "eq", email).execute()
+    # Serialize the data to JSON, might not be needed but better safe than sorry
+    jsonData = json.dumps(data.data)
 
-    # # Check status code in response, if 200 then continue
-    if data["status_code"] != 200:
-        print(f"Backend Error: Got status code {data['status_code']}")
+    print(f"Data Count: {data.count}")
+    print(f"Data: {jsonData}")
+    print(f"ID: {data.data[0]['id']}")
+
+    if data.count == 0:
+        print("ERR: User/password not found. Empty json body returned from supabase.")
         return JSONResponse(
-            status_code=400,
-            content={"Error": f"From Backend: Got status code {data['status_code']}"},
+            status_code=400, content={"Error": "User/password not found"}
+        )
+    elif data.count > 1:
+        print("ERR: Multiple users found with the same email")
+        return JSONResponse(
+            status_code=400, content={"Error": "Multiple users found with the same email"}
         )
     else:
-        # Check if anythign was returned, if not then return invalid user/password
-        if len(data["data"]) == 0:
+        # Get the pw_hash, role and last_access_at from the data
+        pw_hash = data.data[0]["pw_hash"]
+        role = data.data[0]["role"]
+        last_access = data.data[0]["last_access_at"]
+
+        print(f"pw_hash: {pw_hash}\nrole: {role}\nlast_access: {last_access}")
+
+        # Verify the correct role exists for the user given email i.e email domain should match the stored role. email.split("@")[1] gives the domain, need to get rid of the .com
+        if role != email.split("@")[1][:-4]:
             print(
-                "ERR: User/password not found. Empty json body returned from supabase."
+                f"ERR: Role does not match email domain\nEmail Role: {email.split('@')[1][:-4]}\nRole: {role}"
             )
             return JSONResponse(
-                status_code=400, content={"Error": "User/password not found"}
+                status_code=400,
+                content={"Error": "Role does not match email domain"},
+            )
+
+        # Verify the password
+        if checkpw(pw.encode("utf-8"), pw_hash.encode("utf-8")):
+            print("Password verified")
+
+            # Update the last access time
+            print(f"Updating last access time to {datetime.now(timezone.utc).isoformat()}")
+            data = (
+                supabase.table("users")
+                .update({"last_access_at": f"{datetime.now(timezone.utc).isoformat()}"})
+                .filter("email", "eq", email)
+                .execute()
+            )
+            print("Last access time updated")
+            
+            # Return Valid response
+            return JSONResponse(
+                status_code=200,
+                content={"authenticated": True, "role": role},
             )
         else:
-            # Data now has the pw_hash, role and last access time.
-            # Verify the pw_hash which was salted upto the period for e.g. $2a$10$pLkuqVPvfg1ckUSFkJrHj.YdXOezUk8kMrnPWATTq/5gIcRYBoE32
-            # The first 29 characters are the salt
-            # After verifying the password, update the last access time and return a header with Authorization: True and role: role
-            pw_hash = data["data"][0]["pw_hash"]
-            role = data["data"][0]["role"]
-            last_access = data["data"][0]["last_access_at"]
-
-            print(f"pw_hash: {pw_hash}\nrole: {role}\nlast_access: {last_access}")
-
-            # Verify the correct role exists for the user given email i.e email domain should match the stored role. email.split("@")[1] gives the domain, need to get rid of the .com
-            if role != email.split("@")[1][:-4]:
-                print(
-                    f"ERR: Role does not match email domain\nEmail Role: {email.split('@')[1][:-4]}\nRole: {role}"
-                )
-                return JSONResponse(
-                    status_code=400,
-                    content={"Error": "Role does not match email domain"},
-                )
-
-            # Verify the password
-            if checkpw(pw.encode("utf-8"), pw_hash.encode("utf-8")):
-                print("Password verified")
-                # Update the last access time
-                # print(f"Updating last access time to {datetime.now(timezone.utc).isoformat()}")
-                # data = (
-                #     supabase.table("users")
-                #     .update({"last_access_at": f"str(datetime.now(timezone.utc).isoformat())"})
-                #     .filter("email", "eq", email)
-                #     # .eq("email", email)
-                #     .execute()
-                # )
-                # if data["status_code"] != 200:
-                #     print(
-                #         f"Backend Error: Unable to update LastAccessTime. Got status code {data['status_code']}"
-                #     )
-                #     return JSONResponse(
-                #         status_code=400,
-                #         content={
-                #             "Error": f"From Backend: Unable to update LastAccessTime. Got status code {data['status_code']}"
-                #         },
-                #     )
-                # else:
-                #     print("Last access time updated")
-                #     return JSONResponse(
-                #         status_code=200,
-                #         content={"Authorization": "True", "Role": role},
-                #     )
-                response = JSONResponse(
-                    status_code=200,
-                    content={"authenticated": True, "role": role},
-                )
-                # csrf_protect.unset_csrf_cookie(response)
-                return response
-            else:
-                print("ERR: Incorrect Password")
-                return JSONResponse(
-                    status_code=400, content={"Error": "Incorrect Password"}
-                )
+            print("ERR: Incorrect Password")
+            return JSONResponse(
+                status_code=400, content={"Error": "Incorrect Password"}
+            )

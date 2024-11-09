@@ -2,3 +2,4 @@
 __pycache__
 mainDatabase.db
 node_modules
+.env
