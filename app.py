@@ -122,6 +122,7 @@ async def get_csrf_token(csrf_protect: CsrfProtect = Depends()):
 
 # Verify User
 @app.post("/functions/v1/verifyUser/")
+# NOTE:: When setting up PKI, move user auth to supabase, handled PKI here
 async def verify_user(
     requests: Request,
     # csrf_token: str = Form(...),
@@ -147,7 +148,12 @@ async def verify_user(
 
     # Check if the user exists in supabase. NOTE:: APIdocs on supabase are not clear, use the filter function with the modifier passed as a str arg
     print(f"Checking email {email} in supabase")
-    data = supabase.table("users").select("*", count="exact").filter("email", "eq", email).execute()
+    data = (
+        supabase.table("users")
+        .select("*", count="exact")
+        .filter("email", "eq", email)
+        .execute()
+    )
     # Serialize the data to JSON, might not be needed but better safe than sorry
     jsonData = json.dumps(data.data)
 
@@ -163,7 +169,8 @@ async def verify_user(
     elif data.count > 1:
         print("ERR: Multiple users found with the same email")
         return JSONResponse(
-            status_code=400, content={"Error": "Multiple users found with the same email"}
+            status_code=400,
+            content={"Error": "Multiple users found with the same email"},
         )
     else:
         # Get the pw_hash, role and last_access_at from the data
@@ -187,8 +194,10 @@ async def verify_user(
         if checkpw(pw.encode("utf-8"), pw_hash.encode("utf-8")):
             print("Password verified")
 
-            # Update the last access time
-            print(f"Updating last access time to {datetime.now(timezone.utc).isoformat()}")
+            # Update the last access time. NOTE:: Should probably log this on the connector server instead of supabase
+            print(
+                f"Updating last access time to {datetime.now(timezone.utc).isoformat()}"
+            )
             data = (
                 supabase.table("users")
                 .update({"last_access_at": f"{datetime.now(timezone.utc).isoformat()}"})
@@ -196,7 +205,7 @@ async def verify_user(
                 .execute()
             )
             print("Last access time updated")
-            
+
             # Return Valid response
             return JSONResponse(
                 status_code=200,
