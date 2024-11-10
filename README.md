@@ -6,10 +6,9 @@ Backend for the dashboard, critical data as well as user logs are maintained her
 - ~~Forward PII sent from dashboard to the BC~~
 
   - ~~Use a very basic DB to store PII hashes that were used to generate the DID~~
-
 - ~~Forward VC requests to the BC~~
 
-Supabase edge functions are used to ensure that the dashboard can only request/send data based on the required function being called.
+~~Supabase edge functions are used to ensure that the dashboard can only request/send data based on the required function being called.~~
 
 **Nuking edge functions, not worth the time investment**
 
@@ -20,15 +19,17 @@ Supabase edge functions are used to ensure that the dashboard can only request/s
 
 # Commands to run
 
-```
-npm install @supabase/supabase-js
-npx supabase init
-```
-
-### Install deno via winget (Get the extension as well)
+### Git Clone the repo
 
 ```
-winget install DenoLand.Deno
+git clone http://github.com/blackgateproject/backend
+```
+
+### Start the connector server
+
+```
+pip install -r requirements.txt
+fastapi run dev
 ```
 
 ### Install Docker Desktop
@@ -43,7 +44,10 @@ winget install Docker.DockerDesktop
   - "Expose daemon on tcp://localhost:2375 without TLS"
   - "Add the \*.docker.internal names to the host's /etc/hosts file"
 
+### Head to supabase dir in the repo and deploy the backend
+
 ```
+cd supabase
 npx supabase start
 ```
 
@@ -67,13 +71,4 @@ create table
     vc text null,
     constraint supachain_pkey primary key (id)
   ) tablespace pg_default;
-```
-
-### Deploy the edge functions to the local instance (Not tested yet) by running
-
-```
-npx supbase functions deploy
-
-# For testing run this
-npx supabase functions serve
 ```
