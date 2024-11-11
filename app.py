@@ -20,13 +20,16 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi_csrf_protect import CsrfProtect
 from fastapi_csrf_protect.exceptions import CsrfProtectError
+from gotrue.errors import AuthApiError
 from pydantic import BaseModel, EmailStr
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import FileResponse, PlainTextResponse
 
+from config import settings
 from supabase import Client, create_client
 
-from config import settings
+# Load environment variables
+load_dotenv("./.env")
 
 
 # CSRF Configuration
@@ -75,7 +78,6 @@ async def lifespan(app: FastAPI):
     print("\n\n===== Server Up =====\n\n")
     # Fetch Supabase URL and Key from ENV vars
     try:
-        load_dotenv("./.env")
         supaURL = settings.SUPABASE_URL
         supaANONKey = settings.SUPABASE_ANON_KEY
         supaSERVKey = settings.SUPABASE_SERV_KEY
@@ -92,6 +94,7 @@ async def lifespan(app: FastAPI):
 
 # Main entrypoint
 app = FastAPI(lifespan=lifespan)
+
 
 # CORS Middleware
 app.add_middleware(
@@ -145,16 +148,29 @@ async def verify_user(
     )
 
     # Create supabase client
-    supabase: Client = create_client(supabase_url=settings.SUPABASE_URL, supabase_key=settings.SUPABASE_ANON_KEY)
+    supabase: Client = create_client(
+        supabase_url=os.environ.get("SUPABASE_URL"),
+        supabase_key=os.environ.get("SUPABASE_ANON_KEY"),
+    )
 
-    # Supabase auth sign
-    user = supabase.auth.sign_in_with_password({"email": email, "password": pw})
+    # Supabase auth sign, try catch block
+    try:
+        user = supabase.auth.sign_in_with_password({"email": email, "password": pw})
+        # Return user
+        print(user)
 
-    # Return user
-    print(user)
-    
-
-    # Return authorized: true and role: admin/user depending on email domain minus the .com
-    return JSONResponse(content={"authenticated": True, "role": email.split("@")[1].split(".")[0]}, status_code=200)
-
-   
+        # Return authorized: true and role: admin/user depending on email domain minus the .com
+        return JSONResponse(
+            content={"authenticated": True, "role": email.split("@")[1].split(".")[0]},
+            status_code=200,
+        )
+    except AuthApiError as e:
+        print(f"AuthApiError: {e}")
+        return JSONResponse(
+            content={"authenticated": False, "error": str(e)}, status_code=401
+        )
+    except Exception as e:
+        print(f"ERR: {e}")
+        return JSONResponse(
+            content={"authenticated": False, "error": str(e)}, status_code=500
+        )
