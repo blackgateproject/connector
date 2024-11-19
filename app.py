@@ -171,6 +171,11 @@ async def verify_user(
         )
     except Exception as e:
         print(f"ERR: {e}")
+        if "WinError 10061" in str(e):
+            return JSONResponse(
+                content={"authenticated": False, "error": "Supabase docker image is down/not responding"},
+                status_code=500,
+            )
         return JSONResponse(
             content={"authenticated": False, "error": str(e)}, status_code=500
         )
