@@ -1,64 +1,70 @@
-import json
+# import json
 import os
-import random
-import shutil
-import string
-import time
+
+# import random
+# import shutil
+# import string
+# import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Annotated
+from uuid import UUID
 
-import requests
-from bcrypt import checkpw, gensalt, hashpw, kdf
+# import requests
+# from bcrypt import checkpw, gensalt, hashpw, kdf
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.encoders import jsonable_encoder
+
+# from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
+
+# from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
-from fastapi_csrf_protect import CsrfProtect
-from fastapi_csrf_protect.exceptions import CsrfProtectError
+
+# from fastapi_csrf_protect import CsrfProtect
+# from fastapi_csrf_protect.exceptions import CsrfProtectError
 from gotrue.errors import AuthApiError
 from pydantic import BaseModel, EmailStr
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import FileResponse, PlainTextResponse
 
 from config import settings
+from model import Session, User
 from supabase import Client, create_client
 
-from model import User, Session
-
-# CSRF Configuration
-class CsrfSettings(BaseModel):
-    secret_key: str = os.environ.get(
-        "SECRET_KEY", "secretkey"
-    )  # Replace with a secure secret key
-    cookie_same_site: str = "none"
+# from fastapi.staticfiles import StaticFiles
+# from fastapi.templating import Jinja2Templates
 
 
-@CsrfProtect.load_config
-def get_csrf_config():
-    return CsrfSettings()
+# # CSRF Configuration
+# class CsrfSettings(BaseModel):
+#     secret_key: str = os.environ.get(
+#         "SECRET_KEY", "secretkey"
+#     )  # Replace with a secure secret key
+#     cookie_same_site: str = "none"
 
 
-# CSRF Util function for get Requests
-async def getCSRF(request: Request, csrf_protect: CsrfProtect = Depends()):
-    try:
-        csrf_token, signed_token = csrf_protect.generate_csrf_tokens()
-    except CsrfProtectError as e:
-        return JSONResponse(status_code=e.status_code, content={"detail": e.message})
-    return csrf_token, signed_token
+# @CsrfProtect.load_config
+# def get_csrf_config():
+#     return CsrfSettings()
 
 
-# CSRF Util function for POST Requests
-async def postCSRF(request: Request, csrf_protect: CsrfProtect = Depends()):
-    try:
-        csrf_protect.validate_csrf(request)
-        return True
-    except CsrfProtectError as e:
-        return JSONResponse(status_code=e.status_code, content={"detail": e.message})
+# # CSRF Util function for get Requests
+# async def getCSRF(request: Request, csrf_protect: CsrfProtect = Depends()):
+#     try:
+#         csrf_token, signed_token = csrf_protect.generate_csrf_tokens()
+#     except CsrfProtectError as e:
+#         return JSONResponse(status_code=e.status_code, content={"detail": e.message})
+#     return csrf_token, signed_token
+
+
+# # CSRF Util function for POST Requests
+# async def postCSRF(request: Request, csrf_protect: CsrfProtect = Depends()):
+#     try:
+#         csrf_protect.validate_csrf(request)
+#         return True
+#     except CsrfProtectError as e:
+#         return JSONResponse(status_code=e.status_code, content={"detail": e.message})
 
 
 # CORS Configuration
@@ -106,18 +112,18 @@ app.add_middleware(
 )
 
 
-# CSRF Middleware
-@app.exception_handler(CsrfProtectError)
-def csrf_protect_exception_handler(request: Request, exc: CsrfProtectError):
-    return JSONResponse(status_code=exc.status_code, content={"detail": exc.message})
+# # CSRF Middleware
+# @app.exception_handler(CsrfProtectError)
+# def csrf_protect_exception_handler(request: Request, exc: CsrfProtectError):
+#     return JSONResponse(status_code=exc.status_code, content={"detail": exc.message})
 
 
-@app.get("/csrftoken/")
-async def get_csrf_token(csrf_protect: CsrfProtect = Depends()):
-    # response = JSONResponse(status_code=200, content={"csrf_token": "cookie"})
-    # csrf_protect.set_csrf_cookie(csrf_protect.generate_csrf_tokens(response))
-    csrf_token, _ = csrf_protect.generate_csrf_tokens()
-    return {"csrf_token": csrf_token}
+# @app.get("/csrftoken/")
+# async def get_csrf_token(csrf_protect: CsrfProtect = Depends()):
+#     # response = JSONResponse(status_code=200, content={"csrf_token": "cookie"})
+#     # csrf_protect.set_csrf_cookie(csrf_protect.generate_csrf_tokens(response))
+#     csrf_token, _ = csrf_protect.generate_csrf_tokens()
+#     return {"csrf_token": csrf_token}
 
 
 # # Ping the frontend on startup (Work in progress)
@@ -183,100 +189,77 @@ async def get_csrf_token(csrf_protect: CsrfProtect = Depends()):
 logged_in_users = []
 
 
-# Verify User
-@app.post("/functions/v1/verifyUser/")
-async def verify_user(
-    requests: Request,
-):
-    body = await requests.json()
-    email = body.get("email")
-    pw = body.get("password")
-
-    supabase: Client = create_client(
-        supabase_url=os.environ.get("SUPABASE_URL"),
-        supabase_key=os.environ.get("SUPABASE_ANON_KEY"),
-    )
-
-    try:
-        user = supabase.auth.sign_in_with_password({"email": email, "password": pw})
-        user_id = user.user.id
-        login_time = datetime.now(timezone.utc)
-
-        print(user)
-
-        # Store detailed user information
-        logged_in_users.append(
-            {
-                "user_id": user_id,
-                "login_time": login_time,
-                "email": user.user.email,
-                "role": user.user.role,
-                "last_sign_in_at": user.user.last_sign_in_at,
-                "access_token": user.session.access_token,
-                "refresh_token": user.session.refresh_token,
-                "expires_at": user.session.expires_at,
-            }
-        )
-
-        # Print login user
-        print(f"Added user to local store: \n{logged_in_users}")
-
-        return JSONResponse(
-            content={"authenticated": True, "role": email.split("@")[1].split(".")[0]},
-            status_code=200,
-        )
-    except AuthApiError as e:
-        return JSONResponse(
-            content={"authenticated": False, "error": str(e)}, status_code=401
-        )
-    except Exception as e:
-        if "WinError 10061" in str(e):
-            return JSONResponse(
-                content={
-                    "authenticated": False,
-                    "error": "Supabase docker image is down/not responding",
-                },
-                status_code=500,
-            )
-        return JSONResponse(
-            content={"authenticated": False, "error": str(e)}, status_code=500
-        )
-
-
-# Verify User
 @app.post("/functions/v1/verifyUser/")
 async def verify_user(request: Request):
     body = await request.json()
     email = body.get("email")
     pw = body.get("password")
 
+    # Initialize the Supabase client
     supabase: Client = create_client(
         supabase_url=os.environ.get("SUPABASE_URL"),
         supabase_key=os.environ.get("SUPABASE_ANON_KEY"),
     )
 
     try:
+        # Attempt to sign in with email and password
         user = supabase.auth.sign_in_with_password({"email": email, "password": pw})
         user_id = user.user.id
         login_time = datetime.now(timezone.utc)
 
-        # Store detailed user information
-        logged_in_users.append(
-            {
-                "user_id": user_id,
-                "login_time": login_time,
-                "email": user.user.email,
-                "role": user.user.role,
-                "last_sign_in_at": user.user.last_sign_in_at,
-                "access_token": user.session.access_token,
-                "refresh_token": user.session.refresh_token,
-                "expires_at": user.session.expires_at,
-            }
-        )
+        # Extract user information
+        user_data = {
+            "id": user_id,
+            "app_metadata": user.user.app_metadata,
+            "user_metadata": user.user.user_metadata,
+            "aud": user.user.aud,
+            "confirmation_sent_at": user.user.confirmation_sent_at,
+            "recovery_sent_at": user.user.recovery_sent_at,
+            "email_change_sent_at": user.user.email_change_sent_at,
+            "new_email": user.user.new_email,
+            "new_phone": user.user.new_phone,
+            "invited_at": user.user.invited_at,
+            "action_link": user.user.action_link,
+            "email": user.user.email,
+            "phone": user.user.phone,
+            "created_at": user.user.created_at,
+            "confirmed_at": user.user.confirmed_at,
+            "email_confirmed_at": user.user.email_confirmed_at,
+            "phone_confirmed_at": user.user.phone_confirmed_at,
+            "last_sign_in_at": user.user.last_sign_in_at,
+            "role": user.user.role,
+            "updated_at": user.user.updated_at,
+            "identities": [
+                {
+                    "id": identity.id,
+                    "identity_id": identity.identity_id,
+                    "user_id": identity.user_id,
+                    "identity_data": identity.identity_data,
+                    "provider": identity.provider,
+                    "created_at": identity.created_at,
+                    "last_sign_in_at": identity.last_sign_in_at,
+                    "updated_at": identity.updated_at,
+                }
+                for identity in user.user.identities
+            ],
+            "is_anonymous": user.user.is_anonymous,
+            "factors": user.user.factors,
+        }
 
-        # Print login user
-        print(user)
+        # Check if user is already logged in (ensure the check is using UUID comparison)
+        if any(UUID(user_data["id"]) == user.id for user in logged_in_users):
+            raise Exception("User is already logged in")
 
+        # Convert the user data to Pydantic User model
+        user_instance = User(**user_data)
+
+        # Store the user in the logged_in_users list
+        logged_in_users.append(user_instance)
+
+        # Print logged-in user information
+        print(f"Added user to local store: \n{user_instance}")
+
+        # Return authenticated response
         return JSONResponse(
             content={"authenticated": True, "role": email.split("@")[1].split(".")[0]},
             status_code=200,
@@ -294,9 +277,29 @@ async def verify_user(request: Request):
                 },
                 status_code=500,
             )
+        elif "User is already logged in" in str(
+            e
+        ):  # Check if the user is already logged in
+            return JSONResponse(
+                content={
+                    "authenticated": True,
+                    "role": email.split("@")[1].split(".")[0],
+                    "error": "User is already logged in",
+                },
+                status_code=200,
+            )
         return JSONResponse(
             content={"authenticated": False, "error": str(e)}, status_code=500
         )
+
+
+@app.get("/functions/v1/getLoggedUsers/")
+async def get_logged_users():
+    print("Logged In users")
+    # Iterate over the logged_in_users list and print the user information sequentially
+    for user in logged_in_users:
+        print(f"User: {user}\n")
+    # return JSONResponse(content={"logged_in_users": [user.dict() for user in logged_in_users]}, status_code=200)
 
 
 # # Signout User
