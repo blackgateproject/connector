@@ -18,37 +18,6 @@ from model import Session, User
 from supabase import Client, create_client
 
 
-# # CSRF Configuration
-# class CsrfSettings(BaseModel):
-#     secret_key: str = os.environ.get(
-#         "SECRET_KEY", "secretkey"
-#     )  # Replace with a secure secret key
-#     cookie_same_site: str = "none"
-
-
-# @CsrfProtect.load_config
-# def get_csrf_config():
-#     return CsrfSettings()
-
-
-# # CSRF Util function for get Requests
-# async def getCSRF(request: Request, csrf_protect: CsrfProtect = Depends()):
-#     try:
-#         csrf_token, signed_token = csrf_protect.generate_csrf_tokens()
-#     except CsrfProtectError as e:
-#         return JSONResponse(status_code=e.status_code, content={"detail": e.message})
-#     return csrf_token, signed_token
-
-
-# # CSRF Util function for POST Requests
-# async def postCSRF(request: Request, csrf_protect: CsrfProtect = Depends()):
-#     try:
-#         csrf_protect.validate_csrf(request)
-#         return True
-#     except CsrfProtectError as e:
-#         return JSONResponse(status_code=e.status_code, content={"detail": e.message})
-
-
 # CORS Configuration
 origins = [
     # "http://localhost:5173",
