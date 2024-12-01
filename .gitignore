@@ -5,3 +5,5 @@ node_modules
 .env
 supabase
 tableDef.sql
+main.py
+
