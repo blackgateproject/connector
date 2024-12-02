@@ -9,5 +9,6 @@ class Settings(BaseSettings):
     JWT_SECRET: str
     JWT_ALGORITHM: str
     JWT_EXPIRES: int
+    HARDHAT_URL: str
     DEBUG: bool = False
 

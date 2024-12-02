@@ -1,14 +1,8 @@
-from fastapi import APIRouter, HTTPException, Request, status
-from fastapi.responses import JSONResponse
-from supabase import Client, create_client
-from pydantic import EmailStr
-import os
-from uuid import UUID
+from fastapi import APIRouter
 
 router = APIRouter()
-logged_in_users = []  # Local store for logged-in users
 
 
-@router.post("/functions/v1/verifyUser/")
-async def verify_user(request: Request):
-    return "Welcome to the verify user endpoint!"
+@router.get("/")
+async def health_check():
+    return "Reached Auth Endpoint, Router Auth is Active"

@@ -15,8 +15,8 @@ from supabase import Client, create_client
 from supabase.client import AuthApiError
 from supabase.lib.client_options import ClientOptions
 from typing_extensions import Annotated
-from web3 import Web3
 
+from ..models.user import User
 from ..core.config import Settings
 
 
@@ -131,3 +131,19 @@ def extractUserInfo(user: AuthResponse):
     }
 
     return user_data
+
+
+# Print the user object
+def print_user(user: User):
+    print(f"User {user.username} ({user.email})")
+    # print(f"  ID: {user.id}")
+    print(f"  Phone Number: {user.phone}")
+    print(f"  Role: {user.role}")
+    print(f"  DID: {user.did}")
+    print(f"  Is Passwordless: {user.isPWLess}")
+    if user.isPWLess:
+        print(f"  Public Key: {user.public_key}")
+        print(f"  Private Key: {user.private_key}")
+        print(f"  Blockchain Address: {user.blockchain_address}")
+    print(f"  Is Online: {user.isOnline}")
+    print()
