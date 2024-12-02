@@ -1,9 +1,6 @@
 .venv
 __pycache__
-mainDatabase.db
 node_modules
 .env
 supabase
-tableDef.sql
-main.py
 

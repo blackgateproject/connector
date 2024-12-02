@@ -11,9 +11,6 @@ class LoginRequest(BaseModel):
     password: str  # This field is still required for password-based users
 
 
-class Token(BaseModel):
-    access_token: str
-    token_type: str
 
 
 class ChallengeRequest(BaseModel):
