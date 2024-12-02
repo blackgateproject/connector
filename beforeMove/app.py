@@ -212,8 +212,12 @@ async def getUsers():
                         "email"
                     ],  # Using email as first name for users without metadata
                     "secondName": "",  # No second name if no metadata
+                    # Set online to true if last_sign_in_at was 5 mins ago. time is stored as 2024-12-01T20:53:27.176864+00:00
                     "online": (
-                        True if user["aud"] == "authenticated" else False
+                        True
+                        if user["last_sign_in_at"]
+                        > datetime.now(timezone.utc) - timedelta(minutes=5)
+                        else False
                     ),  # Check if the user is authenticated
                 }
                 # Append the return user to the list
@@ -330,35 +334,6 @@ async def verify_user(request: Request):
         )
 
 
-# @app.get("/functions/v1/getLoggedUsers/")
-# async def get_logged_users():
-#     print("Logged In users")
-#     # Iterate over the logged_in_users list and print the user information sequentially
-#     for user in logged_in_users:
-#         print(f"User: {user}\n")
-#     # return JSONResponse(content={"logged_in_users": [user.dict() for user in logged_in_users]}, status_code=200)
-
-
-# Route to signout a user that browser holds the uuid for. NOT COMPLETE YET
-@app.post("/functions/v1/signout/")
-async def signout_user(request: Request):
-    body = await request.json()
-    user_id = body.get("user_id")
-
-    global logged_in_users
-    logged_in_users = [user for user in logged_in_users if user.id != user_id]
-
-    # Sign out from supabase
-    supabase: Client = create_client(
-        supabase_url=os.environ.get("SUPABASE_URL"),
-        supabase_key=os.environ.get("SUPABASE_ANON_KEY"),
-    )
-    response = supabase.auth.sign_out(user_id)
-    print(response)
-
-    return JSONResponse(content={"signed_out": True}, status_code=200)
-
-
 """
 ##############################################
 ############### PROFILE ROUTES ###############
@@ -366,7 +341,7 @@ async def signout_user(request: Request):
 """
 
 
-@app.post("/api/profile/")
+@app.post("/aurora/aurora/api/profile/")
 async def get_user_profile(request: Request, session: SessionDep):
     # Assume since the user is logged in, the token is valid
     body = await request.json()
@@ -418,13 +393,13 @@ async def get_user_profile(request: Request, session: SessionDep):
 """
 
 
-@app.get("/api/users")
+@app.get("/aurora/api/users")
 async def get_all_users(session: SessionDep):
     users = session.exec(select(User)).all()
     return users
 
 
-@app.get("/api/users/active")
+@app.get("/aurora/api/users/active")
 async def get_active_users(session: SessionDep):
     active_users_count = len(
         session.exec(select(User).where(User.isOnline == True)).all()
@@ -432,7 +407,7 @@ async def get_active_users(session: SessionDep):
     return {"active_users": active_users_count}
 
 
-@app.delete("/api/users/{user_id}")
+@app.delete("/aurora/api/users/{user_id}")
 async def delete_user(user_id: int, session: SessionDep):
     user = session.get(User, user_id)
     if not user:
@@ -442,7 +417,7 @@ async def delete_user(user_id: int, session: SessionDep):
     return {"success": True}
 
 
-@app.put("/api/users/{user_id}")
+@app.put("/aurora/api/users/{user_id}")
 async def update_user(user_id: int, user_data: dict, session: SessionDep):
     """
     Update a user's information based on the user_id and the new data provided in the request body.
@@ -526,6 +501,12 @@ async def update_user(user_id: int, user_data: dict, session: SessionDep):
 ##############################################
 ####### PASSWORD-BASED AUTHENTICATION ########
 ##############################################
+"""
+
+"""
+################################################################
+######################## JWT AUTH TOKEN ########################
+################################################################
 """
 
 
@@ -616,6 +597,13 @@ async def login_for_access_token(request: Request, db: Session = Depends(get_ses
     )
 
 
+"""
+################################################################
+################################################################
+################################################################
+"""
+
+
 # Function to verify password and authenticate user
 async def verify_password(request: Request, db: Session) -> Dict:
     body = await request.json()
@@ -654,7 +642,7 @@ async def verify_password(request: Request, db: Session) -> Dict:
     }
 
 
-@app.post("/api/auth/password/register")
+@app.post("/aurora/api/auth/password/register")
 async def register_user(request: Request):
     try:
         body = await request.json()
@@ -710,7 +698,7 @@ async def register_user(request: Request):
 """
 
 
-@app.get("/api/auth/PKI/challenge")
+@app.get("/aurora/api/auth/PKI/challenge")
 async def get_challenge(address: str):
     if not w3.is_address(address):
         raise HTTPException(status_code=400, detail="Invalid Ethereum address.")
@@ -757,7 +745,7 @@ def verify_signature(message: str, signature: str, address: str, web3: Web3) -> 
         return False
 
 
-@app.post("/api/auth/PKI/sign")
+@app.post("/aurora/api/auth/PKI/sign")
 async def sign_message(request: Request):
     body = await request.json()
     address = body.get("address")
