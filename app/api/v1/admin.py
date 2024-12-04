@@ -253,3 +253,37 @@ async def delete_user(user_id: str, settings: settings_dependency):
         return JSONResponse(content={"error": str(e)}, status_code=401)
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=500)
+
+
+@router.put("/editUser")
+async def edit_user(request: Request, settings: settings_dependency):
+    data = await request.json()
+    user_id = data.get("id")
+    first_name = data.get("firstName")
+    last_name = data.get("lastName")
+    email = data.get("email")
+    phone_number = data.get("phone")
+
+    supabase: Client = create_client(
+        supabase_url=settings.SUPABASE_URL,
+        supabase_key=settings.SUPABASE_SERV_KEY,
+        options=ClientOptions(auto_refresh_token=False, persist_session=False),
+    )
+
+    try:
+        response = supabase.auth.admin.update_user_by_id(
+            user_id,
+            {
+                "email": email,
+                "user_metadata": {
+                    "firstName": first_name,
+                    "lastName": last_name,
+                    "phoneNumber": phone_number,
+                },
+            },
+        )
+        return JSONResponse(content=response, status_code=200)
+    except AuthApiError as e:
+        return JSONResponse(content={"error": str(e)}, status_code=401)
+    except Exception as e:
+        return JSONResponse(content={"error": str(e)}, status_code=500)
