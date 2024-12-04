@@ -196,3 +196,43 @@ async def getCurrentUser(request: Request, settings: settings_dependency):
         return JSONResponse(content={"error": str(e)}, status_code=401)
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=500)
+
+
+@router.get("/tickets")
+async def get_tickets(settings: settings_dependency):
+    supabase: Client = create_client(
+        supabase_url=settings.SUPABASE_URL,
+        supabase_key=settings.SUPABASE_ANON_KEY,
+    )
+
+    try:
+        response = supabase.table("tickets").select("*").execute()
+        print(f"Tickets: {response.data}")
+        return JSONResponse(content=response.data, status_code=200)
+    except Exception as e:
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
+
+@router.post("/tickets/{ticket_id}/complete")
+async def complete_ticket(ticket_id: int, settings: settings_dependency):
+    supabase: Client = create_client(
+        supabase_url=settings.SUPABASE_URL,
+        supabase_key=settings.SUPABASE_SERV_KEY,
+        options=ClientOptions(auto_refresh_token=False, persist_session=False),
+    )
+
+    try:
+        response = (
+            supabase.table("tickets")
+            .update(
+                {
+                    "status": "completed",
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
+            )
+            .eq("id", ticket_id)
+            .execute()
+        )
+        return JSONResponse(content=response.data, status_code=200)
+    except Exception as e:
+        return JSONResponse(content={"error": str(e)}, status_code=500)
