@@ -73,7 +73,13 @@ async def getUsers(settings: settings_dependency):
         for user in serialized_users:
             # Fetch the role from the user_roles table
             role = " "
-            role_response = supabase.table("user_roles").select("role").eq("user_id", user["id"]).single().execute()
+            role_response = (
+                supabase.table("user_roles")
+                .select("role")
+                .eq("user_id", user["id"])
+                .single()
+                .execute()
+            )
             role = role_response.data["role"] if role_response.data else "user"
 
             # Print User id for debugging
@@ -113,7 +119,7 @@ async def getUsers(settings: settings_dependency):
                     "firstName": user["user_metadata"].get(
                         "firstName", ""
                     ),  # Safely get firstName or empty string
-                    "secondName": user["user_metadata"].get(
+                    "lastName": user["user_metadata"].get(
                         "lastName", ""
                     ),  # Safely get lastName or empty string
                     "email": user["email"],
@@ -185,7 +191,9 @@ async def addUsers(request: Request, settings: settings_dependency):
 
         # Map the user to their role
         user_id = user.user.id
-        supabase.table("user_roles").insert({"user_id": user_id, "role": role}).execute()
+        supabase.table("user_roles").insert(
+            {"user_id": user_id, "role": role}
+        ).execute()
     except AuthApiError as e:
         return JSONResponse(content={"error": str(e)}, status_code=401)
 
@@ -305,15 +313,17 @@ async def edit_user(request: Request, settings: settings_dependency):
         print(f"Response: {response}")
 
         # Update the user's role
-        supabase.table("user_roles").upsert({"user_id": user_id, "role": role}).execute()
+        supabase.table("user_roles").upsert(
+            {"user_id": user_id, "role": role}
+        ).execute()
 
         # Check if the response contains the requested changes
         user = response.user
         if (
-            user.email == email and
-            user.user_metadata.get("firstName") == first_name and
-            user.user_metadata.get("lastName") == last_name and
-            user.user_metadata.get("phoneNumber") == phone_number
+            user.email == email
+            and user.user_metadata.get("firstName") == first_name
+            and user.user_metadata.get("lastName") == last_name
+            and user.user_metadata.get("phoneNumber") == phone_number
         ):
             return JSONResponse(content={"message": "ok"}, status_code=200)
         else:
@@ -321,6 +331,43 @@ async def edit_user(request: Request, settings: settings_dependency):
     except AuthApiError as e:
         print(f"Error: {e}")
         return JSONResponse(content={"error": str(e)}, status_code=401)
+    except Exception as e:
+        print(f"Error: {e}")
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
+
+@router.get("/profile")
+async def get_admin_profile(request: Request, settings: settings_dependency):
+    access_token = request.headers.get("Authorization").split(" ")[1]
+    print(f"Access Token: {access_token}")
+    supabase: Client = create_client(
+        supabase_url=settings.SUPABASE_URL,
+        supabase_key=settings.SUPABASE_ANON_KEY,
+    )
+
+    try:
+        user_response = supabase.auth.get_user(access_token)
+        user = user_response.user
+        print(f"GOT USER: {user}")
+
+        # Fetch the role from the user_roles table
+        role_response = (
+            supabase.table("user_roles")
+            .select("role")
+            .eq("user_id", user.id)
+            .single()
+            .execute()
+        )
+        role = role_response.data["role"] if role_response.data else "admin"
+
+        user_data = {
+            "firstName": user.user_metadata.get("firstName", ""),
+            "lastName": user.user_metadata.get("lastName", ""),
+            "email": user.email,
+            "phone": user.phone if user.phone else "N/A",
+            "role": role,
+        }
+        return JSONResponse(content=user_data, status_code=200)
     except Exception as e:
         print(f"Error: {e}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
