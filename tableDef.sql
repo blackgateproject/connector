@@ -30,3 +30,10 @@ create table
     updated_at timestamp with time zone not null default now(),
     constraint tickets_pkey primary key (id)
   ) tablespace pg_default;
+
+-- Create a new table to map users to their roles
+create table public.user_roles (
+    user_id uuid references auth.users(id) on delete cascade,
+    role text not null,
+    constraint user_roles_pkey primary key (user_id)
+) tablespace pg_default;

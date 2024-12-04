@@ -71,6 +71,11 @@ async def getUsers(settings: settings_dependency):
 
         # Loop through serialized users
         for user in serialized_users:
+            # Fetch the role from the user_roles table
+            role = " "
+            role_response = supabase.table("user_roles").select("role").eq("user_id", user["id"]).single().execute()
+            role = role_response.data["role"] if role_response.data else "user"
+
             # Print User id for debugging
             print(f"User ID: {user['id']}")
 
@@ -88,6 +93,8 @@ async def getUsers(settings: settings_dependency):
                         "email"
                     ],  # Using email as first name for users without metadata
                     "secondName": "",  # No second name if no metadata
+                    "email": user["email"],
+                    "role": role if role else "N/A",
                     # Set online to true if last_sign_in_at was 5 mins ago. time is stored as 2024-12-01T20:53:27.176864+00:00
                     "online": (
                         True
@@ -109,6 +116,8 @@ async def getUsers(settings: settings_dependency):
                     "secondName": user["user_metadata"].get(
                         "lastName", ""
                     ),  # Safely get lastName or empty string
+                    "email": user["email"],
+                    "role": role,
                     "online": (
                         True if user["aud"] == "authenticated" else False
                     ),  # Check if the user is authenticated
@@ -136,7 +145,6 @@ async def getUsers(settings: settings_dependency):
 
 @router.post("/addUser")
 async def addUsers(request: Request, settings: settings_dependency):
-    # Maybve user the Admin Auth client, this will allow to use to the email confirm option
     # Get data
     data = await request.json()
     firstName = data.get("firstName")
@@ -144,12 +152,13 @@ async def addUsers(request: Request, settings: settings_dependency):
     email = data.get("email")
     phoneNumber = data.get("phoneNumber")
     password = data.get("password")
+    role = data.get("role")  # Get the role from the request body
     autoConfirm = True if data.get("autoConfirm") == "true" else False
 
     # Print the data for debugging
     print(f"User Data:")
     print(
-        f"First Name: {firstName}\nLast Name: {lastName}\nEmail: {email}\nPhone: {phoneNumber}\nPassword: {password}\nAuto Confirm: {autoConfirm}"
+        f"First Name: {firstName}\nLast Name: {lastName}\nEmail: {email}\nPhone: {phoneNumber}\nPassword: {password}\nRole: {role}\nAuto Confirm: {autoConfirm}"
     )
 
     # Initialize the Supabase client
@@ -173,6 +182,10 @@ async def addUsers(request: Request, settings: settings_dependency):
             }
         )
         print(f"User: {user}")
+
+        # Map the user to their role
+        user_id = user.user.id
+        supabase.table("user_roles").insert({"user_id": user_id, "role": role}).execute()
     except AuthApiError as e:
         return JSONResponse(content={"error": str(e)}, status_code=401)
 
@@ -248,7 +261,9 @@ async def delete_user(user_id: str, settings: settings_dependency):
 
     try:
         response = supabase.auth.admin.delete_user(user_id)
-        return JSONResponse(content={"message": "User deleted successfully"}, status_code=200)
+        return JSONResponse(
+            content={"message": "User deleted successfully"}, status_code=200
+        )
     except AuthApiError as e:
         return JSONResponse(content={"error": str(e)}, status_code=401)
     except Exception as e:
@@ -263,6 +278,10 @@ async def edit_user(request: Request, settings: settings_dependency):
     last_name = data.get("lastName")
     email = data.get("email")
     phone_number = data.get("phone")
+    password = data.get("password")
+    role = data.get("role")
+
+    print(f"User Data: {data}")
 
     supabase: Client = create_client(
         supabase_url=settings.SUPABASE_URL,
@@ -275,15 +294,33 @@ async def edit_user(request: Request, settings: settings_dependency):
             user_id,
             {
                 "email": email,
+                "password": password,
+                "phoneNumber": phone_number,
                 "user_metadata": {
                     "firstName": first_name,
                     "lastName": last_name,
-                    "phoneNumber": phone_number,
                 },
             },
         )
-        return JSONResponse(content=response, status_code=200)
+        print(f"Response: {response}")
+
+        # Update the user's role
+        supabase.table("user_roles").upsert({"user_id": user_id, "role": role}).execute()
+
+        # Check if the response contains the requested changes
+        user = response.user
+        if (
+            user.email == email and
+            user.user_metadata.get("firstName") == first_name and
+            user.user_metadata.get("lastName") == last_name and
+            user.user_metadata.get("phoneNumber") == phone_number
+        ):
+            return JSONResponse(content={"message": "ok"}, status_code=200)
+        else:
+            return JSONResponse(content={"error": "Update failed"}, status_code=500)
     except AuthApiError as e:
+        print(f"Error: {e}")
         return JSONResponse(content={"error": str(e)}, status_code=401)
     except Exception as e:
+        print(f"Error: {e}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
