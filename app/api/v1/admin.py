@@ -236,3 +236,20 @@ async def complete_ticket(ticket_id: int, settings: settings_dependency):
         return JSONResponse(content=response.data, status_code=200)
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=500)
+
+
+@router.delete("/deleteUser/{user_id}")
+async def delete_user(user_id: str, settings: settings_dependency):
+    supabase: Client = create_client(
+        supabase_url=settings.SUPABASE_URL,
+        supabase_key=settings.SUPABASE_SERV_KEY,
+        options=ClientOptions(auto_refresh_token=False, persist_session=False),
+    )
+
+    try:
+        response = supabase.auth.admin.delete_user(user_id)
+        return JSONResponse(content={"message": "User deleted successfully"}, status_code=200)
+    except AuthApiError as e:
+        return JSONResponse(content={"error": str(e)}, status_code=401)
+    except Exception as e:
+        return JSONResponse(content={"error": str(e)}, status_code=500)
