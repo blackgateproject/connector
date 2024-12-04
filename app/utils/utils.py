@@ -11,13 +11,13 @@ from fastapi import Depends
 from fastapi.responses import JSONResponse
 from gotrue import AuthResponse
 from gotrue.types import AuthResponse
-from supabase import Client, create_client
+from supabase import Client, create_async_client, create_client
 from supabase.client import AuthApiError
 from supabase.lib.client_options import ClientOptions
 from typing_extensions import Annotated
 
-from ..models.user import User
 from ..core.config import Settings
+from ..models.user import User
 
 
 @lru_cache
@@ -25,40 +25,54 @@ def get_settings():
     return Settings()
 
 
-get_settings_dependency = Annotated[Settings, Depends(get_settings)]
+settings_dependency = Annotated[Settings, Depends(get_settings)]
 
+# HIGHLY POSSIBLE THAT THE FUNCTION WAS NOT BEING CALLED CORRECTLY 
+# ERROR COMING FROM THE FACT THAT SUPABASE_KEY IS CALLED NOT SUPABASE_ANON_KEY OR 
+# SUPABASE_SERV_KEY
 
-def supaClient(settings: get_settings_dependency, useAdmin: bool = False):
-    """
-    Create a Supabase Client instance
-    :param settings: Settings
-    :param useAdmin: bool
-    :return: Supabase Client instance
-    """
-    try:
-        if useAdmin:
-            supabase: Client = create_client(
-                supabase_url=settings.SUPABASE_URL,
-                supabase_serv_key=settings.SUPABASE_SERV_KEY,
-            )
-        else:
-            supabase: Client = create_client(
-                supabase_url=settings.SUPABASE_URL,
-                supabase_anon_key=settings.SUPABASE_ANON_KEY,
-            )
-    except AuthApiError as e:
-        print(f"Error: {e.message}")
-        return {"error": e.message}
-    except Exception as e:
-        if "WinError 10061" in str(e):
-            return JSONResponse(
-                content={
-                    "authenticated": False,
-                    "error": "Supabase docker image is down/not responding",
-                },
-                status_code=500,
-            )
-    return supabase
+# # def supaClient(settings: settings_dependency, useAdmin: bool = False) -> Client:
+# async def supaClient(settings: settings_dependency, useAdmin: bool = False):
+#     """
+#     Create a Supabase Client instance
+#     :param settings: Settings
+#     :param useAdmin: bool
+#     :return: Supabase Client instance
+#     """
+#     try:
+#         if useAdmin:
+#             print(
+#                 f"[UTILS]: WARNING UseAdmin==True \nCreating Supabase client with anon key"
+#             )
+#             supabase: Client = await create_async_client(
+#                 supabase_url=settings.SUPABASE_URL,
+#                 supabase_serv_key=settings.SUPABASE_SERV_KEY,
+#             )
+#             print(f"[UTILS]: Supabase client created \n{supabase}")
+#         else:
+#             print(f"[UTILS]: Creating Supabase client with anon key")
+#             supabase: Client = await create_async_client(
+#                 supabase_url=settings.SUPABASE_URL,
+#                 supabase_anon_key=settings.SUPABASE_ANON_KEY,
+#             )
+#             print(f"[UTILS]: Supabase client created \n{supabase}")
+#         if not supabase.auth.session:
+#             raise Exception("Session not found")
+#         if supabase is None:
+#             raise Exception("[ERROR]: Supabase client not created")
+#         return supabase
+#     except AuthApiError as e:
+#         print(f"Error: {e.message}")
+#         return {"error": e.message}
+#     except Exception as e:
+#         if "WinError 10061" in str(e):
+#             return JSONResponse(
+#                 content={
+#                     "authenticated": False,
+#                     "error": "Supabase docker image is down/not responding",
+#                 },
+#                 status_code=500,
+#             )
 
 
 def json_serialize(obj):

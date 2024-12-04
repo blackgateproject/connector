@@ -1,8 +1,11 @@
+import base64
 import json
+import os
 import uuid
 from datetime import datetime, timedelta, timezone, tzinfo
 from functools import lru_cache
 
+import web3
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 from eth_keys import keys
@@ -17,10 +20,10 @@ from supabase.lib.client_options import ClientOptions
 from typing_extensions import Annotated
 from web3 import Web3
 
-from .utils import get_settings_dependency
+from .utils import settings_dependency
 
 # Hardhat testnet, Check .env for URL Errors if any
-w3 = Web3(Web3.HTTPProvider(get_settings_dependency().HARDHAT_URL))
+w3 = Web3(Web3.HTTPProvider(settings_dependency().HARDHAT_URL))
 
 
 def revoke_did(address: str):
