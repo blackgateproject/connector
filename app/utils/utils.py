@@ -163,12 +163,13 @@ def print_user(user: User):
     print()
 
 
-async def log_user_action(user_id: str, activity: str, settings: settings_dependency):
+async def log_user_action(user_id: str, activity: str, settings: settings_dependency, type: str):
     """
     Log user actions to the user_activity_logs table.
     :param user_id: str
     :param activity: str
     :param settings: Settings
+    :param type: str
     """
     supabase: Client = create_client(
         supabase_url=settings.SUPABASE_URL,
@@ -180,6 +181,7 @@ async def log_user_action(user_id: str, activity: str, settings: settings_depend
             {
                 "user_id": user_id,
                 "activity": activity,
+                "type": type,  # Include type in the log
             }
         ).execute()
         print(f"Log created: {response}")

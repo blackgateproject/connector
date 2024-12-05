@@ -7,7 +7,7 @@ from supabase import AuthApiError
 from supabase.client import Client, create_client
 
 from ...models.user import User
-from ...utils.utils import extractUserInfo, settings_dependency
+from ...utils.utils import extractUserInfo, log_user_action, settings_dependency
 
 router = APIRouter()
 
@@ -62,6 +62,8 @@ async def verify(request: Request, settings: settings_dependency):
             # Print logged-in user information
             # if debug:
             #     print(f"Added user to local store: \n{user_instance}")
+
+            await log_user_action(user_data["id"], "User logged in", settings, type="Login")
 
             # Return authenticated response
             return JSONResponse(
@@ -134,6 +136,7 @@ async def logout(request: Request, settings: settings_dependency):
         for user in logged_in_users:
             if user.uuid == uuid:
                 logged_in_users.remove(user)
+                await log_user_action(uuid, "User logged out", settings, type="Logout")
                 return JSONResponse(
                     content={"authenticated": False, "message": "User logged out"},
                     status_code=200,

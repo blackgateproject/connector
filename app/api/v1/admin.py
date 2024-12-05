@@ -4,10 +4,53 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from supabase import AuthApiError, Client, ClientOptions, create_client
 
-from ...utils.utils import json_serialize, settings_dependency
-from ...utils.utils import log_user_action
+from ...utils.utils import json_serialize, log_user_action, settings_dependency
 
 router = APIRouter()
+
+
+@router.get("/user-activity-logs")
+async def get_user_activity_logs(settings: settings_dependency):
+    supabase: Client = create_client(
+        supabase_url=settings.SUPABASE_URL,
+        supabase_key=settings.SUPABASE_SERV_KEY,
+    )
+
+    try:
+        response = supabase.table("user_activity_logs").select("*").execute()
+        return JSONResponse(content=response.data, status_code=200)
+    except Exception as e:
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
+
+@router.post("/log")
+async def log_action(request: Request, settings: settings_dependency):
+    data = await request.json()
+    user_id = data.get("user_id")
+    activity = data.get("activity")
+
+    supabase: Client = create_client(
+        supabase_url=settings.SUPABASE_URL,
+        supabase_key=settings.SUPABASE_SERV_KEY,
+    )
+
+    try:
+        response = (
+            supabase.table("user_activity_logs")
+            .insert(
+                {
+                    "user_id": user_id,
+                    "activity": activity,
+                    "type": data.get("type"),  # Include type in the log
+                }
+            )
+            .execute()
+        )
+        return JSONResponse(
+            content={"message": "Log created successfully"}, status_code=200
+        )
+    except Exception as e:
+        return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
 @router.get("/")
@@ -195,7 +238,7 @@ async def addUsers(request: Request, settings: settings_dependency):
         supabase.table("user_roles").insert(
             {"user_id": user_id, "role": role}
         ).execute()
-        await log_user_action(user_id, f"Added user: {email}", settings)
+        await log_user_action(user_id, f"Added user: {email}", settings, type="User Addition")
     except AuthApiError as e:
         return JSONResponse(content={"error": str(e)}, status_code=401)
 
@@ -256,7 +299,7 @@ async def complete_ticket(ticket_id: int, settings: settings_dependency):
             .eq("id", ticket_id)
             .execute()
         )
-        await log_user_action(ticket_id, "Completed ticket", settings)
+        await log_user_action(ticket_id, "Completed ticket", settings, type="Ticket Completion")
         return JSONResponse(content=response.data, status_code=200)
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=500)
@@ -272,7 +315,7 @@ async def delete_user(user_id: str, settings: settings_dependency):
 
     try:
         response = supabase.auth.admin.delete_user(user_id)
-        await log_user_action(user_id, "Deleted user", settings)
+        await log_user_action(user_id, "Deleted user", settings, type="User Deletion")
         return JSONResponse(
             content={"message": "User deleted successfully"}, status_code=200
         )
@@ -320,7 +363,7 @@ async def edit_user(request: Request, settings: settings_dependency):
         supabase.table("user_roles").upsert(
             {"user_id": user_id, "role": role}
         ).execute()
-        await log_user_action(user_id, "Edited user", settings)
+        await log_user_action(user_id, "Edited user", settings, type="User Edit")
 
         # Check if the response contains the requested changes
         user = response.user
@@ -372,7 +415,61 @@ async def get_admin_profile(request: Request, settings: settings_dependency):
             "phone": user.phone if user.phone else "N/A",
             "role": role,
         }
+        await log_user_action(user.id, "Viewed admin profile", settings, type="Profile View")
         return JSONResponse(content=user_data, status_code=200)
     except Exception as e:
         print(f"Error: {e}")
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
+
+@router.get("/getUser/{user_id}")
+async def get_user(user_id: str, settings: settings_dependency):
+    supabase: Client = create_client(
+        supabase_url=settings.SUPABASE_URL,
+        supabase_key=settings.SUPABASE_SERV_KEY,
+    )
+
+    try:
+        user_response = supabase.auth.admin.get_user_by_id(user_id)
+        user = user_response.user
+
+        user_data = {
+            "id": user.id,
+            "email": user.email,
+            "firstName": user.user_metadata.get("firstName", ""),
+            "lastName": user.user_metadata.get("lastName", ""),
+            "phone": user.phone,
+            "role": user.app_metadata.get("role", "user"),
+        }
+
+        return JSONResponse(content=user_data, status_code=200)
+    except Exception as e:
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
+
+@router.get("/getAllUsers")
+async def get_all_users(settings: settings_dependency):
+    supabase: Client = create_client(
+        supabase_url=settings.SUPABASE_URL,
+        supabase_key=settings.SUPABASE_SERV_KEY,
+    )
+
+    try:
+        users_response = supabase.auth.admin.list_users(page=1, per_page=100)
+        users = users_response
+
+        user_data_list = [
+            {
+                "id": user.id,
+                "email": user.email,
+                "firstName": user.user_metadata.get("firstName", ""),
+                "lastName": user.user_metadata.get("lastName", ""),
+                "phone": user.phone,
+                "role": user.app_metadata.get("role", "user"),
+            }
+            for user in users
+        ]
+
+        return JSONResponse(content=user_data_list, status_code=200)
+    except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=500)
