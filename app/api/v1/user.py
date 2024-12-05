@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 from supabase import Client, ClientOptions, create_client
 
 from ...utils.utils import settings_dependency
+from ...utils.utils import log_user_action
 
 router = APIRouter()
 
@@ -46,6 +47,7 @@ async def create_ticket(request: Request, settings: settings_dependency):
         )
 
         print(f"Response: {response}")
+        await log_user_action(user_id, f"Created ticket: {title}", settings)
         return JSONResponse(content=response.data, status_code=200)
     except Exception as e:
         print(f"Error creating ticket: {str(e)}")  # Add error logging
@@ -83,6 +85,7 @@ async def get_user_profile(request: Request, settings: settings_dependency):
             "passwordSet": True,
             "twoFactorAuth": False,
         }
+        await log_user_action(user.id, "Viewed profile", settings)
         return JSONResponse(content=user_data, status_code=200)
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=500)

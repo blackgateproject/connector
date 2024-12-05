@@ -161,3 +161,27 @@ def print_user(user: User):
         print(f"  Blockchain Address: {user.blockchain_address}")
     print(f"  Is Online: {user.isOnline}")
     print()
+
+
+async def log_user_action(user_id: str, activity: str, settings: settings_dependency):
+    """
+    Log user actions to the user_activity_logs table.
+    :param user_id: str
+    :param activity: str
+    :param settings: Settings
+    """
+    supabase: Client = create_client(
+        supabase_url=settings.SUPABASE_URL,
+        supabase_key=settings.SUPABASE_SERV_KEY,
+    )
+
+    try:
+        response = supabase.table("user_activity_logs").insert(
+            {
+                "user_id": user_id,
+                "activity": activity,
+            }
+        ).execute()
+        print(f"Log created: {response}")
+    except Exception as e:
+        print(f"Error logging action: {str(e)}")

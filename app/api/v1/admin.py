@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 from supabase import AuthApiError, Client, ClientOptions, create_client
 
 from ...utils.utils import json_serialize, settings_dependency
+from ...utils.utils import log_user_action
 
 router = APIRouter()
 
@@ -194,6 +195,7 @@ async def addUsers(request: Request, settings: settings_dependency):
         supabase.table("user_roles").insert(
             {"user_id": user_id, "role": role}
         ).execute()
+        await log_user_action(user_id, f"Added user: {email}", settings)
     except AuthApiError as e:
         return JSONResponse(content={"error": str(e)}, status_code=401)
 
@@ -254,6 +256,7 @@ async def complete_ticket(ticket_id: int, settings: settings_dependency):
             .eq("id", ticket_id)
             .execute()
         )
+        await log_user_action(ticket_id, "Completed ticket", settings)
         return JSONResponse(content=response.data, status_code=200)
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=500)
@@ -269,6 +272,7 @@ async def delete_user(user_id: str, settings: settings_dependency):
 
     try:
         response = supabase.auth.admin.delete_user(user_id)
+        await log_user_action(user_id, "Deleted user", settings)
         return JSONResponse(
             content={"message": "User deleted successfully"}, status_code=200
         )
@@ -316,6 +320,7 @@ async def edit_user(request: Request, settings: settings_dependency):
         supabase.table("user_roles").upsert(
             {"user_id": user_id, "role": role}
         ).execute()
+        await log_user_action(user_id, "Edited user", settings)
 
         # Check if the response contains the requested changes
         user = response.user
