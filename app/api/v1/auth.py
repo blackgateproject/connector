@@ -1,5 +1,6 @@
 from uuid import UUID
 
+from didkit import DIDKit
 from fastapi import APIRouter
 from fastapi.requests import Request
 from fastapi.responses import JSONResponse
@@ -7,12 +8,15 @@ from supabase import AuthApiError
 from supabase.client import Client, create_client
 
 from ...models.user import User
-from ...utils.utils import extractUserInfo, log_user_action, settings_dependency
+from ...utils.utils import extract_user_details_for_passwordless, extractUserInfo, log_user_action, settings_dependency
+from ...utils.web3_utils import verify_identity_with_stateless_blockchain, verify_vc, verify_with_rsa_accumulator, get_did_from_registry
 
 router = APIRouter()
 
 # Global list to store logged-in users (Shift this to supabase DB eventually)
 logged_in_users = []
+
+didkit = DIDKit()
 
 
 @router.get("/")
@@ -63,7 +67,9 @@ async def verify(request: Request, settings: settings_dependency):
             # if debug:
             #     print(f"Added user to local store: \n{user_instance}")
 
-            await log_user_action(user_data["id"], "User logged in", settings, type="Login")
+            await log_user_action(
+                user_data["id"], "User logged in", settings, type="Login"
+            )
 
             # Return authenticated response
             return JSONResponse(
@@ -149,3 +155,75 @@ async def logout(request: Request, settings: settings_dependency):
         return JSONResponse(
             content={"authenticated": False, "error": str(e)}, status_code=500
         )
+
+
+@router.post("/passwordless-login")
+async def passwordless_login(request: Request, settings: settings_dependency):
+    """
+    Passwordless login using W3C compliant DID and Verifiable Credentials.
+    """
+    body = await request.json()
+    did = body.get("did")
+    proof = body.get("proof")
+    context = body.get("context")
+    issuance_date = body.get("issuance_date")
+
+    supabase: Client = create_client(
+        supabase_url=settings.SUPABASE_URL, supabase_key=settings.SUPABASE_ANON_KEY
+    )
+
+    try:
+        user_response = supabase.auth.get_user_by_did(did)
+        user = user_response.user
+        user_details = extract_user_details_for_passwordless(user)
+
+        vc = {
+            "@context": context,
+            "type": ["VerifiableCredential"],
+            "issuer": did,
+            "issuanceDate": issuance_date,
+            "credentialSubject": {"id": user_details["id"], "proof": proof},
+        }
+
+        if verify_vc(vc):
+            await log_user_action(
+                user_details["id"], "Passwordless login", settings, type="Login"
+            )
+            return JSONResponse(
+                content={
+                    "authenticated": True,
+                    "user": user_details,
+                },
+                status_code=200,
+            )
+        else:
+            return JSONResponse(
+                content={"authenticated": False, "error": "Invalid proof"},
+                status_code=401,
+            )
+    except Exception as e:
+        return JSONResponse(
+            content={"authenticated": False, "error": str(e)}, status_code=500
+        )
+
+
+@router.post("/verify-identity")
+async def verify_identity(request: Request):
+    data = await request.json()
+    user = data.get("user")
+    identity_credential = data.get("identity_credential")
+    result = verify_identity_with_stateless_blockchain(user, identity_credential)
+    return JSONResponse(content={"result": result}, status_code=200)
+
+@router.post("/verify-rsa")
+async def verify_rsa(request: Request):
+    data = await request.json()
+    base = data.get("base")
+    e = data.get("e")
+    result = verify_with_rsa_accumulator(base, e)
+    return JSONResponse(content={"result": result}, status_code=200)
+
+@router.get("/get-did/{controller}")
+async def get_did(controller: str):
+    did = get_did_from_registry(controller)
+    return JSONResponse(content={"did": did}, status_code=200)

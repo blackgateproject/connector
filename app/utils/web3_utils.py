@@ -8,6 +8,7 @@ from functools import lru_cache
 import web3
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
+from didkit import DIDKit
 from eth_keys import keys
 from eth_utils import decode_hex
 from fastapi import Depends
@@ -24,6 +25,8 @@ from .utils import settings_dependency
 
 # Hardhat testnet, Check .env for URL Errors if any
 w3 = Web3(Web3.HTTPProvider(settings_dependency().HARDHAT_URL))
+
+didkit = DIDKit()
 
 
 def revoke_did(address: str):
@@ -63,14 +66,20 @@ def get_did(address: str):
     return did
 
 
-def issue_vc(issuer: str, holder: str, credential_hash: str):
+def issue_vc(issuer: str, holder: str, credential_subject: dict, private_key: str):
     """
-    Issue a Verifiable Credential (VC) on the blockchain.
+    Issue a W3C compliant Verifiable Credential (VC).
     """
-    contract = initialize_contract()
-    tx = contract.functions.issueVC(holder, credential_hash).transact({"from": issuer})
-    receipt = w3.eth.wait_for_transaction_receipt(tx)
-    return receipt
+    vc = {
+        "@context": ["https://www.w3.org/2018/credentials/v1"],
+        "type": ["VerifiableCredential"],
+        "issuer": issuer,
+        "issuanceDate": datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
+        "credentialSubject": credential_subject,
+    }
+    vc_proof = didkit.issue_credential(json.dumps(vc), json.dumps({}), private_key)
+    vc["proof"] = json.loads(vc_proof)
+    return vc
 
 
 def verify_signature(message: str, signature: str, address: str, w3: Web3) -> bool:
@@ -220,43 +229,40 @@ def verify_signature(message: str, signature: str, address: str, w3Prov: Web3) -
 
 
 # Load the deployment information
-def getContract():
-    debug = False
-    # Define the base directory (prefix path)
+def getContractDetails(contract_name: str):
+    """
+    Retrieve the contract address and ABI for a given contract name.
+    """
     base_dir = r"..\blockchain\ignition\deployments\chain-31337"
-
-    # Construct the paths to the ABI and address JSON files by prefixing the base directory
-    abi_json_path = os.path.join(
-        base_dir, "artifacts", "DIDRegistryModule#DIDRegistry.json"
-    )
+    abi_json_path = os.path.join(base_dir, "artifacts", f"{contract_name}.json")
     address_json_path = os.path.join(base_dir, "deployed_addresses.json")
 
-    print(f"Loading contract details...")
-    print(f"  ABI Path: {abi_json_path}")
-    print(f"  Address Path: {address_json_path}")
-
-    # Load the ABI and contract address in one go
     with open(abi_json_path, "r") as abi_file:
         contract_data = json.load(abi_file)
 
     with open(address_json_path, "r") as address_file:
         deployed_addresses = json.load(address_file)
 
-    # Extract contract ABI and address
     contract_abi = contract_data["abi"]
-    contract_address = deployed_addresses.get("DIDRegistryModule#DIDRegistry", "")
+    contract_address = deployed_addresses.get(contract_name, "")
 
-    # Print contract address
+    return contract_address, contract_abi
+
+
+def getContract(contract_name: str):
+    """
+    Load the deployment information for a given contract.
+    """
+    debug = False
+    contract_address, contract_abi = getContractDetails(contract_name)
+
+    print(f"Loading contract details...")
     print(f"  Contract Address: {contract_address}\n")
 
-    # Loop through the ABI and print details for each function
     if debug:
         for item in contract_abi:
-            # Only print function details, skip events
             if item["type"] == "function":
                 print(f"Function Name: {item['name']}")
-
-                # Print function inputs
                 if item["inputs"]:
                     print("  Inputs:")
                     for input_param in item["inputs"]:
@@ -265,8 +271,6 @@ def getContract():
                         )
                 else:
                     print("  Inputs: None")
-
-                # Print function outputs
                 if item["outputs"]:
                     print("  Outputs:")
                     for output_param in item["outputs"]:
@@ -275,20 +279,71 @@ def getContract():
                         )
                 else:
                     print("  Outputs: None")
-
                 print("-" * 50)
 
-    # Return both the contract address and ABI for further use
     return contract_address, contract_abi
+
+
+def initialize_stateless_blockchain_contract():
+    contract_address, contract_abi = getContract("StatelessBlockchain")
+    return w3.eth.contract(address=contract_address, abi=contract_abi)
+
+
+def initialize_rsa_accumulator_contract():
+    contract_address, contract_abi = getContract("RSAAccumulator")
+    return w3.eth.contract(address=contract_address, abi=contract_abi)
+
+
+def initialize_did_registry_contract():
+    contract_address, contract_abi = getContract("DIDRegistry")
+    return w3.eth.contract(address=contract_address, abi=contract_abi)
 
 
 # Initialize Web3 and the contract
 def initialize_contract():
     w3 = Web3(Web3.HTTPProvider("http://localhost:8545"))
-    # contract_address, contract_abi = spawnContract()
-    contract_address, contract_abi = getContract()
+    # Deploy StatelessBlockchain contract
+    stateless_blockchain_contract = deploy_stateless_blockchain_contract()
+    stateless_blockchain_address = stateless_blockchain_contract.address
 
-    return w3.eth.contract(address=contract_address, abi=contract_abi)
+    # Retrieve the addresses of the DIDRegistry and RSAAccumulator contracts
+    did_registry_address = stateless_blockchain_contract.functions.didRegistry().call()
+    rsa_accumulator_address = (
+        stateless_blockchain_contract.functions.rsaAccumulator().call()
+    )
+
+    return stateless_blockchain_address, did_registry_address, rsa_accumulator_address
+
+
+def deploy_stateless_blockchain_contract():
+    # Load the ABI and bytecode for the StatelessBlockchain contract
+    with open("path/to/StatelessBlockchain.json") as f:
+        contract_data = json.load(f)
+    abi = contract_data["abi"]
+    bytecode = contract_data["bytecode"]
+
+    # Deploy the contract
+    StatelessBlockchain = w3.eth.contract(abi=abi, bytecode=bytecode)
+    tx_hash = StatelessBlockchain.constructor(256).transact(
+        {"from": w3.eth.accounts[0]}
+    )
+    tx_receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
+    return w3.eth.contract(address=tx_receipt.contractAddress, abi=abi)
+
+
+def verify_identity_with_stateless_blockchain(user, identity_credential):
+    contract = initialize_stateless_blockchain_contract()
+    return contract.functions.verifyIdentity(user, identity_credential).call()
+
+
+def verify_with_rsa_accumulator(base, e):
+    contract = initialize_rsa_accumulator_contract()
+    return contract.functions.verify(base, e).call()
+
+
+def get_did_from_registry(controller):
+    contract = initialize_did_registry_contract()
+    return contract.functions.getDID(controller).call()
 
 
 # Get all accounts from hardhat testnet
@@ -301,3 +356,28 @@ def get_accounts():
     with open("accounts.json", "r") as file:
         accounts = json.load(file)
     return accounts
+
+
+def verify_did(context: str, holder: str, issuance_date: str, proof: str) -> bool:
+    """
+    Verify a DID using a Verifiable Credential.
+    """
+    contract = initialize_contract()
+    return contract.functions.verifyDID(context, holder, issuance_date, proof).call()
+
+
+def generate_vc_proof(vc_data: dict, private_key: str) -> str:
+    """
+    Generate a proof (signature) for a Verifiable Credential.
+    """
+    vc_json = json.dumps(vc_data, sort_keys=True)
+    return sign_message(vc_json, private_key)
+
+
+def verify_vc(vc: dict) -> bool:
+    """
+    Verify a W3C compliant Verifiable Credential (VC).
+    """
+    vc_str = json.dumps(vc)
+    result = didkit.verify_credential(vc_str, json.dumps({}))
+    return json.loads(result)["errors"] == []
