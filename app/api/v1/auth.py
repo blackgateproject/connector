@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from didkit import DIDKit
+import didkit
 from fastapi import APIRouter
 from fastapi.requests import Request
 from fastapi.responses import JSONResponse
@@ -16,7 +16,7 @@ router = APIRouter()
 # Global list to store logged-in users (Shift this to supabase DB eventually)
 logged_in_users = []
 
-didkit = DIDKit()
+
 
 
 @router.get("/")

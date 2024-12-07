@@ -5,10 +5,10 @@ import uuid
 from datetime import datetime, timedelta, timezone, tzinfo
 from functools import lru_cache
 
+import didkit
 import web3
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
-from didkit import DIDKit
 from eth_keys import keys
 from eth_utils import decode_hex
 from fastapi import Depends
@@ -21,12 +21,16 @@ from supabase.lib.client_options import ClientOptions
 from typing_extensions import Annotated
 from web3 import Web3
 
-from .utils import settings_dependency
+from ..core.config import Settings
+
+@lru_cache
+def get_settings():
+    return Settings()
+
+settings_dependency = Annotated[Settings, Depends(get_settings)]
 
 # Hardhat testnet, Check .env for URL Errors if any
 w3 = Web3(Web3.HTTPProvider(settings_dependency().HARDHAT_URL))
-
-didkit = DIDKit()
 
 
 def revoke_did(address: str):
