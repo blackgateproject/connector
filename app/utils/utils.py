@@ -18,6 +18,11 @@ from typing_extensions import Annotated
 
 from ..core.config import Settings
 from ..models.user import User
+from .web3_utils import (
+    get_did_from_registry,
+    verify_identity_with_stateless_blockchain,
+    verify_with_rsa_accumulator,
+)
 
 
 @lru_cache
@@ -27,8 +32,8 @@ def get_settings():
 
 settings_dependency = Annotated[Settings, Depends(get_settings)]
 
-# HIGHLY POSSIBLE THAT THE FUNCTION WAS NOT BEING CALLED CORRECTLY 
-# ERROR COMING FROM THE FACT THAT SUPABASE_KEY IS CALLED NOT SUPABASE_ANON_KEY OR 
+# HIGHLY POSSIBLE THAT THE FUNCTION WAS NOT BEING CALLED CORRECTLY
+# ERROR COMING FROM THE FACT THAT SUPABASE_KEY IS CALLED NOT SUPABASE_ANON_KEY OR
 # SUPABASE_SERV_KEY
 
 # # def supaClient(settings: settings_dependency, useAdmin: bool = False) -> Client:
@@ -147,6 +152,19 @@ def extractUserInfo(user: AuthResponse):
     return user_data
 
 
+def extract_user_details_for_passwordless(user: AuthResponse) -> dict:
+    """
+    Extract user details for passwordless login.
+    """
+    user_data = extractUserInfo(user)
+    return {
+        "id": user_data["id"],
+        "email": user_data["email"],
+        "did": user_data["user_metadata"].get("did", ""),
+        "public_key": user_data["user_metadata"].get("public_key", ""),
+    }
+
+
 # Print the user object
 def print_user(user: User):
     print(f"User {user.username} ({user.email})")
@@ -163,7 +181,9 @@ def print_user(user: User):
     print()
 
 
-async def log_user_action(user_id: str, activity: str, settings: settings_dependency, type: str):
+async def log_user_action(
+    user_id: str, activity: str, settings: settings_dependency, type: str
+):
     """
     Log user actions to the user_activity_logs table.
     :param user_id: str
@@ -177,13 +197,29 @@ async def log_user_action(user_id: str, activity: str, settings: settings_depend
     )
 
     try:
-        response = supabase.table("user_activity_logs").insert(
-            {
-                "user_id": user_id,
-                "activity": activity,
-                "type": type,  # Include type in the log
-            }
-        ).execute()
+        response = (
+            supabase.table("user_activity_logs")
+            .insert(
+                {
+                    "user_id": user_id,
+                    "activity": activity,
+                    "type": type,  # Include type in the log
+                }
+            )
+            .execute()
+        )
         print(f"Log created: {response}")
     except Exception as e:
         print(f"Error logging action: {str(e)}")
+
+
+def verify_identity(user, identity_credential):
+    return verify_identity_with_stateless_blockchain(user, identity_credential)
+
+
+def verify_rsa(base, e):
+    return verify_with_rsa_accumulator(base, e)
+
+
+def get_did(controller):
+    return get_did_from_registry(controller)

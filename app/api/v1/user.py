@@ -4,8 +4,12 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from supabase import Client, ClientOptions, create_client
 
-from ...utils.utils import settings_dependency
-from ...utils.utils import log_user_action
+from ...utils.utils import log_user_action, settings_dependency
+from ...utils.web3_utils import (
+    get_did_from_registry,
+    verify_identity_with_stateless_blockchain,
+    verify_with_rsa_accumulator,
+)
 
 router = APIRouter()
 
@@ -47,7 +51,9 @@ async def create_ticket(request: Request, settings: settings_dependency):
         )
 
         print(f"Response: {response}")
-        await log_user_action(user_id, f"Created ticket: {title}", settings, type="Ticket Creation")
+        await log_user_action(
+            user_id, f"Created ticket: {title}", settings, type="Ticket Creation"
+        )
         return JSONResponse(content=response.data, status_code=200)
     except Exception as e:
         print(f"Error creating ticket: {str(e)}")  # Add error logging
@@ -89,3 +95,27 @@ async def get_user_profile(request: Request, settings: settings_dependency):
         return JSONResponse(content=user_data, status_code=200)
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=500)
+
+
+@router.post("/verify-identity")
+async def verify_identity(request: Request):
+    data = await request.json()
+    user = data.get("user")
+    identity_credential = data.get("identity_credential")
+    result = verify_identity_with_stateless_blockchain(user, identity_credential)
+    return JSONResponse(content={"result": result}, status_code=200)
+
+
+@router.post("/verify-rsa")
+async def verify_rsa(request: Request):
+    data = await request.json()
+    base = data.get("base")
+    e = data.get("e")
+    result = verify_with_rsa_accumulator(base, e)
+    return JSONResponse(content={"result": result}, status_code=200)
+
+
+@router.get("/get-did/{controller}")
+async def get_did(controller: str):
+    did = get_did_from_registry(controller)
+    return JSONResponse(content={"did": did}, status_code=200)

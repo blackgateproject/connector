@@ -5,6 +5,11 @@ from fastapi.responses import JSONResponse
 from supabase import AuthApiError, Client, ClientOptions, create_client
 
 from ...utils.utils import json_serialize, log_user_action, settings_dependency
+from ...utils.web3_utils import (
+    get_did_from_registry,
+    verify_identity_with_stateless_blockchain,
+    verify_with_rsa_accumulator,
+)
 
 router = APIRouter()
 
@@ -238,7 +243,9 @@ async def addUsers(request: Request, settings: settings_dependency):
         supabase.table("user_roles").insert(
             {"user_id": user_id, "role": role}
         ).execute()
-        await log_user_action(user_id, f"Added user: {email}", settings, type="User Addition")
+        await log_user_action(
+            user_id, f"Added user: {email}", settings, type="User Addition"
+        )
     except AuthApiError as e:
         return JSONResponse(content={"error": str(e)}, status_code=401)
 
@@ -299,7 +306,9 @@ async def complete_ticket(ticket_id: int, settings: settings_dependency):
             .eq("id", ticket_id)
             .execute()
         )
-        await log_user_action(ticket_id, "Completed ticket", settings, type="Ticket Completion")
+        await log_user_action(
+            ticket_id, "Completed ticket", settings, type="Ticket Completion"
+        )
         return JSONResponse(content=response.data, status_code=200)
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=500)
@@ -415,7 +424,9 @@ async def get_admin_profile(request: Request, settings: settings_dependency):
             "phone": user.phone if user.phone else "N/A",
             "role": role,
         }
-        await log_user_action(user.id, "Viewed admin profile", settings, type="Profile View")
+        await log_user_action(
+            user.id, "Viewed admin profile", settings, type="Profile View"
+        )
         return JSONResponse(content=user_data, status_code=200)
     except Exception as e:
         print(f"Error: {e}")
@@ -473,3 +484,27 @@ async def get_all_users(settings: settings_dependency):
         return JSONResponse(content=user_data_list, status_code=200)
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=500)
+
+
+@router.post("/verify-identity")
+async def verify_identity(request: Request):
+    data = await request.json()
+    user = data.get("user")
+    identity_credential = data.get("identity_credential")
+    result = verify_identity_with_stateless_blockchain(user, identity_credential)
+    return JSONResponse(content={"result": result}, status_code=200)
+
+
+@router.post("/verify-rsa")
+async def verify_rsa(request: Request):
+    data = await request.json()
+    base = data.get("base")
+    e = data.get("e")
+    result = verify_with_rsa_accumulator(base, e)
+    return JSONResponse(content={"result": result}, status_code=200)
+
+
+@router.get("/get-did/{controller}")
+async def get_did(controller: str):
+    did = get_did_from_registry(controller)
+    return JSONResponse(content={"did": did}, status_code=200)
