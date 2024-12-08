@@ -33,41 +33,41 @@ settings_dependency = Annotated[Settings, Depends(get_settings)]
 w3 = Web3(Web3.HTTPProvider(settings_dependency().HARDHAT_URL))
 
 
-def revoke_did(address: str):
-    """
-    Revoke a DID on the blockchain with the given address.
-    """
-    contract = initialize_contract()
-    tx = contract.functions.revokeDID(address).transact({"from": address})
-    receipt = w3.eth.wait_for_transaction_receipt(tx)
-    return receipt
+# def revoke_did(address: str):
+#     """
+#     Revoke a DID on the blockchain with the given address.
+#     """
+#     contract = initialize_contract()
+#     tx = contract.functions.revokeDID(address).transact({"from": address})
+#     receipt = w3.eth.wait_for_transaction_receipt(tx)
+#     return receipt
 
 
-def register_did(address: str, did: str):
-    """
-    Register a DID on the blockchain with the given address and public key.
-    """
-    contract = initialize_contract()
-    tx = contract.functions.registerDID(address, did).transact({"from": address})
-    receipt = w3.eth.wait_for_transaction_receipt(tx)
-    return receipt
+# def register_did(address: str, did: str):
+#     """
+#     Register a DID on the blockchain with the given address and public key.
+#     """
+#     contract = initialize_contract()
+#     tx = contract.functions.registerDID(address, did).transact({"from": address})
+#     receipt = w3.eth.wait_for_transaction_receipt(tx)
+#     return receipt
 
 
-def get_did(address: str):
-    """
-    Get the DID for a given address from the contract.
-    """
-    contract = initialize_contract()  # Ensure your contract is initialized
-    print(f"[GET_DID] Address: {address}")
+# def get_did(address: str):
+#     """
+#     Get the DID for a given address from the contract.
+#     """
+#     contract = initialize_contract()  # Ensure your contract is initialized
+#     print(f"[GET_DID] Address: {address}")
 
-    # Directly call the `getDID` function, no need for tx receipt
-    did = contract.functions.getDID(address).call()
+#     # Directly call the `getDID` function, no need for tx receipt
+#     did = contract.functions.getDID(address).call()
 
-    # Print or log the DID for debugging
-    print(f"[GET_DID] Retrieved DID from blockchain: {did}")
+#     # Print or log the DID for debugging
+#     print(f"[GET_DID] Retrieved DID from blockchain: {did}")
 
-    # Return the DID string (it should already be in the correct format)
-    return did
+#     # Return the DID string (it should already be in the correct format)
+#     return did
 
 
 def issue_vc(issuer: str, holder: str, credential_subject: dict, private_key: str):
@@ -303,52 +303,6 @@ def initialize_did_registry_contract():
     return w3.eth.contract(address=contract_address, abi=contract_abi)
 
 
-# Initialize Web3 and the contract
-def initialize_contract():
-    w3 = Web3(Web3.HTTPProvider("http://localhost:8545"))
-    # Deploy StatelessBlockchain contract
-    stateless_blockchain_contract = deploy_stateless_blockchain_contract()
-    stateless_blockchain_address = stateless_blockchain_contract.address
-
-    # Retrieve the addresses of the DIDRegistry and RSAAccumulator contracts
-    did_registry_address = stateless_blockchain_contract.functions.didRegistry().call()
-    rsa_accumulator_address = (
-        stateless_blockchain_contract.functions.rsaAccumulator().call()
-    )
-
-    return stateless_blockchain_address, did_registry_address, rsa_accumulator_address
-
-
-def deploy_stateless_blockchain_contract():
-    # Load the ABI and bytecode for the StatelessBlockchain contract
-    with open("path/to/StatelessBlockchain.json") as f:
-        contract_data = json.load(f)
-    abi = contract_data["abi"]
-    bytecode = contract_data["bytecode"]
-
-    # Deploy the contract
-    StatelessBlockchain = w3.eth.contract(abi=abi, bytecode=bytecode)
-    tx_hash = StatelessBlockchain.constructor(256).transact(
-        {"from": w3.eth.accounts[0]}
-    )
-    tx_receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
-    return w3.eth.contract(address=tx_receipt.contractAddress, abi=abi)
-
-
-def verify_identity_with_stateless_blockchain(user, identity_credential):
-    contract = initialize_stateless_blockchain_contract()
-    return contract.functions.verifyIdentity(user, identity_credential).call()
-
-
-def verify_with_rsa_accumulator(base, e):
-    contract = initialize_rsa_accumulator_contract()
-    return contract.functions.verify(base, e).call()
-
-
-def get_did_from_registry(controller):
-    contract = initialize_did_registry_contract()
-    return contract.functions.getDID(controller).call()
-
 
 # Get all accounts from hardhat testnet
 def get_loaded_accounts():
@@ -361,27 +315,3 @@ def get_accounts():
         accounts = json.load(file)
     return accounts
 
-
-def verify_did(context: str, holder: str, issuance_date: str, proof: str) -> bool:
-    """
-    Verify a DID using a Verifiable Credential.
-    """
-    contract = initialize_contract()
-    return contract.functions.verifyDID(context, holder, issuance_date, proof).call()
-
-
-def generate_vc_proof(vc_data: dict, private_key: str) -> str:
-    """
-    Generate a proof (signature) for a Verifiable Credential.
-    """
-    vc_json = json.dumps(vc_data, sort_keys=True)
-    return sign_message(vc_json, private_key)
-
-
-def verify_vc(vc: dict) -> bool:
-    """
-    Verify a W3C compliant Verifiable Credential (VC).
-    """
-    vc_str = json.dumps(vc)
-    result = didkit.verify_credential(vc_str, json.dumps({}))
-    return json.loads(result)["errors"] == []
