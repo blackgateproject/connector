@@ -1,15 +1,18 @@
+import secrets
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from supabase import Client, ClientOptions, create_client
 
+from ...utils.pki import generate_private_key, generate_public_key
 from ...utils.utils import log_user_action, settings_dependency
-from ...utils.web3_utils import (
-    get_did_from_registry,
-    verify_identity_with_stateless_blockchain,
-    verify_with_rsa_accumulator,
-)
+
+# from ...utils.web3_utils import (
+#     get_did_from_registry,
+#     verify_identity_with_stateless_blockchain,
+#     verify_with_rsa_accumulator,
+# )
 
 router = APIRouter()
 
@@ -94,28 +97,54 @@ async def get_user_profile(request: Request, settings: settings_dependency):
         await log_user_action(user.id, "Viewed profile", settings, type="Profile View")
         return JSONResponse(content=user_data, status_code=200)
     except Exception as e:
+        print(f"Error fetching user profile: {str(e)}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
-@router.post("/verify-identity")
-async def verify_identity(request: Request):
+@router.post("/enable-2fa")
+async def enable_2fa(request: Request, settings: settings_dependency):
     data = await request.json()
-    user = data.get("user")
-    identity_credential = data.get("identity_credential")
-    result = verify_identity_with_stateless_blockchain(user, identity_credential)
-    return JSONResponse(content={"result": result}, status_code=200)
+    user_id = data.get("user_id")
+
+    try:
+        # Generate a new public/private key pair
+        private_key = generate_private_key()
+        public_key = generate_public_key(private_key_hex=private_key)
+
+        await log_user_action(
+            user_id,
+            "Enabled 2FA",
+            settings,
+            type="2FA Enable",
+        )
+        return JSONResponse(
+            content={"private_key": private_key, "public_key": public_key},
+            status_code=200,
+        )
+    except Exception as e:
+        print(f"Error enabling 2FA: {str(e)}")
+        return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
-@router.post("/verify-rsa")
-async def verify_rsa(request: Request):
-    data = await request.json()
-    base = data.get("base")
-    e = data.get("e")
-    result = verify_with_rsa_accumulator(base, e)
-    return JSONResponse(content={"result": result}, status_code=200)
+# @router.post("/verify-identity")
+# async def verify_identity(request: Request):
+#     data = await request.json()
+#     user = data.get("user")
+#     identity_credential = data.get("identity_credential")
+#     result = verify_identity_with_stateless_blockchain(user, identity_credential)
+#     return JSONResponse(content={"result": result}, status_code=200)
 
 
-@router.get("/get-did/{controller}")
-async def get_did(controller: str):
-    did = get_did_from_registry(controller)
-    return JSONResponse(content={"did": did}, status_code=200)
+# @router.post("/verify-rsa")
+# async def verify_rsa(request: Request):
+#     data = await request.json()
+#     base = data.get("base")
+#     e = data.get("e")
+#     result = verify_with_rsa_accumulator(base, e)
+#     return JSONResponse(content={"result": result}, status_code=200)
+
+
+# @router.get("/get-did/{controller}")
+# async def get_did(controller: str):
+#     did = get_did_from_registry(controller)
+#     return JSONResponse(content={"did": did}, status_code=200)

@@ -5,11 +5,11 @@ from fastapi.responses import JSONResponse
 from supabase import AuthApiError, Client, ClientOptions, create_client
 
 from ...utils.utils import json_serialize, log_user_action, settings_dependency
-from ...utils.web3_utils import (
-    get_did_from_registry,
-    verify_identity_with_stateless_blockchain,
-    verify_with_rsa_accumulator,
-)
+# from ...utils.web3_utils import (
+#     get_did_from_registry,
+#     verify_identity_with_stateless_blockchain,
+#     verify_with_rsa_accumulator,
+# )
 
 router = APIRouter()
 
@@ -486,25 +486,25 @@ async def get_all_users(settings: settings_dependency):
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
-@router.post("/verify-identity")
-async def verify_identity(request: Request):
-    data = await request.json()
-    user = data.get("user")
-    identity_credential = data.get("identity_credential")
-    result = verify_identity_with_stateless_blockchain(user, identity_credential)
-    return JSONResponse(content={"result": result}, status_code=200)
+# @router.post("/verify-identity")
+# async def verify_identity(request: Request):
+#     data = await request.json()
+#     user = data.get("user")
+#     identity_credential = data.get("identity_credential")
+#     result = verify_identity_with_stateless_blockchain(user, identity_credential)
+#     return JSONResponse(content={"result": result}, status_code=200)
 
 
-@router.post("/verify-rsa")
-async def verify_rsa(request: Request):
-    data = await request.json()
-    base = data.get("base")
-    e = data.get("e")
-    result = verify_with_rsa_accumulator(base, e)
-    return JSONResponse(content={"result": result}, status_code=200)
+# @router.post("/verify-rsa")
+# async def verify_rsa(request: Request):
+#     data = await request.json()
+#     base = data.get("base")
+#     e = data.get("e")
+#     result = verify_with_rsa_accumulator(base, e)
+#     return JSONResponse(content={"result": result}, status_code=200)
 
 
-@router.get("/get-did/{controller}")
-async def get_did(controller: str):
-    did = get_did_from_registry(controller)
-    return JSONResponse(content={"did": did}, status_code=200)
+# @router.get("/get-did/{controller}")
+# async def get_did(controller: str):
+#     did = get_did_from_registry(controller)
+#     return JSONResponse(content={"did": did}, status_code=200)
