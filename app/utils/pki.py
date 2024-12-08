@@ -1,52 +1,44 @@
 import base64
 import os
 
-from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import padding, rsa
-from eth_keys import keys
+from eth_keys import KeyAPI
+from eth_keys.backends import NativeECCBackend
 from eth_utils import decode_hex
-from ecdsa import SigningKey, SECP256k1, VerifyingKey, BadSignatureError  # Add ecdsa import
+
+keys = KeyAPI(NativeECCBackend)
 
 def generate_private_key():
-    """
-    Generate an Ethereum private key using ECDSA secp256k1.
-    """
-    private_key = SigningKey.generate(curve=SECP256k1)
-    return private_key.to_string().hex()
+    randomBytes = os.urandom(32)
+    private_key = keys.PrivateKey(randomBytes)
+    return private_key.to_hex()
 
-def generate_public_key(private_key_hex: str):
-    """
-    Generate an Ethereum public key from the given private key using ECDSA secp256k1.
-    """
-    private_key_bytes = bytes.fromhex(private_key_hex)
-    private_key = SigningKey.from_string(private_key_bytes, curve=SECP256k1)
-    public_key = private_key.get_verifying_key()
-    return public_key.to_string().hex()
-
-def generate_ethereum_address(public_key_hex: str):
-    """
-    Generate an Ethereum address from the given public key.
-    """
-    public_key_bytes = bytes.fromhex(public_key_hex[2:])  # Remove '0x' prefix
-    public_key = keys.PublicKey(public_key_bytes)
-    return public_key.to_checksum_address()
+def generate_public_key(private_key_hex):
+    private_key = keys.PrivateKey(decode_hex(private_key_hex))
+    public_key = private_key.public_key
+    assert public_key.to_checksum_address() == private_key.public_key.to_checksum_address()
+    return public_key.to_hex()
 
 def create_signing_challenge():
-    """
-    Create a random signing challenge.
-    """
-    challenge = os.urandom(32)
-    return challenge.hex()
+    message = os.urandom(32)
+    return message.hex()
 
-def verify_signing_challenge(public_key_hex: str, challenge: str, signature: str):
-    """
-    Verify the signing challenge using the public key and signature.
-    """
-    public_key_bytes = bytes.fromhex(public_key_hex)
-    public_key = VerifyingKey.from_string(public_key_bytes, curve=SECP256k1)
-    challenge_bytes = bytes.fromhex(challenge)
-    signature_bytes = bytes.fromhex(signature)
+def sign_challenge(private_key_hex, challenge):
+    private_key = keys.PrivateKey(decode_hex(private_key_hex))
+    message_bytes = decode_hex(challenge)
+    signature = private_key.sign_msg(message_bytes)
+    return base64.b64encode(signature.to_bytes()).decode()
+
+def create_signing_challenge():
+    message = os.urandom(32)
+    return message.hex()
+
+def verify_signing_challenge(public_key_hex, message, signature):
+    public_key = keys.PublicKey(decode_hex(public_key_hex))
+    message_bytes = decode_hex(message)
+    signature_bytes = base64.b64decode(signature)
     try:
-        return public_key.verify(signature_bytes, challenge_bytes)
-    except BadSignatureError:
+        public_key.verify_msg(message_bytes, keys.Signature(signature_bytes))
+        return True
+    except Exception as e:
+        print(f"Error verifying signature: {str(e)}")
         return False

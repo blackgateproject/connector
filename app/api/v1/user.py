@@ -103,13 +103,16 @@ async def get_user_profile(request: Request, settings: settings_dependency):
 
 @router.post("/enable-2fa")
 async def enable_2fa(request: Request, settings: settings_dependency):
-    data = await request.json()
-    user_id = data.get("user_id")
-
     try:
+        data = await request.json()
+        user_id = data.get("user_id")
+
         # Generate a new public/private key pair
         private_key = generate_private_key()
         public_key = generate_public_key(private_key_hex=private_key)
+
+        print(f"Generated Private Key: {private_key}")
+        print(f"Generated Public Key: {public_key}")
 
         await log_user_action(
             user_id,

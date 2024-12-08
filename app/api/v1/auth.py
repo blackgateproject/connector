@@ -14,7 +14,7 @@ from ...utils.utils import (
     log_user_action,
     settings_dependency,
 )
-from ...utils.pki import create_signing_challenge, verify_signing_challenge
+from ...utils.pki import create_signing_challenge, verify_signing_challenge, sign_challenge
 
 # from ...utils.web3_utils import verify_identity_with_stateless_blockchain, verify_vc, verify_with_rsa_accumulator, get_did_from_registry
 
@@ -22,7 +22,7 @@ router = APIRouter()
 
 # Global list to store logged-in users (Shift this to supabase DB eventually)
 logged_in_users = []
-challenges = []
+challenges = {}
 
 
 @router.get("/")
@@ -168,31 +168,67 @@ async def request_signing_challenge(request: Request):
     """
     Generate a signing challenge for the client.
     """
-    body = await request.json()
-    public_key_hex = body.get("public_key")
-    challenge = create_signing_challenge()
-    challenges[public_key_hex] = challenge
-    return JSONResponse(content={"challenge": challenge}, status_code=200)
+    try:
+        body = await request.json()
+        print(f"Got Body:\n{body}")
+        public_key_hex = body.get("public_key")
+        print(f"Public Key Hex: {public_key_hex}")
+        challenge = create_signing_challenge()
+        print(f"Created Challenge:\n{challenge}")
+        challenges[public_key_hex] = challenge
+        return JSONResponse(content={"challenge": challenge}, status_code=200)
+    except Exception as e:
+        print(f"Error in request-signing-challenge: \n{str(e)}")
+        return JSONResponse(content={"error": str(e)}, status_code=500)
 
 @router.post("/verify-signing-challenge")
 async def verify_signing_challenge_endpoint(request: Request):
     """
     Verify the signing challenge response from the client.
     """
-    body = await request.json()
-    public_key_hex = body.get("public_key")
-    signature = body.get("signature")
-    challenge = challenges.get(public_key_hex)
-    if not challenge:
-        return JSONResponse(content={"verified": False, "error": "No challenge found"}, status_code=400)
-    
-    verified = verify_signing_challenge(public_key_hex, challenge, signature)
-    if verified:
-        del challenges[public_key_hex]  # Remove the challenge once verified
-        return JSONResponse(content={"verified": True}, status_code=200)
-    else:
-        return JSONResponse(content={"verified": False}, status_code=400)
+    try:
+        body = await request.json()
+        public_key_hex = body.get("public_key")
+        signature = body.get("signature")
+        challenge = body.get("challenge")
+        print(f"Got Body:\n{body}")
+        print(f"Public Key Hex: {public_key_hex}")
+        print(f"Signature: {signature}")
+        print(f"Challenge: {challenge}")
+        if not challenge:
+            return JSONResponse(content={"verified": False, "error": "No challenge found"}, status_code=400)
+        
+        verified = verify_signing_challenge(public_key_hex, challenge, signature)
+        print(f"Verified: {verified}")
+        if verified:
+            del challenges[public_key_hex]  # Remove the challenge once verified
+            return JSONResponse(content={"verified": True}, status_code=200)
+        else:
+            return JSONResponse(content={"verified": False, "error": "Verification failed"}, status_code=400)
+    except Exception as e:
+        print(f"Error in verify-signing-challenge: \n{str(e)}")
+        return JSONResponse(content={"error": str(e)}, status_code=500)
 
+@router.post("/sign-challenge")
+async def sign_challenge_endpoint(request: Request):
+    """
+    Sign the challenge on the server side.
+    """
+    try:
+        body = await request.json()
+        private_key_hex = body.get("private_key")
+        challenge = body.get("challenge")
+        print(f"Got Body:\n{body}")
+        print(f"Private Key Hex: {private_key_hex}")
+        print(f"Challenge: {challenge}")
+        
+        signature = sign_challenge(private_key_hex, challenge)
+        print(f"Generated Signature: {signature}")
+        
+        return JSONResponse(content={"signature": signature}, status_code=200)
+    except Exception as e:
+        print(f"Error in sign-challenge: \n{str(e)}")
+        return JSONResponse(content={"error": str(e)}, status_code=500)
 
 # @router.post("/passwordless-login")
 # async def passwordless_login(request: Request, settings: settings_dependency):
