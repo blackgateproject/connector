@@ -85,6 +85,16 @@ async def get_user_profile(request: Request, settings: settings_dependency):
         )
         role = role_response.data["role"] if role_response.data else "user"
 
+        # Fetch the twoFactorAuth value from the user_keys table
+        keys_response = (
+            supabase.table("user_keys")
+            .select("two_factor_auth")
+            .eq("user_id", user.id)
+            .single()
+            .execute()
+        )
+        two_factor_auth = keys_response.data["two_factor_auth"] if keys_response.data else False
+
         user_data = {
             "firstName": user.user_metadata.get("firstName", ""),
             "lastName": user.user_metadata.get("lastName", ""),
@@ -92,7 +102,7 @@ async def get_user_profile(request: Request, settings: settings_dependency):
             "phone": user.user_metadata.get("phoneNumber", "N/A"),
             "role": role,
             "passwordSet": True,
-            "twoFactorAuth": False,
+            "twoFactorAuth": two_factor_auth,
         }
         await log_user_action(user.id, "Viewed profile", settings, type="Profile View")
         return JSONResponse(content=user_data, status_code=200)
@@ -126,6 +136,46 @@ async def enable_2fa(request: Request, settings: settings_dependency):
         )
     except Exception as e:
         print(f"Error enabling 2FA: {str(e)}")
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
+
+@router.post("/save-keys")
+async def save_keys(request: Request, settings: settings_dependency):
+    data = await request.json()
+    user_id = data.get("user_id")
+    private_key = data.get("private_key")
+    public_key = data.get("public_key")
+
+    supabase: Client = create_client(
+        supabase_url=settings.SUPABASE_URL,
+        supabase_key=settings.SUPABASE_ANON_KEY,
+    )
+
+    try:
+        # Insert or update the keys in the user_keys table
+        response = (
+            supabase.table("user_keys")
+            .upsert(
+                {
+                    "user_id": user_id,
+                    "private_key": private_key,
+                    "public_key": public_key,
+                    "two_factor_auth": True,
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
+            )
+            .execute()
+        )
+
+        await log_user_action(
+            user_id,
+            "Saved keys and enabled 2FA",
+            settings,
+            type="2FA Enable",
+        )
+        return JSONResponse(content={"message": "Keys saved and 2FA enabled"}, status_code=200)
+    except Exception as e:
+        print(f"Error saving keys: {str(e)}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
