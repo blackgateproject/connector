@@ -5,7 +5,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from supabase import Client, ClientOptions, create_client
 
-from ...utils.pki import generate_private_key, generate_public_key
+from ...utils.pki_utils import generate_private_key, generate_public_key
 from ...utils.utils import log_user_action, settings_dependency
 
 # from ...utils.web3_utils import (

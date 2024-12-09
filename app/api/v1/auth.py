@@ -8,7 +8,7 @@ from supabase import AuthApiError
 from supabase.client import Client, create_client
 
 from ...models.user import User
-from ...utils.pki import (
+from ...utils.pki_utils import (
     create_signing_challenge,
     sign_challenge,
     verify_signing_challenge,
