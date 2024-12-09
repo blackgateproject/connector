@@ -1,13 +1,8 @@
-import os
-from functools import lru_cache
-
-from fastapi import Depends, FastAPI
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from typing_extensions import Annotated
 
-from .api.v1 import admin, auth, user
-from .core.config import Settings
+from .api.v1 import admin, auth, blockchain, user
 from .utils.utils import settings_dependency
 
 app = FastAPI()
@@ -24,9 +19,13 @@ app.add_middleware(
 )
 
 # Load routes
-app.include_router(auth.router, prefix="/auth/v1", tags=["Auth"])
-app.include_router(user.router, prefix="/user/v1", tags=["User"])
-app.include_router(admin.router, prefix="/admin/v1", tags=["Admin"])
+API_VERSION = "v1"
+app.include_router(auth.router, prefix=f"/auth/{API_VERSION}", tags=["Auth"])
+app.include_router(user.router, prefix=f"/user/{API_VERSION}", tags=["User"])
+app.include_router(admin.router, prefix=f"/admin/{API_VERSION}", tags=["Admin"])
+app.include_router(
+    blockchain.router, prefix=f"/blockchain/{API_VERSION}", tags=["Blockchain"]
+)
 
 
 # return env var

@@ -212,15 +212,3 @@ async def log_user_action(
         print(f"Log created: {response}")
     except Exception as e:
         print(f"Error logging action: {str(e)}")
-
-
-# def verify_identity(user, identity_credential):
-#     return verify_identity_with_stateless_blockchain(user, identity_credential)
-
-
-# def verify_rsa(base, e):
-#     return verify_with_rsa_accumulator(base, e)
-
-
-# def get_did(controller):
-#     return get_did_from_registry(controller)
