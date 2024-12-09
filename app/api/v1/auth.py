@@ -8,13 +8,17 @@ from supabase import AuthApiError
 from supabase.client import Client, create_client
 
 from ...models.user import User
+from ...utils.pki import (
+    create_signing_challenge,
+    sign_challenge,
+    verify_signing_challenge,
+)
 from ...utils.utils import (
     extract_user_details_for_passwordless,
     extractUserInfo,
     log_user_action,
     settings_dependency,
 )
-from ...utils.pki import create_signing_challenge, verify_signing_challenge, sign_challenge
 
 # from ...utils.web3_utils import verify_identity_with_stateless_blockchain, verify_vc, verify_with_rsa_accumulator, get_did_from_registry
 
@@ -181,6 +185,7 @@ async def request_signing_challenge(request: Request):
         print(f"Error in request-signing-challenge: \n{str(e)}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
+
 @router.post("/verify-signing-challenge")
 async def verify_signing_challenge_endpoint(request: Request):
     """
@@ -196,18 +201,25 @@ async def verify_signing_challenge_endpoint(request: Request):
         print(f"Signature: {signature}")
         print(f"Challenge: {challenge}")
         if not challenge:
-            return JSONResponse(content={"verified": False, "error": "No challenge found"}, status_code=400)
-        
+            return JSONResponse(
+                content={"verified": False, "error": "No challenge found"},
+                status_code=400,
+            )
+
         verified = verify_signing_challenge(public_key_hex, challenge, signature)
         print(f"Verified: {verified}")
         if verified:
             del challenges[public_key_hex]  # Remove the challenge once verified
             return JSONResponse(content={"verified": True}, status_code=200)
         else:
-            return JSONResponse(content={"verified": False, "error": "Verification failed"}, status_code=400)
+            return JSONResponse(
+                content={"verified": False, "error": "Verification failed"},
+                status_code=400,
+            )
     except Exception as e:
         print(f"Error in verify-signing-challenge: \n{str(e)}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
+
 
 @router.post("/sign-challenge")
 async def sign_challenge_endpoint(request: Request):
@@ -221,14 +233,71 @@ async def sign_challenge_endpoint(request: Request):
         print(f"Got Body:\n{body}")
         print(f"Private Key Hex: {private_key_hex}")
         print(f"Challenge: {challenge}")
-        
+
         signature = sign_challenge(private_key_hex, challenge)
         print(f"Generated Signature: {signature}")
-        
+
         return JSONResponse(content={"signature": signature}, status_code=200)
     except Exception as e:
         print(f"Error in sign-challenge: \n{str(e)}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
+
+
+@router.post("/get-uuid")
+async def get_uuid(request: Request, settings: settings_dependency):
+    body = await request.json()
+    email = body.get("email")
+
+    supabase: Client = create_client(
+        supabase_url=settings.SUPABASE_URL, supabase_key=settings.SUPABASE_ANON_KEY
+    )
+
+    try:
+        # A view by the name of user_email_mapping is created in the database. Grab the user_id from the view
+        response = (
+            supabase.table("user_email_mapping")
+            .select("user_id")
+            .eq("email", email)
+            .single()
+            .execute()
+        )
+        if response.data:
+            return JSONResponse(content={"uuid": response.data["user_id"]}, status_code=200)
+        else:
+            return JSONResponse(content={"error": "User not found"}, status_code=404)
+    except Exception as e:
+        print(f"Error: {str(e)}")
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
+
+@router.post("/get-2fa-state")
+async def get_2fa_state(request: Request, settings: settings_dependency):
+    body = await request.json()
+    uuid = body.get("uuid")
+
+    supabase: Client = create_client(
+        supabase_url=settings.SUPABASE_URL, supabase_key=settings.SUPABASE_ANON_KEY
+    )
+
+    try:
+        response = (
+            supabase.table("user_keys")
+            .select("two_factor_auth")
+            .eq("user_id", uuid)
+            .single()
+            .execute()
+        )
+        if response.data:
+            return JSONResponse(
+                content={"enabled2fa": response.data["two_factor_auth"]},
+                status_code=200,
+            )
+        else:
+            return JSONResponse(content={"enabled2fa": False}, status_code=200)
+    except Exception as e:
+        print(f"Error: {str(e)}")
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
 
 # @router.post("/passwordless-login")
 # async def passwordless_login(request: Request, settings: settings_dependency):

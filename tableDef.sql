@@ -93,9 +93,10 @@ create table
 
   CREATE TABLE IF NOT EXISTS user_keys (
     user_id UUID PRIMARY KEY,
+    email varchar,
+    two_factor_auth BOOLEAN DEFAULT FALSE,
     private_key TEXT NOT NULL,
     public_key TEXT NOT NULL,
-    two_factor_auth BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+) tablespace pg_default;
