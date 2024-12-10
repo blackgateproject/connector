@@ -1,27 +1,21 @@
-import secrets
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
-from supabase import Client, ClientOptions, create_client
+from supabase import Client, create_client
 
 from ...utils.pki_utils import generate_private_key, generate_public_key
 from ...utils.utils import log_user_action, settings_dependency
 
-# from ...utils.web3_utils import (
-#     get_did_from_registry,
-#     verify_identity_with_stateless_blockchain,
-#     verify_with_rsa_accumulator,
-# )
-
+# Initialize the API router
 router = APIRouter()
 
-
+# Health check endpoint
 @router.get("/")
 async def health_check():
     return "Reached User Endpoint, Router User is Active"
 
-
+# Endpoint to create a new ticket
 @router.post("/tickets")
 async def create_ticket(request: Request, settings: settings_dependency):
     data = await request.json()
@@ -29,6 +23,7 @@ async def create_ticket(request: Request, settings: settings_dependency):
     description = data.get("description")
     user_id = data.get("user_id")  # Accept UUID as string
 
+    # Initialize Supabase client
     supabase: Client = create_client(
         supabase_url=settings.SUPABASE_URL,
         supabase_key=settings.SUPABASE_ANON_KEY,
@@ -39,6 +34,7 @@ async def create_ticket(request: Request, settings: settings_dependency):
         print(f"User ID (UUID): {user_id}")
         print(f"Description: {description}")
 
+        # Insert the ticket into the database
         response = (
             supabase.table("tickets")
             .insert(
@@ -62,16 +58,19 @@ async def create_ticket(request: Request, settings: settings_dependency):
         print(f"Error creating ticket: {str(e)}")  # Add error logging
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
-
+# Endpoint to get user profile
 @router.get("/profile")
 async def get_user_profile(request: Request, settings: settings_dependency):
     access_token = request.headers.get("Authorization").split(" ")[1]
+    
+    # Initialize Supabase client
     supabase: Client = create_client(
         supabase_url=settings.SUPABASE_URL,
         supabase_key=settings.SUPABASE_ANON_KEY,
     )
 
     try:
+        # Fetch user information using the access token
         user_response = supabase.auth.get_user(access_token)
         user = user_response.user
 
@@ -93,8 +92,11 @@ async def get_user_profile(request: Request, settings: settings_dependency):
             .single()
             .execute()
         )
-        two_factor_auth = keys_response.data["two_factor_auth"] if keys_response.data else False
+        two_factor_auth = (
+            keys_response.data["two_factor_auth"] if keys_response.data else False
+        )
 
+        # Prepare user data to return
         user_data = {
             "firstName": user.user_metadata.get("firstName", ""),
             "lastName": user.user_metadata.get("lastName", ""),
@@ -110,7 +112,7 @@ async def get_user_profile(request: Request, settings: settings_dependency):
         print(f"Error fetching user profile: {str(e)}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
-
+# Endpoint to enable 2FA
 @router.post("/enable-2fa")
 async def enable_2fa(request: Request, settings: settings_dependency):
     try:
@@ -138,7 +140,7 @@ async def enable_2fa(request: Request, settings: settings_dependency):
         print(f"Error enabling 2FA: {str(e)}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
-
+# Endpoint to save keys and enable 2FA
 @router.post("/save-keys")
 async def save_keys(request: Request, settings: settings_dependency):
     data = await request.json()
@@ -146,6 +148,7 @@ async def save_keys(request: Request, settings: settings_dependency):
     private_key = data.get("private_key")
     public_key = data.get("public_key")
 
+    # Initialize Supabase client
     supabase: Client = create_client(
         supabase_url=settings.SUPABASE_URL,
         supabase_key=settings.SUPABASE_ANON_KEY,
@@ -173,12 +176,16 @@ async def save_keys(request: Request, settings: settings_dependency):
             settings,
             type="2FA Enable",
         )
-        return JSONResponse(content={"message": "Keys saved and 2FA enabled"}, status_code=200)
+        return JSONResponse(
+            content={"message": "Keys saved and 2FA enabled"}, status_code=200
+        )
     except Exception as e:
         print(f"Error saving keys: {str(e)}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
+# Uncomment and implement the following endpoints if needed
 
+# Endpoint to verify identity
 # @router.post("/verify-identity")
 # async def verify_identity(request: Request):
 #     data = await request.json()
@@ -187,7 +194,7 @@ async def save_keys(request: Request, settings: settings_dependency):
 #     result = verify_identity_with_stateless_blockchain(user, identity_credential)
 #     return JSONResponse(content={"result": result}, status_code=200)
 
-
+# Endpoint to verify RSA
 # @router.post("/verify-rsa")
 # async def verify_rsa(request: Request):
 #     data = await request.json()
@@ -196,7 +203,7 @@ async def save_keys(request: Request, settings: settings_dependency):
 #     result = verify_with_rsa_accumulator(base, e)
 #     return JSONResponse(content={"result": result}, status_code=200)
 
-
+# Endpoint to get DID
 # @router.get("/get-did/{controller}")
 # async def get_did(controller: str):
 #     did = get_did_from_registry(controller)

@@ -1,6 +1,6 @@
 import secrets
 
-from helpfunctions import (
+from .helpfunctions import (
     bezoute_coefficients,
     calculate_product,
     concat,

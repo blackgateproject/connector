@@ -1,6 +1,6 @@
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from functools import lru_cache
 
 import didkit
@@ -9,6 +9,12 @@ from typing_extensions import Annotated
 from web3 import Web3
 
 from ..core.config import Settings
+from ..utils.ipfs_utils import (
+    add_file_to_ipfs,
+    get_file_from_ipfs,
+    list_all_files_from_ipfs,
+)
+from .accumulator_utils import *
 
 
 @lru_cache
@@ -21,21 +27,74 @@ settings_dependency = Annotated[Settings, Depends(get_settings)]
 # Hardhat testnet, Check .env for URL Errors if any
 w3 = Web3(Web3.HTTPProvider(settings_dependency().HARDHAT_URL))
 
+# Secrets dict for the RSA Accumulator
+accMod, accInit, accState = setup(modulus=settings_dependency().BACKEND_MODULUS, A0=settings_dependency().BACKEND_ACC)
 
-def issue_vc(issuer: str, holder: str, credential_subject: dict, private_key: str):
+
+async def issue_did(storeIPFS: bool = False):
     """
-    Issue a W3C compliant Verifiable Credential (VC).
+    Issue a DID
     """
-    vc = {
-        "@context": ["https://www.w3.org/2018/credentials/v1"],
+    # Generate a new Ed25519 keypair
+    jwk = didkit.generate_ed25519_key()
+    did = didkit.key_to_did("key", jwk)
+
+    print(f"JWK: {jwk}")
+    print(f"DID: {did}")
+
+    # print(
+    #     f"\n\n\nDIDKIT DID RESOLVE:\n{await didkit.resolve_did(did, input_metadata=json.dumps({}))}\n\n\n"
+    # )
+    # if storeIPFS:
+    #     # Store DID on IPFS
+    #     ipfs_did_hash = add_file_to_ipfs(did)
+    #     print(f"IPFS DID Hash: {ipfs_did_hash}")
+    #     return jwk, did, ipfs_did_hash
+
+    return jwk, did
+
+
+async def issue_vc(did: str, jwk: str, user_uuid: str, storeIPFS: bool = False):
+    """
+    Issue a VC and sign it based on the received DID
+    """
+    server_did = settings_dependency().BACKEND_DID
+    server_jwk = settings_dependency().BACKEND_JWK
+
+    print(f"DID-Recv: \n{did}")
+    print(f"JWK-Recv: \n{jwk}")
+    print(f"UUID-Recv: \n{user_uuid}")
+
+    print(f"Server DID: \n{server_did}")
+    print(f"Server JWK: \n{server_jwk}")
+
+    if not did:
+        return {"Error": "DID not provided"}
+
+    user_did = didkit.key_to_did("key", didkit.generate_ed25519_key())
+
+    credential = {
+        "@context": "https://www.w3.org/2018/credentials/v1",
+        "id": f"urn:uuid:{user_uuid}",
         "type": ["VerifiableCredential"],
-        "issuer": issuer,
-        "issuanceDate": datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
-        "credentialSubject": credential_subject,
+        "issuer": server_did,
+        "issuanceDate": datetime.now(timezone.utc).isoformat(),
+        "credentialSubject": {
+            "id": user_did,
+        },
     }
-    vc_proof = didkit.issue_credential(json.dumps(vc), json.dumps({}), private_key)
-    vc["proof"] = json.loads(vc_proof)
-    return vc
+
+    print(f"VC: \n{credential}")
+
+    signed_vc = await didkit.issue_credential(json.dumps(credential), "{}", server_jwk)
+
+    if storeIPFS:
+        # Store VC on IPFS
+        ipfs_vc_hash = add_file_to_ipfs(signed_vc)
+        print(f"IPFS VC Hash: {ipfs_vc_hash}")
+        return {"VC": json.loads(signed_vc), "IPFS": ipfs_vc_hash}
+
+    return {"VC": json.loads(signed_vc)}
 
 
 # Load the deployment information
@@ -107,6 +166,103 @@ def getContract(contract_name: str, debug: bool = False):
     return contract_address, contract_abi
 
 
+def setAccumulator(accumulator: str):
+    """
+    Set the accumulator on the blockchain
+    """
+    # Create Contract Instance & Call the setAccumulator function from the contract
+    tx_hash = get_rsa_accumulator().functions.setAccumulator(accumulator).transact()
+
+    # Print the transaction hash for debugging purposes
+    print(f"Transaction Hash: \n{tx_hash.hex()}")
+
+    return tx_hash.hex()
+
+
+def getCurrentAccumulator():
+    """
+    Get the current accumulator from the blockchain
+    """
+    # Create Contract Instance and Call the getAccumulator function from the contract
+    current_accumulator = get_rsa_accumulator().functions.getAccumulator().call()
+
+    print(f"Current Accumulator: \n{current_accumulator.hex()}")
+
+    return current_accumulator.hex()
+
+
+# async def recalcAccumulator():
+#     """
+#     Recalculate the Accumulator at this current point in time by using IPFS ls
+#     """
+
+#     # Retrive all file pins from IPFS
+#     ipfs_files = list_all_files_from_ipfs()
+
+
+# Create a new prime from hash
+async def storeDIDonBlockchain(did: str, publicKey: str):
+    """
+    Store DID on IPFS and then on the blockchain
+    """
+    # Get currentAccumulator value
+    current_accumulator = getCurrentAccumulator()
+
+    # Store DID on IPFS
+    ipfs_did_hash = add_file_to_ipfs(did)
+    print(f"IPFS DID Hash: {ipfs_did_hash}")
+
+    # Create a contract instance and Call the registerDID function from the contract
+    tx_hash = (
+        get_did_registry()
+        .functions.registerDID(
+            did,
+            ipfs_did_hash,
+            current_accumulator,
+            publicKey,
+        )
+        .transact()
+    )
+
+    # Print the transaction hash for debugging purposes
+    print(f"Transaction Hash: \n{tx_hash.hex()}")
+
+    # Return the CID and the transaction hash as JSON
+    return {"CID": ipfs_did_hash, "TX": tx_hash.hex()}
+
+
+async def storeVCOnBlockchain(did: str, vc: str):
+    """
+    Store VC on IPFS and then on the blockchain
+    """
+    # json dump the vc
+    vc = json.dumps(vc)
+
+    # Store VC on IPFS
+    ifps_VC_CID = add_file_to_ipfs(vc)
+    print(f"IPFS VC CID: {ifps_VC_CID}")
+
+    # Create a keccak256 hash of the VC
+    vc_hash = w3.solidity_keccak(["string"], [vc]).hex()
+    print(f"VC Hash: {vc_hash}")
+
+    # Call the storeCredential function from the contract
+    tx_hash = get_vc_manager().functions.issueVC(did, vc_hash, ifps_VC_CID).transact()
+
+    # Print the transaction hash for debugging purposes
+    print(f"Transaction Hash: \n{tx_hash.hex()}")
+
+    return {"CID": ifps_VC_CID, "TX": tx_hash.hex()}
+
+
+async def udpateAccumulatorOnBlockchain():
+    """
+    Update the accumulator on the blockchain, by recalculating the accumulator from the IPFS files
+    """
+
+    # Setup the state i.e. grab the currentACC Value along with the modulus
+
+
 # Get all accounts from hardhat testnet
 def get_loaded_accounts():
     return w3.eth.accounts
@@ -117,3 +273,26 @@ def get_accounts():
     with open("accounts.json", "r") as file:
         accounts = json.load(file)
     return accounts
+
+
+"""
+Contract init functions
+"""
+
+
+# Return a DIDRegistry instance
+def get_did_registry():
+    contract_address, contract_abi = getContract("DIDRegistry")
+    return w3.eth.contract(address=contract_address, abi=contract_abi)
+
+
+# Return a VerifiableCredentialManager instance
+def get_vc_manager():
+    contract_address, contract_abi = getContract("VerifiableCredentialManager")
+    return w3.eth.contract(address=contract_address, abi=contract_abi)
+
+
+# Return a RSAAccumulator instance
+def get_rsa_accumulator():
+    contract_address, contract_abi = getContract("RSAAccumulator")
+    return w3.eth.contract(address=contract_address, abi=contract_abi)
