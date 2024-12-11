@@ -1,10 +1,18 @@
+import json
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from supabase import AuthApiError, Client, ClientOptions, create_client
 
+from ...api.v1.blockchain import (
+    issue_did,
+    issue_vc,
+    storeDIDonBlockchain,
+    storeVCOnBlockchain,
+)
 from ...utils.utils import json_serialize, log_user_action, settings_dependency
+
 # from ...utils.web3_utils import (
 #     get_did_from_registry,
 #     verify_identity_with_stateless_blockchain,
@@ -246,8 +254,22 @@ async def addUsers(request: Request, settings: settings_dependency):
         await log_user_action(
             user_id, f"Added user: {email}", settings, type="User Addition"
         )
+
+        # Issue DID for the user
+        jwk, did = await issue_did()
+        jwkJSON = json.loads(jwk)
+        cid, tx = await storeDIDonBlockchain(did, jwkJSON.get("x"))
+        print(f"cid: {cid}, tx: {tx}")
+
+        # Issue VC for the user
+        signed_vc = await issue_vc(did, jwk, user_id)
+        cid, tx = await storeVCOnBlockchain(did, signed_vc)
+        print(f"cid: {cid}, tx: {tx}")
+
     except AuthApiError as e:
         return JSONResponse(content={"error": str(e)}, status_code=401)
+    except Exception as e:
+        return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
 @router.post("/getCurrentUser")
