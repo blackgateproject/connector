@@ -262,7 +262,9 @@ async def get_uuid(request: Request, settings: settings_dependency):
             .execute()
         )
         if response.data:
-            return JSONResponse(content={"uuid": response.data["user_id"]}, status_code=200)
+            return JSONResponse(
+                content={"uuid": response.data["user_id"]}, status_code=200
+            )
         else:
             return JSONResponse(content={"error": "User not found"}, status_code=404)
     except Exception as e:
@@ -294,6 +296,143 @@ async def get_2fa_state(request: Request, settings: settings_dependency):
             )
         else:
             return JSONResponse(content={"enabled2fa": False}, status_code=200)
+    except Exception as e:
+        print(f"Error: {str(e)}")
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
+
+@router.post("/set-2fa-state")
+async def set_2fa_state(request: Request, settings: settings_dependency):
+    """
+    A 2FA enabled user is requesting to login, send a 2FA challenge
+    """
+    body = await request.json()
+    uuid = body.get("uuid")
+    state = body.get("state")
+
+    print(f"Got UUID: {uuid}")
+    print(f"Got State: {state}")
+    supabase: Client = create_client(
+        supabase_url=settings.SUPABASE_URL, supabase_key=settings.SUPABASE_ANON_KEY
+    )
+
+    try:
+        response = (
+            supabase.table("user_keys")
+            .update({"sessionRequest": state})
+            .eq("user_id", uuid)
+            .execute()
+        )
+
+        print(f"Response: {response}")
+
+        if response.data:
+            return JSONResponse(
+                content={"enabled2fa": "true" if state else "false"},
+                status_code=200,
+            )
+        else:
+            return JSONResponse(content={"enabled2fa": False}, status_code=200)
+    except Exception as e:
+        print(f"Error: {str(e)}")
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
+
+@router.post("/query-2fa-session")
+async def query_2fa_session(request: Request, settings: settings_dependency):
+    body = await request.json()
+    private_key = body.get("private_key")
+    public_key = body.get("public_key")
+
+    supabase: Client = create_client(
+        supabase_url=settings.SUPABASE_URL, supabase_key=settings.SUPABASE_ANON_KEY
+    )
+
+    try:
+        response = (
+            supabase.table("user_keys")
+            .select("*")
+            .eq("public_key", public_key)
+            .single()
+            .execute()
+        )
+
+        # if the sessionRequest is true, then the user is requesting to login and a 2FA challenge is sent
+
+        if response.data:
+            return JSONResponse(
+                content={"sessionRequest": response.data["sessionRequest"]},
+                status_code=200,
+            )
+        else:
+            return JSONResponse(content={"sessionRequest": False}, status_code=200)
+    except Exception as e:
+        print(f"Error: {str(e)}")
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
+
+@router.post("/2fa-login")
+async def twofa_login(request: Request, settings: settings_dependency):
+    """
+    Since the user has accepted the request, they can now login, set isLoginAccepted in user_keys to true, the user will send their uuid
+    """
+
+    body = await request.json()
+    uuid = body.get("uuid")
+
+    supabase: Client = create_client(
+        supabase_url=settings.SUPABASE_URL, supabase_key=settings.SUPABASE_ANON_KEY
+    )
+
+    try:
+        response = (
+            supabase.table("user_keys")
+            .update({"isLoginAccepted": True})
+            .eq("user_id", uuid)
+            .execute()
+        )
+
+        if response.data:
+            return JSONResponse(
+                content={"isLoginAccepted": True},
+                status_code=200,
+            )
+        else:
+            return JSONResponse(content={"isLoginAccepted": False}, status_code=200)
+    except Exception as e:
+        print(f"Error: {str(e)}")
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
+
+@router.post("/2fa-frontend-check")
+async def twofa_loggedin(request: Request, settings: settings_dependency):
+    """
+    Now that the user has set isLoginAccepted to true, the frontend will check if the user has logged in
+    """
+
+    body = await request.json()
+    uuid = body.get("uuid")
+
+    supabase: Client = create_client(
+        supabase_url=settings.SUPABASE_URL, supabase_key=settings.SUPABASE_ANON_KEY
+    )
+
+    try:
+        response = (
+            supabase.table("user_keys")
+            .select("isLoginAccepted")
+            .eq("user_id", uuid)
+            .single()
+            .execute()
+        )
+
+        if response.data:
+            return JSONResponse(
+                content={"isLoginAccepted": response.data["isLoginAccepted"]},
+                status_code=200,
+            )
+        else:
+            return JSONResponse(content={"isLoginAccepted": False}, status_code=200)
     except Exception as e:
         print(f"Error: {str(e)}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
