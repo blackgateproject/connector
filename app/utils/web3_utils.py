@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 from datetime import datetime, timezone
@@ -15,6 +16,7 @@ from ..utils.ipfs_utils import (
     list_all_files_from_ipfs,
 )
 from .accumulator_utils import *
+from .helpfunctions import hash_to_prime
 
 
 @lru_cache
@@ -28,7 +30,12 @@ settings_dependency = Annotated[Settings, Depends(get_settings)]
 w3 = Web3(Web3.HTTPProvider(settings_dependency().HARDHAT_URL))
 
 # Secrets dict for the RSA Accumulator
-accMod, accInit, accState = setup(modulus=settings_dependency().BACKEND_MODULUS, A0=settings_dependency().BACKEND_ACC)
+# accMod, accInit, accState = setup(
+#     modulus=settings_dependency().BACKEND_MODULUS, A0=settings_dependency().BACKEND_ACC
+# )
+accMod = settings_dependency().BACKEND_MODULUS
+accInit = settings_dependency().BACKEND_ACC
+accState = dict()
 
 
 async def issue_did(storeIPFS: bool = False):
@@ -185,19 +192,68 @@ def getCurrentAccumulator():
     """
     # Create Contract Instance and Call the getAccumulator function from the contract
     current_accumulator = get_rsa_accumulator().functions.getAccumulator().call()
+    current_accumulator = f"0x{current_accumulator.hex()}"
+    print(f"Current Accumulator: \n{current_accumulator}")
 
-    print(f"Current Accumulator: \n{current_accumulator.hex()}")
-
-    return current_accumulator.hex()
+    return current_accumulator
 
 
-# async def recalcAccumulator():
-#     """
-#     Recalculate the Accumulator at this current point in time by using IPFS ls
-#     """
+async def recalcAccumulator():
+    """
+    Recalculate the Accumulator at this current point in time by using IPFS ls
+    """
 
-#     # Retrive all file pins from IPFS
-#     ipfs_files = list_all_files_from_ipfs()
+    # Recalculate the accumulator
+    # Get current accumulator value
+    current_accumulator = int(getCurrentAccumulator(), 16)
+
+    # convert modulus to int
+    print(f"Modulus({len(str(accMod))}): {accMod}")
+    accModulus = int(accMod, 16)
+
+    # List all CIDs currently in IPFS
+    ipfs_cids = list_all_files_from_ipfs()
+    concat_ipfs = "".join(ipfs_cids)
+    concat_bytes = concat_ipfs.encode()
+    hashed_cids = int(hashlib.sha256(concat_bytes).hexdigest(), 16)
+
+    print(f"Hash of CIDs({len(str(hashed_cids))}): {hashed_cids}")
+    
+    x = hashed_cids
+    A1 = add(current_accumulator, accState, x, accModulus)
+    nonce = accState[x]
+    proof = prove_membership(current_accumulator, accState, x, accModulus)
+    prime, nonce = hash_to_prime(x, nonce)
+
+    new_accumulator = A1
+    
+
+    # # Run the list through hash_to_prime to get element1
+    # element1, nonce1 = hash_to_prime(hashed_cids, 3072)
+
+    # # Generate new accumulator value
+    # # ADD(Accumulator, State, Element, Modulus)
+    # new_accumulator = add(current_accumulator, accState, element1, accModulus)
+
+    # # Store the nonce after calculating the new accumulator
+    # nonce1 = accState[element1]
+
+    # print(f"Element1({len(str(element1))}): {element1}")
+    # print(f"Nonce1({len(str(nonce1))}): {nonce1}")
+
+    # # Generate Proof
+    # # proof, prime = generate_proof(element1, current_accumulator, accState, accModulus)
+    # prime, nonce = hash_to_prime(element1, nonce1)
+    # print(f"Prime({len(str(prime))}): {prime}")
+
+    # # Set the new accumulator on the blockchain
+    # print(f"New Accumulator({len(str(new_accumulator))}): {hex(new_accumulator)}")
+    # print(f"\nState: {accState}")
+    return {
+        "isAccTheSame?": "Yes" if new_accumulator == current_accumulator else "No",
+        "NewAccumulator": to_padded_num_str(new_accumulator, 384),
+        "Prime": to_padded_num_str(prime, 32),
+    }
 
 
 # Create a new prime from hash
@@ -260,7 +316,10 @@ async def udpateAccumulatorOnBlockchain():
     Update the accumulator on the blockchain, by recalculating the accumulator from the IPFS files
     """
 
-    # Setup the state i.e. grab the currentACC Value along with the modulus
+    # Recalculate the accumulator
+    # Create a RSAAcc contract instance
+    # Update the ACC
+    pass
 
 
 # Get all accounts from hardhat testnet

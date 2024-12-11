@@ -1,3 +1,4 @@
+import json
 import tempfile
 
 import requests
@@ -23,6 +24,12 @@ def get_file_from_ipfs(cid):
 
 def list_all_files_from_ipfs():
     response = requests.post(f"{IPFS_API_URL}/pin/ls?type=recursive")
+    response_json = response.json()
+    # print(f"Response: {response_json}")
 
-    # Do not include the first pin as it is a directory
-    return response.json()["Keys"][1:]
+    # Extract all CIDs except the first one
+    cids = list(response_json["Keys"].keys())[1:]
+
+    print(f"Extracted CIDs: {cids}")
+
+    return cids

@@ -11,6 +11,7 @@ from ...utils.web3_utils import (
     getCurrentAccumulator,
     issue_did,
     issue_vc,
+    recalcAccumulator,
     setAccumulator,
     storeDIDonBlockchain,
     storeVCOnBlockchain,
@@ -131,3 +132,16 @@ async def get_acc():
     current_accumulator = getCurrentAccumulator()
 
     return JSONResponse(content={"Accumulator": current_accumulator}, status_code=200)
+
+
+@router.get("/testUpdateACC")
+async def updateAcc():
+    """
+    Update the Accumulator
+    """
+    accumulator_result = await recalcAccumulator()
+
+    return JSONResponse(
+        content={"Message": "Accumulator Updated", "Result": accumulator_result},
+        status_code=200,
+    )

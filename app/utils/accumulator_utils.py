@@ -302,3 +302,9 @@ def generate_proof(element, accumulator, secrets_dict, modulus):
     proof = prove_membership(accumulator, secrets_dict, element, modulus)
     prime, nonce = hash_to_prime(x=element, nonce=nonce)
     return proof, prime
+
+
+def to_padded_num_str(num, length_in_bytes):
+    length_in_hex_str = length_in_bytes * 2 + 2
+    num_str = format(num, "#0" + str(length_in_hex_str) + "x")
+    return num_str
