@@ -427,6 +427,14 @@ async def twofa_loggedin(request: Request, settings: settings_dependency):
         )
 
         if response.data:
+            # Set isLoginAccepted to false after the frontend has checked
+            response = (
+                supabase.table("user_keys")
+                .update({"isLoginAccepted": False})
+                .eq("user_id", uuid)
+                .execute()
+            )
+
             return JSONResponse(
                 content={"isLoginAccepted": response.data["isLoginAccepted"]},
                 status_code=200,
