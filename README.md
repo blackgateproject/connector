@@ -29,6 +29,9 @@ git clone http://github.com/blackgateproject/backend
 
 ```
 pip install -r requirements.txt
+
+# pip install fastapi[standard] supabase didkit web3 sqlmodel pydantic_settings eth_keys eth_utils requests
+
 fastapi run dev
 ```
 
