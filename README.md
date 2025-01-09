@@ -53,7 +53,8 @@ winget install Docker.DockerDesktop
 ### Head to /supabase dir in the repo and deploy the backend
 
 ```
-cd supabase
+cd supabase/supabase
+npm i
 npx supabase start
 ```
 
