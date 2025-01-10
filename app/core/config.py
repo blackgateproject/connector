@@ -15,3 +15,4 @@ class Settings(BaseSettings):
     BACKEND_JWK: str
     BACKEND_ACC: str
     BACKEND_MODULUS: str
+    IPFS_SWARM_KEY: str

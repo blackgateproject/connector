@@ -142,53 +142,53 @@ async def getUsers(settings: settings_dependency):
             # Print User id for debugging
             print(f"User ID: {user['id']}")
 
-            if user["user_metadata"] == {}:  # Check if user_metadata is empty
-                print(f"No User Metadata for {user['id']}")
-                last_sign_in_at = datetime.fromisoformat(
-                    user["last_sign_in_at"]
-                )  # Convert last_sign_in_at to datetime object
-                print(f"Last Sign In At: {last_sign_in_at}")
-                print(f"Time Now: {datetime.now(timezone.utc)}")
-                print(f"Time Diff: {last_sign_in_at - datetime.now(timezone.utc)}")
-                returnUser = {
-                    "id": user["id"],
-                    "firstName": user[
-                        "email"
-                    ],  # Using email as first name for users without metadata
-                    "secondName": "",  # No second name if no metadata
-                    "email": user["email"],
-                    "role": role if role else "N/A",
-                    # Set online to true if last_sign_in_at was 5 mins ago. time is stored as 2024-12-01T20:53:27.176864+00:00
-                    "online": (
-                        True
-                        if last_sign_in_at
-                        > datetime.now(timezone.utc) - timedelta(minutes=5)
-                        else False
-                    ),  # Check if the user is authenticated
-                }
-                # Append the return user to the list
-                returnUsers.append(returnUser)
-                print(f"Return USR: \n{returnUser}")
-            else:
-                # User has metadata, so extract first and last names
-                returnUser = {
-                    "id": user["id"],
-                    "firstName": user["user_metadata"].get(
-                        "firstName", ""
-                    ),  # Safely get firstName or empty string
-                    "lastName": user["user_metadata"].get(
-                        "lastName", ""
-                    ),  # Safely get lastName or empty string
-                    "email": user["email"],
-                    "role": role,
-                    "online": (
-                        True if user["aud"] == "authenticated" else False
-                    ),  # Check if the user is authenticated
-                }
+            # if user["user_metadata"] == {}:  # Check if user_metadata is empty
+            #     print(f"No User Metadata for {user['id']}")
+            #     last_sign_in_at = datetime.fromisoformat(
+            #         user["last_sign_in_at"]
+            #     )  # Convert last_sign_in_at to datetime object
+            #     print(f"Last Sign In At: {last_sign_in_at}")
+            #     print(f"Time Now: {datetime.now(timezone.utc)}")
+            #     print(f"Time Diff: {last_sign_in_at - datetime.now(timezone.utc)}")
+            #     returnUser = {
+            #         "id": user["id"],
+            #         "firstName": user[
+            #             "email"
+            #         ],  # Using email as first name for users without metadata
+            #         "secondName": "",  # No second name if no metadata
+            #         "email": user["email"],
+            #         "role": role if role else "N/A",
+            #         # Set online to true if last_sign_in_at was 5 mins ago. time is stored as 2024-12-01T20:53:27.176864+00:00
+            #         "online": (
+            #             True
+            #             if last_sign_in_at
+            #             > datetime.now(timezone.utc) - timedelta(minutes=5)
+            #             else False
+            #         ),  # Check if the user is authenticated
+            #     }
+            #     # Append the return user to the list
+            #     returnUsers.append(returnUser)
+            #     print(f"Return USR: \n{returnUser}")
+            # else:
+            # User has metadata, so extract first and last names
+            returnUser = {
+                "id": user["id"],
+                "firstName": user["user_metadata"].get(
+                    "firstName", ""
+                ),  # Safely get firstName or empty string
+                "lastName": user["user_metadata"].get(
+                    "lastName", ""
+                ),  # Safely get lastName or empty string
+                "email": user["email"],
+                "role": role,
+                "online": (
+                    True if user["aud"] == "authenticated" else False
+                ),  # Check if the user is authenticated
+            }
 
-                # Append the return user to the list
-                returnUsers.append(returnUser)
-                print(f"Return USR: \n{returnUser}")
+            # Append the return user to the list
+            returnUsers.append(returnUser)
+            print(f"Return USR: \n{returnUser}")
 
         # Debug print the return users list
         print(f"Return OBJ: \n{returnUsers}")
@@ -255,20 +255,28 @@ async def addUsers(request: Request, settings: settings_dependency):
             user_id, f"Added user: {email}", settings, type="User Addition"
         )
 
-        # Issue DID for the user
-        jwk, did = await issue_did()
-        jwkJSON = json.loads(jwk)
-        cid, tx = await storeDIDonBlockchain(did, jwkJSON.get("x"))
-        print(f"cid: {cid}, tx: {tx}")
+        try:
+            # Issue DID for the user
+            jwk, did = await issue_did()
+            jwkJSON = json.loads(jwk)
+            print(f"Storing DID\n{did}")
+            cid, tx = await storeDIDonBlockchain(did, jwkJSON.get("x"))
+            print(f"cid: {cid}, tx: {tx}")
 
-        # Issue VC for the user
-        signed_vc = await issue_vc(did, jwk, user_id)
-        cid, tx = await storeVCOnBlockchain(did, signed_vc)
-        print(f"cid: {cid}, tx: {tx}")
+            # Issue VC for the user
+            signed_vc = await issue_vc(did, jwk, user_id)
+            print(f"Storing VC\n{signed_vc}")
+            cid, tx = await storeVCOnBlockchain(did, signed_vc)
+            print(f"cid: {cid}, tx: {tx}")
+        except Exception as e:
+            print(f"Error with DID generation: {e}")
+            return JSONResponse(content={"error with did generation": str(e)}, status_code=500)
 
     except AuthApiError as e:
+        print(f"Auth Error: {e}")
         return JSONResponse(content={"error": str(e)}, status_code=401)
     except Exception as e:
+        print(f"General Error: {e}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
@@ -345,8 +353,8 @@ async def delete_user(user_id: str, settings: settings_dependency):
     )
 
     try:
-        response = supabase.auth.admin.delete_user(user_id)
         await log_user_action(user_id, "Deleted user", settings, type="User Deletion")
+        response = supabase.auth.admin.delete_user(user_id)
         return JSONResponse(
             content={"message": "User deleted successfully"}, status_code=200
         )

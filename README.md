@@ -19,6 +19,10 @@ Backend for the dashboard, critical data as well as user logs are maintained her
 
 # Commands to run
 
+### Install Python
+
+Do not use versions above 3.12.8
+
 ### Git Clone the repo
 
 ```
@@ -67,3 +71,9 @@ npx supabase status
 ### Create the table by running the tableDef.sql query in the SQL Editior in supabase studio
 
 ### Update the .env file in /app to contain the newly generated anon and serv keys
+
+### Setup IFPS
+
+```
+docker pull ipfs/kubo
+```

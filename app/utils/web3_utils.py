@@ -264,9 +264,13 @@ async def storeDIDonBlockchain(did: str, publicKey: str):
     # Get currentAccumulator value
     current_accumulator = getCurrentAccumulator()
 
-    # Store DID on IPFS
-    ipfs_did_hash = add_file_to_ipfs(did)
-    print(f"IPFS DID Hash: {ipfs_did_hash}")
+    try:
+        # Store DID on IPFS
+        ipfs_did_hash = add_file_to_ipfs(did)
+        print(f"IPFS DID Hash: {ipfs_did_hash}")
+    except Exception as e:
+        print(f"Failed to store DID on IPFS: {e}")
+        return {"Error": "Failed to store DID on IPFS"}
 
     # Create a contract instance and Call the registerDID function from the contract
     tx_hash = (
