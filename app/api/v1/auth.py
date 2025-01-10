@@ -242,9 +242,8 @@ async def sign_challenge_endpoint(request: Request):
         print(f"Error in sign-challenge: \n{str(e)}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
-
-@router.post("/get-uuid")
-async def get_uuid(request: Request, settings: settings_dependency):
+@router.post("/get-uuid-and-2fa")
+async def get_uuid_and_2fa(request: Request, settings: settings_dependency):
     body = await request.json()
     email = body.get("email")
 
@@ -253,49 +252,23 @@ async def get_uuid(request: Request, settings: settings_dependency):
     )
 
     try:
-        # A view by the name of user_email_mapping is created in the database. Grab the user_id from the view
+        # Get user_id and two_factor_auth from user_email_mapping view
         response = (
             supabase.table("user_email_mapping")
-            .select("user_id")
+            .select("user_id, two_factor_auth")
             .eq("email", email)
             .single()
             .execute()
         )
-        if response.data:
-            return JSONResponse(
-                content={"uuid": response.data["user_id"]}, status_code=200
-            )
-        else:
+        if not response.data:
             return JSONResponse(content={"error": "User not found"}, status_code=404)
-    except Exception as e:
-        print(f"Error: {str(e)}")
-        return JSONResponse(content={"error": str(e)}, status_code=500)
+        print(f"UUID and 2FA Query Response: {response.data}")
+        uuid = response.data["user_id"]
+        enabled2fa = response.data["two_factor_auth"]
 
-
-@router.post("/get-2fa-state")
-async def get_2fa_state(request: Request, settings: settings_dependency):
-    body = await request.json()
-    uuid = body.get("uuid")
-
-    supabase: Client = create_client(
-        supabase_url=settings.SUPABASE_URL, supabase_key=settings.SUPABASE_ANON_KEY
-    )
-
-    try:
-        response = (
-            supabase.table("user_keys")
-            .select("two_factor_auth")
-            .eq("user_id", uuid)
-            .single()
-            .execute()
+        return JSONResponse(
+            content={"uuid": uuid, "enabled2fa": enabled2fa}, status_code=200
         )
-        if response.data:
-            return JSONResponse(
-                content={"enabled2fa": response.data["two_factor_auth"]},
-                status_code=200,
-            )
-        else:
-            return JSONResponse(content={"enabled2fa": False}, status_code=200)
     except Exception as e:
         print(f"Error: {str(e)}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
