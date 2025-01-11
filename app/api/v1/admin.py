@@ -140,7 +140,7 @@ async def getUsers(settings: settings_dependency):
             role = role_response.data["role"] if role_response.data else "user"
 
             # Print User id for debugging
-            print(f"User ID: {user['id']}")
+            # print(f"User ID: {user['id']}")
 
             # if user["user_metadata"] == {}:  # Check if user_metadata is empty
             #     print(f"No User Metadata for {user['id']}")
@@ -188,7 +188,7 @@ async def getUsers(settings: settings_dependency):
 
             # Append the return user to the list
             returnUsers.append(returnUser)
-            print(f"Return USR: \n{returnUser}")
+            # print(f"Return USR: \n{returnUser}")
 
         # Debug print the return users list
         print(f"Return OBJ: \n{returnUsers}")
@@ -204,6 +204,43 @@ async def getUsers(settings: settings_dependency):
     except AuthApiError as e:
         print(f"Auth Error: {e}")
         return JSONResponse(content={"error": str(e)}, status_code=401)
+
+
+@router.get("/getAllUsers")
+async def get_all_users(settings: settings_dependency):
+    supabase: Client = create_client(
+        supabase_url=settings.SUPABASE_URL,
+        supabase_key=settings.SUPABASE_SERV_KEY,
+    )
+
+    try:
+        users_response = supabase.auth.admin.list_users(page=1, per_page=100)
+        users = users_response
+        # print(f"Users: {users}")
+        user_data_list = [
+            {
+                "id": user.id,
+                "email": user.email,
+                "firstName": user.user_metadata.get("firstName", ""),
+                "lastName": user.user_metadata.get("lastName", ""),
+                "phone": user.phone,
+                "role": user.app_metadata.get("role", "user"),
+                "online": (
+                    True
+                    if user.last_sign_in_at and user.last_sign_in_at
+                    > datetime.now(timezone.utc) - timedelta(minutes=5)
+                    else False
+                ),  # Check if the user is authenticated
+            }
+            for user in users
+        ]
+
+        # print(f"User Data List: {user_data_list}")
+
+        return JSONResponse(content=user_data_list, status_code=200)
+    except Exception as e:
+        print(f"Error: {e}")
+        return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
 @router.post("/addUser")
@@ -270,34 +307,15 @@ async def addUsers(request: Request, settings: settings_dependency):
             print(f"cid: {cid}, tx: {tx}")
         except Exception as e:
             print(f"Error with DID generation: {e}")
-            return JSONResponse(content={"error with did generation": str(e)}, status_code=500)
+            return JSONResponse(
+                content={"error with did generation": str(e)}, status_code=500
+            )
 
     except AuthApiError as e:
         print(f"Auth Error: {e}")
         return JSONResponse(content={"error": str(e)}, status_code=401)
     except Exception as e:
         print(f"General Error: {e}")
-        return JSONResponse(content={"error": str(e)}, status_code=500)
-
-
-@router.post("/getCurrentUser")
-async def getCurrentUser(request: Request, settings: settings_dependency):
-    # Get data
-    data = await request.json()
-    token = data.get("token")
-
-    # Initialize the Supabase client
-    supabase: Client = create_client(
-        supabase_url=settings.SUPABASE_URL, supabase_key=settings.SUPABASE_ANON_KEY
-    )
-
-    try:
-        # Get the current user
-        user = supabase.auth.api.get_user_by_access_token(token)
-        print(f"User: {user}")
-    except AuthApiError as e:
-        return JSONResponse(content={"error": str(e)}, status_code=401)
-    except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
@@ -310,7 +328,7 @@ async def get_tickets(settings: settings_dependency):
 
     try:
         response = supabase.table("tickets").select("*").execute()
-        print(f"Tickets: {response.data}")
+        # print(f"Tickets: {response.data}")
         return JSONResponse(content=response.data, status_code=200)
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=500)
@@ -460,59 +478,6 @@ async def get_admin_profile(request: Request, settings: settings_dependency):
         return JSONResponse(content=user_data, status_code=200)
     except Exception as e:
         print(f"Error: {e}")
-        return JSONResponse(content={"error": str(e)}, status_code=500)
-
-
-@router.get("/getUser/{user_id}")
-async def get_user(user_id: str, settings: settings_dependency):
-    supabase: Client = create_client(
-        supabase_url=settings.SUPABASE_URL,
-        supabase_key=settings.SUPABASE_SERV_KEY,
-    )
-
-    try:
-        user_response = supabase.auth.admin.get_user_by_id(user_id)
-        user = user_response.user
-
-        user_data = {
-            "id": user.id,
-            "email": user.email,
-            "firstName": user.user_metadata.get("firstName", ""),
-            "lastName": user.user_metadata.get("lastName", ""),
-            "phone": user.phone,
-            "role": user.app_metadata.get("role", "user"),
-        }
-
-        return JSONResponse(content=user_data, status_code=200)
-    except Exception as e:
-        return JSONResponse(content={"error": str(e)}, status_code=500)
-
-
-@router.get("/getAllUsers")
-async def get_all_users(settings: settings_dependency):
-    supabase: Client = create_client(
-        supabase_url=settings.SUPABASE_URL,
-        supabase_key=settings.SUPABASE_SERV_KEY,
-    )
-
-    try:
-        users_response = supabase.auth.admin.list_users(page=1, per_page=100)
-        users = users_response
-
-        user_data_list = [
-            {
-                "id": user.id,
-                "email": user.email,
-                "firstName": user.user_metadata.get("firstName", ""),
-                "lastName": user.user_metadata.get("lastName", ""),
-                "phone": user.phone,
-                "role": user.app_metadata.get("role", "user"),
-            }
-            for user in users
-        ]
-
-        return JSONResponse(content=user_data_list, status_code=200)
-    except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
