@@ -481,6 +481,49 @@ async def get_admin_profile(request: Request, settings: settings_dependency):
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
+@router.get("/dashboard")
+async def get_dashboard_stats(settings: settings_dependency):
+    supabase: Client = create_client(
+        supabase_url=settings.SUPABASE_URL,
+        supabase_key=settings.SUPABASE_SERV_KEY,
+    )
+
+    try:
+        # Fetch users
+        users_response = supabase.auth.admin.list_users(page=1, per_page=100)
+        users = users_response
+
+        total_users = len(users)
+        online_users = sum(
+            1 for user in users
+            if user.last_sign_in_at and user.last_sign_in_at > datetime.now(timezone.utc) - timedelta(minutes=5)
+        )
+
+        # Fetch tickets
+        tickets_response = supabase.table("tickets").select("*").execute()
+        tickets = tickets_response.data
+        pending_tickets = sum(1 for ticket in tickets if ticket["status"] == "pending")
+
+        # Fetch user activities
+        activities_response = supabase.table("user_activity_logs").select("*").execute()
+        activities = activities_response.data
+
+        # Map user IDs to emails
+        user_map = {user.id: user.email for user in users}
+        user_activities_with_details = [
+            {**activity, "name": user_map.get(activity["user_id"], "Unknown User")}
+            for activity in activities
+        ]
+
+        return JSONResponse(content={
+            "totalUsers": total_users,
+            "onlineUsers": online_users,
+            "pendingTickets": pending_tickets,
+            "userActivities": user_activities_with_details
+        }, status_code=200)
+    except Exception as e:
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
 # @router.post("/verify-identity")
 # async def verify_identity(request: Request):
 #     data = await request.json()
