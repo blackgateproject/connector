@@ -24,6 +24,8 @@ from ...utils.utils import (
 
 router = APIRouter()
 
+debug = settings_dependency().DEBUG
+
 # Global list to store logged-in users (Shift this to supabase DB eventually)
 logged_in_users = []
 challenges = {}
@@ -56,10 +58,10 @@ async def verify(request: Request, settings: settings_dependency):
             session = supabase.auth.sign_in_with_password(
                 {"email": email, "password": password}
             )
-            # if debug:
-            print(f"User Data: {session.user}")
-            print(f"Session Data (Access Token): {session.session.access_token}")
-            print(f"Session Data (Refresh Token): {session.session.refresh_token}")
+            if debug >= 2:
+                print(f"User Data: {session.user}")
+                print(f"Session Data (Access Token): {session.session.access_token}")
+                print(f"Session Data (Refresh Token): {session.session.refresh_token}")
             user_data = extractUserInfo(session)
             if any(UUID(user_data["id"]) == user.id for user in logged_in_users):
                 raise Exception("User is already logged in")
@@ -174,11 +176,14 @@ async def request_signing_challenge(request: Request):
     """
     try:
         body = await request.json()
-        print(f"Got Body:\n{body}")
+        if debug >=2:
+            print(f"Got Body:\n{body}")
         public_key_hex = body.get("public_key")
-        print(f"Public Key Hex: {public_key_hex}")
+        if debug >=2:
+            print(f"Public Key Hex: {public_key_hex}")
         challenge = create_signing_challenge()
-        print(f"Created Challenge:\n{challenge}")
+        if debug >=2:
+            print(f"Created Challenge:\n{challenge}")
         challenges[public_key_hex] = challenge
         return JSONResponse(content={"challenge": challenge}, status_code=200)
     except Exception as e:
@@ -196,10 +201,11 @@ async def verify_signing_challenge_endpoint(request: Request):
         public_key_hex = body.get("public_key")
         signature = body.get("signature")
         challenge = body.get("challenge")
-        print(f"Got Body:\n{body}")
-        print(f"Public Key Hex: {public_key_hex}")
-        print(f"Signature: {signature}")
-        print(f"Challenge: {challenge}")
+        if debug >=2:
+            print(f"Got Body:\n{body}")
+            print(f"Public Key Hex: {public_key_hex}")
+            print(f"Signature: {signature}")
+            print(f"Challenge: {challenge}")
         if not challenge:
             return JSONResponse(
                 content={"verified": False, "error": "No challenge found"},
@@ -207,7 +213,8 @@ async def verify_signing_challenge_endpoint(request: Request):
             )
 
         verified = verify_signing_challenge(public_key_hex, challenge, signature)
-        print(f"Verified: {verified}")
+        if debug >=2:
+            print(f"Verified: {verified}")
         if verified:
             del challenges[public_key_hex]  # Remove the challenge once verified
             return JSONResponse(content={"verified": True}, status_code=200)
@@ -230,17 +237,20 @@ async def sign_challenge_endpoint(request: Request):
         body = await request.json()
         private_key_hex = body.get("private_key")
         challenge = body.get("challenge")
-        print(f"Got Body:\n{body}")
-        print(f"Private Key Hex: {private_key_hex}")
-        print(f"Challenge: {challenge}")
+        if debug >=2:
+            print(f"Got Body:\n{body}")
+            print(f"Private Key Hex: {private_key_hex}")
+            print(f"Challenge: {challenge}")
 
         signature = sign_challenge(private_key_hex, challenge)
-        print(f"Generated Signature: {signature}")
+        if debug >=2:
+            print(f"Generated Signature: {signature}")
 
         return JSONResponse(content={"signature": signature}, status_code=200)
     except Exception as e:
         print(f"Error in sign-challenge: \n{str(e)}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
+
 
 @router.post("/get-uuid-and-2fa")
 async def get_uuid_and_2fa(request: Request, settings: settings_dependency):
@@ -262,7 +272,8 @@ async def get_uuid_and_2fa(request: Request, settings: settings_dependency):
         )
         if not response.data:
             return JSONResponse(content={"error": "User not found"}, status_code=404)
-        print(f"UUID and 2FA Query Response: {response.data}")
+        if debug >=1:
+            print(f"UUID and 2FA Query Response: {response.data}")
         uuid = response.data["user_id"]
         enabled2fa = response.data["two_factor_auth"]
 
@@ -282,9 +293,9 @@ async def set_2fa_state(request: Request, settings: settings_dependency):
     body = await request.json()
     uuid = body.get("uuid")
     state = body.get("state")
-
-    print(f"Got UUID: {uuid}")
-    print(f"Got State: {state}")
+    if debug >=1:
+        print(f"Got UUID: {uuid}")
+        print(f"Got State: {state}")
     supabase: Client = create_client(
         supabase_url=settings.SUPABASE_URL, supabase_key=settings.SUPABASE_ANON_KEY
     )
@@ -296,8 +307,8 @@ async def set_2fa_state(request: Request, settings: settings_dependency):
             .eq("user_id", uuid)
             .execute()
         )
-
-        print(f"Response: {response}")
+        if debug >=1:
+            print(f"Response: {response}")
 
         if response.data:
             return JSONResponse(
