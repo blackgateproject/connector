@@ -85,7 +85,7 @@ async def getUsers(settings: settings_dependency):
         users_response = supabase.auth.admin.list_users(page=1, per_page=100)
 
         # Check the structure of the response (print it for inspection)
-        if debug >= 1:
+        if debug >= 2:
             print(f"Users Response: {users_response}")
 
         # The response might be a list of User objects. We need to serialize them.
@@ -122,7 +122,7 @@ async def getUsers(settings: settings_dependency):
             serialized_users.append(serialized_user)
 
         # Print the serialized user data
-        if debug >= 1:
+        if debug >= 2:
             print(f"Serialized Users: {serialized_users}")
 
         # Initialize the list to hold the return users
@@ -260,7 +260,7 @@ async def addUsers(request: Request, settings: settings_dependency):
     autoConfirm = True if data.get("autoConfirm") == "true" else False
 
     # Print the data for debugging
-    if debug >= 1:
+    if debug >= 2:
         print(f"[/addUser] User Data:")
         print(
             f"First Name: {firstName}\nLast Name: {lastName}\nEmail: {email}\nPhone: {phoneNumber}\nPassword: {password}\nRole: {role}\nAuto Confirm: {autoConfirm}"
@@ -286,7 +286,7 @@ async def addUsers(request: Request, settings: settings_dependency):
                 },
             }
         )
-        if debug >= 1:
+        if debug >= 2:
             print(f"[/addUser] User: {user}")
 
         # Map the user to their role
@@ -297,32 +297,49 @@ async def addUsers(request: Request, settings: settings_dependency):
         await log_user_action(
             user_id, f"Added user: {email}", settings, type="User Addition"
         )
-
         try:
             # Issue DID for the user
             jwk, did = await issue_did()
             jwkJSON = json.loads(jwk)
-            if debug >= 1:
-                print(f"[/addUser] Storing DID\n{did}")
-            cid, tx = await storeDIDonBlockchain(did, jwkJSON.get("x"))
+            if debug >= 2:
+                print(f"[/addUser] Storing DID: {did}")
+            DID_CID, DID_TX = await storeDIDonBlockchain(did, jwkJSON.get("x"))
 
             if debug >= 1:
-                print(f"cid: {cid}, tx: {tx}")
+                print(
+                    f"[/addUser] DID Stored on Blockchain!:\n\tDID_CID: {DID_CID} \n\tDID_TX: {DID_TX}"
+                )
 
             # Issue VC for the user
             signed_vc = await issue_vc(did, jwk, user_id)
-            if debug >= 1:
+            if debug >= 2:
                 print(f"[/addUser] Storing VC\n{signed_vc}")
-            cid, tx = await storeVCOnBlockchain(did, signed_vc)
+
+            if not signed_vc or not did:
+                missing = "signed_vc" if not signed_vc else "did"
+                raise Exception(f"[/addUser] Error: {missing} not provided")
+            VC_CID, VC_TX = await storeVCOnBlockchain(did, signed_vc)
             if debug >= 1:
-                print(f"cid: {cid}, tx: {tx}")
+                print(
+                    f"[/addUser] VC Stored on Blockchain!:\n\tVC_CID: {VC_CID} \n\tVC_TX: {VC_TX}"
+                )
         except Exception as e:
-            print(f"[/addUser] Error with DID generation: {e}")
+            print(f"[/addUser] Error: {e}")
             return JSONResponse(
-                content={"[/addUser] error with did generation": str(e)},
+                content={"[/addUser] ERROR: ": str(e)},
                 status_code=500,
             )
 
+        return JSONResponse(
+            content={
+                "message": "User added successfully",
+                "did_CID": DID_CID,
+                "vc_CID": VC_CID,
+                "did_TX": DID_TX,
+                "vc_TX": VC_TX,
+            },
+            status_code=200,
+        )
     except AuthApiError as e:
         print(f"Auth Error: {e}")
         return JSONResponse(content={"[/addUser] error": str(e)}, status_code=401)
