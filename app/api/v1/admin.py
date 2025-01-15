@@ -18,7 +18,7 @@ from ...utils.utils import json_serialize, log_user_action, settings_dependency
 #     verify_identity_with_stateless_blockchain,
 #     verify_with_rsa_accumulator,
 # )
-
+debug = settings_dependency().DEBUG
 router = APIRouter()
 
 
@@ -85,7 +85,8 @@ async def getUsers(settings: settings_dependency):
         users_response = supabase.auth.admin.list_users(page=1, per_page=100)
 
         # Check the structure of the response (print it for inspection)
-        print(f"Users Response: {users_response}")
+        if debug >= 1:
+            print(f"Users Response: {users_response}")
 
         # The response might be a list of User objects. We need to serialize them.
         users = users_response  # The response is a list of User objects
@@ -121,7 +122,8 @@ async def getUsers(settings: settings_dependency):
             serialized_users.append(serialized_user)
 
         # Print the serialized user data
-        print(f"Serialized Users: {serialized_users}")
+        if debug >= 1:
+            print(f"Serialized Users: {serialized_users}")
 
         # Initialize the list to hold the return users
         returnUsers = []
@@ -191,7 +193,8 @@ async def getUsers(settings: settings_dependency):
             # print(f"Return USR: \n{returnUser}")
 
         # Debug print the return users list
-        print(f"Return OBJ: \n{returnUsers}")
+        if debug >= 1:
+            print(f"Return OBJ: \n{returnUsers}")
 
         # Return the JSON response with the serialized user data
         return JSONResponse(
@@ -227,7 +230,8 @@ async def get_all_users(settings: settings_dependency):
                 "role": user.app_metadata.get("role", "user"),
                 "online": (
                     True
-                    if user.last_sign_in_at and user.last_sign_in_at
+                    if user.last_sign_in_at
+                    and user.last_sign_in_at
                     > datetime.now(timezone.utc) - timedelta(minutes=5)
                     else False
                 ),  # Check if the user is authenticated
@@ -256,10 +260,11 @@ async def addUsers(request: Request, settings: settings_dependency):
     autoConfirm = True if data.get("autoConfirm") == "true" else False
 
     # Print the data for debugging
-    print(f"User Data:")
-    print(
-        f"First Name: {firstName}\nLast Name: {lastName}\nEmail: {email}\nPhone: {phoneNumber}\nPassword: {password}\nRole: {role}\nAuto Confirm: {autoConfirm}"
-    )
+    if debug >= 1:
+        print(f"[/addUser] User Data:")
+        print(
+            f"First Name: {firstName}\nLast Name: {lastName}\nEmail: {email}\nPhone: {phoneNumber}\nPassword: {password}\nRole: {role}\nAuto Confirm: {autoConfirm}"
+        )
 
     # Initialize the Supabase client
     supabase: Client = create_client(
@@ -281,7 +286,8 @@ async def addUsers(request: Request, settings: settings_dependency):
                 },
             }
         )
-        print(f"User: {user}")
+        if debug >= 1:
+            print(f"[/addUser] User: {user}")
 
         # Map the user to their role
         user_id = user.user.id
@@ -296,27 +302,33 @@ async def addUsers(request: Request, settings: settings_dependency):
             # Issue DID for the user
             jwk, did = await issue_did()
             jwkJSON = json.loads(jwk)
-            print(f"Storing DID\n{did}")
+            if debug >= 1:
+                print(f"[/addUser] Storing DID\n{did}")
             cid, tx = await storeDIDonBlockchain(did, jwkJSON.get("x"))
-            print(f"cid: {cid}, tx: {tx}")
+
+            if debug >= 1:
+                print(f"cid: {cid}, tx: {tx}")
 
             # Issue VC for the user
             signed_vc = await issue_vc(did, jwk, user_id)
-            print(f"Storing VC\n{signed_vc}")
+            if debug >= 1:
+                print(f"[/addUser] Storing VC\n{signed_vc}")
             cid, tx = await storeVCOnBlockchain(did, signed_vc)
-            print(f"cid: {cid}, tx: {tx}")
+            if debug >= 1:
+                print(f"cid: {cid}, tx: {tx}")
         except Exception as e:
-            print(f"Error with DID generation: {e}")
+            print(f"[/addUser] Error with DID generation: {e}")
             return JSONResponse(
-                content={"error with did generation": str(e)}, status_code=500
+                content={"[/addUser] error with did generation": str(e)},
+                status_code=500,
             )
 
     except AuthApiError as e:
         print(f"Auth Error: {e}")
-        return JSONResponse(content={"error": str(e)}, status_code=401)
+        return JSONResponse(content={"[/addUser] error": str(e)}, status_code=401)
     except Exception as e:
         print(f"General Error: {e}")
-        return JSONResponse(content={"error": str(e)}, status_code=500)
+        return JSONResponse(content={"[/addUser] error": str(e)}, status_code=500)
 
 
 @router.get("/tickets")
@@ -393,7 +405,8 @@ async def edit_user(request: Request, settings: settings_dependency):
     password = data.get("password")
     role = data.get("role")
 
-    print(f"User Data: {data}")
+    if debug >= 1:
+        print(f"User Data: {data}")
 
     supabase: Client = create_client(
         supabase_url=settings.SUPABASE_URL,
@@ -414,7 +427,8 @@ async def edit_user(request: Request, settings: settings_dependency):
                 },
             },
         )
-        print(f"Response: {response}")
+        if debug >= 1:
+            print(f"Response: {response}")
 
         # Update the user's role
         supabase.table("user_roles").upsert(
@@ -444,7 +458,8 @@ async def edit_user(request: Request, settings: settings_dependency):
 @router.get("/profile")
 async def get_admin_profile(request: Request, settings: settings_dependency):
     access_token = request.headers.get("Authorization").split(" ")[1]
-    print(f"Access Token: {access_token}")
+    if debug >= 1:
+        print(f"Access Token: {access_token}")
     supabase: Client = create_client(
         supabase_url=settings.SUPABASE_URL,
         supabase_key=settings.SUPABASE_ANON_KEY,
@@ -453,7 +468,8 @@ async def get_admin_profile(request: Request, settings: settings_dependency):
     try:
         user_response = supabase.auth.get_user(access_token)
         user = user_response.user
-        print(f"GOT USER: {user}")
+        if debug >= 1:
+            print(f"GOT USER: {user}")
 
         # Fetch the role from the user_roles table
         role_response = (
@@ -495,8 +511,10 @@ async def get_dashboard_stats(settings: settings_dependency):
 
         total_users = len(users)
         online_users = sum(
-            1 for user in users
-            if user.last_sign_in_at and user.last_sign_in_at > datetime.now(timezone.utc) - timedelta(minutes=5)
+            1
+            for user in users
+            if user.last_sign_in_at
+            and user.last_sign_in_at > datetime.now(timezone.utc) - timedelta(minutes=5)
         )
 
         # Fetch tickets
@@ -515,14 +533,18 @@ async def get_dashboard_stats(settings: settings_dependency):
             for activity in activities
         ]
 
-        return JSONResponse(content={
-            "totalUsers": total_users,
-            "onlineUsers": online_users,
-            "pendingTickets": pending_tickets,
-            "userActivities": user_activities_with_details
-        }, status_code=200)
+        return JSONResponse(
+            content={
+                "totalUsers": total_users,
+                "onlineUsers": online_users,
+                "pendingTickets": pending_tickets,
+                "userActivities": user_activities_with_details,
+            },
+            status_code=200,
+        )
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=500)
+
 
 # @router.post("/verify-identity")
 # async def verify_identity(request: Request):
