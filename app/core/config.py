@@ -10,9 +10,10 @@ class Settings(BaseSettings):
     JWT_SECRET: str
     JWT_ALGORITHM: str
     JWT_EXPIRES: int
-    DEBUG: bool = False
+    DEBUG: int
     BACKEND_DID: str
     BACKEND_JWK: str
     BACKEND_ACC: str
     BACKEND_MODULUS: str
     IPFS_SWARM_KEY: str
+    IPFS_API_URL: str
