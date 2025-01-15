@@ -29,6 +29,8 @@ settings_dependency = Annotated[Settings, Depends(get_settings)]
 # Hardhat testnet, Check .env for URL Errors if any
 w3 = Web3(Web3.HTTPProvider(settings_dependency().HARDHAT_URL))
 
+debug = settings_dependency().DEBUG
+
 # Secrets dict for the RSA Accumulator
 # accMod, accInit, accState = setup(
 #     modulus=settings_dependency().BACKEND_MODULUS, A0=settings_dependency().BACKEND_ACC
@@ -38,7 +40,7 @@ accInit = settings_dependency().BACKEND_ACC
 accState = dict()
 
 
-async def issue_did(storeIPFS: bool = False):
+async def issue_did():
     """
     Issue a DID
     """
@@ -46,8 +48,9 @@ async def issue_did(storeIPFS: bool = False):
     jwk = didkit.generate_ed25519_key()
     did = didkit.key_to_did("key", jwk)
 
-    print(f"JWK: {jwk}")
-    print(f"DID: {did}")
+    if debug >= 2:
+        print(f"[issue_did()] JWK: {jwk}")
+        print(f"[issue_did()] DID: {did}")
 
     # print(
     #     f"\n\n\nDIDKIT DID RESOLVE:\n{await didkit.resolve_did(did, input_metadata=json.dumps({}))}\n\n\n"
@@ -61,22 +64,24 @@ async def issue_did(storeIPFS: bool = False):
     return jwk, did
 
 
-async def issue_vc(did: str, jwk: str, user_uuid: str, storeIPFS: bool = False):
+async def issue_vc(did: str, jwk: str, user_uuid: str):
     """
     Issue a VC and sign it based on the received DID
     """
     server_did = settings_dependency().BACKEND_DID
     server_jwk = settings_dependency().BACKEND_JWK
 
-    print(f"DID-Recv: \n{did}")
-    print(f"JWK-Recv: \n{jwk}")
-    print(f"UUID-Recv: \n{user_uuid}")
+    if debug >= 1:
+        print(f"[issue_vc()] DID-Recv: {did}")
+        print(f"[issue_vc()] JWK-Recv: \n{jwk}")
+        print(f"[issue_vc()] UUID-Recv: {user_uuid}")
+    if debug >= 2:
+        print(f"[issue_vc()] Server-DID(env): {server_did}")
+        print(f"[issue_vc()] Server-JWK(env): \n{server_jwk}")
 
-    print(f"Server DID: \n{server_did}")
-    print(f"Server JWK: \n{server_jwk}")
-
-    if not did:
-        return {"Error": "DID not provided"}
+    missing_params = [param for param, name in [(did, "DID"), (jwk, "JWK"), (user_uuid, "User-UUID")] if not param]
+    if missing_params:
+        raise ValueError(f"[issue_vc()] Error: {', '.join(name for _, name in missing_params)} not provided")
 
     user_did = didkit.key_to_did("key", didkit.generate_ed25519_key())
 
@@ -91,17 +96,21 @@ async def issue_vc(did: str, jwk: str, user_uuid: str, storeIPFS: bool = False):
         },
     }
 
-    print(f"VC: \n{credential}")
+    if debug >= 1:
+        print(f"[issue_vc()] Generated VC: \n{credential}")
 
     signed_vc = await didkit.issue_credential(json.dumps(credential), "{}", server_jwk)
 
-    if storeIPFS:
-        # Store VC on IPFS
-        ipfs_vc_hash = add_file_to_ipfs(signed_vc)
-        print(f"IPFS VC Hash: {ipfs_vc_hash}")
-        return {"VC": json.loads(signed_vc), "IPFS": ipfs_vc_hash}
+    # if storeIPFS:
+    #     # Store VC on IPFS
+    #     ipfs_vc_hash = add_file_to_ipfs(signed_vc)
 
-    return {"VC": json.loads(signed_vc)}
+    #     if debug >= 1:
+    #         print(f"[issue_vc()] IPFS VC Hash: {ipfs_vc_hash}")
+    #     return {"VC": json.loads(signed_vc), "IPFS": ipfs_vc_hash}
+    # if debug >=2:
+        # print(f"[issue_vc()] Signed VC: \n{json.loads(signed_vc)}")
+    return json.loads(signed_vc)
 
 
 # Load the deployment information
@@ -118,7 +127,7 @@ def getContract(contract_name: str, debug: bool = False):
     )
     address_json_path = os.path.join(base_dir, "deployed_addresses.json")
 
-    if debug:
+    if debug >= 2:
         print(f"Loading contract details...")
         print(f"  ABI Path: {abi_json_path}")
         print(f"  Address Path: {address_json_path}")
@@ -129,19 +138,19 @@ def getContract(contract_name: str, debug: bool = False):
 
     with open(address_json_path, "r") as address_file:
         deployed_addresses = json.load(address_file)
+    if debug >= 2:
+        print(f"Loaded Addresses\n{deployed_addresses}")
 
     # Extract contract ABI and address
     contract_abi = contract_data["abi"]
-    if debug:
-        print(f"Loaded Addresses\n{deployed_addresses}")
     contract_address = deployed_addresses.get(f"{base_prefix}{contract_name}", "")
 
     # Print contract address
-    if debug:
+    if debug >= 2:
         print(f"  Contract Address: {contract_address}\n")
 
     # Loop through the ABI and print details for each function
-    if debug:
+    if debug >= 2:
         for item in contract_abi:
             # Only print function details, skip events
             if item["type"] == "function":
@@ -181,7 +190,8 @@ def setAccumulator(accumulator: str):
     tx_hash = get_rsa_accumulator().functions.setAccumulator(accumulator).transact()
 
     # Print the transaction hash for debugging purposes
-    print(f"Transaction Hash: \n{tx_hash.hex()}")
+    if debug >= 1:
+        print(f"[setAccumulator()] Transaction Hash: \n{tx_hash.hex()}")
 
     return tx_hash.hex()
 
@@ -193,7 +203,8 @@ def getCurrentAccumulator():
     # Create Contract Instance and Call the getAccumulator function from the contract
     current_accumulator = get_rsa_accumulator().functions.getAccumulator().call()
     current_accumulator = f"0x{current_accumulator.hex()}"
-    print(f"Current Accumulator: \n{current_accumulator}")
+    if debug >= 2:
+        print(f"[getCurrentAccumulator()] Current Accumulator: \n{current_accumulator}")
 
     return current_accumulator
 
@@ -208,7 +219,8 @@ async def recalcAccumulator():
     current_accumulator = int(getCurrentAccumulator(), 16)
 
     # convert modulus to int
-    print(f"Modulus({len(str(accMod))}): {accMod}")
+    if debug >= 2:
+        print(f"Modulus({len(str(accMod))}): {accMod}")
     accModulus = int(accMod, 16)
 
     # List all CIDs currently in IPFS
@@ -216,9 +228,11 @@ async def recalcAccumulator():
     concat_ipfs = "".join(ipfs_cids)
     concat_bytes = concat_ipfs.encode()
     hashed_cids = int(hashlib.sha256(concat_bytes).hexdigest(), 16)
+    if debug >= 2:
+        print(
+            f"[recalcAccumulator()] Hash of CIDs({len(str(hashed_cids))}): {hashed_cids}"
+        )
 
-    print(f"Hash of CIDs({len(str(hashed_cids))}): {hashed_cids}")
-    
     x = hashed_cids
     A1 = add(current_accumulator, accState, x, accModulus)
     nonce = accState[x]
@@ -226,7 +240,6 @@ async def recalcAccumulator():
     prime, nonce = hash_to_prime(x, nonce)
 
     new_accumulator = A1
-    
 
     # # Run the list through hash_to_prime to get element1
     # element1, nonce1 = hash_to_prime(hashed_cids, 3072)
@@ -267,10 +280,11 @@ async def storeDIDonBlockchain(did: str, publicKey: str):
     try:
         # Store DID on IPFS
         ipfs_did_hash = add_file_to_ipfs(did)
-        print(f"IPFS DID Hash: {ipfs_did_hash}")
+        if debug >= 2:
+            print(f"[storeDIDonBlockchain()] IPFS DID Hash: {ipfs_did_hash}")
     except Exception as e:
-        print(f"Failed to store DID on IPFS: {e}")
-        return {"Error": "Failed to store DID on IPFS"}
+        print(f"[storeDIDonBlockchain()] Failed to store DID on IPFS: {e}")
+        return {"Error": "[storeDIDonBlockchain()] Failed to store DID on IPFS"}
 
     # Create a contract instance and Call the registerDID function from the contract
     tx_hash = (
@@ -285,10 +299,11 @@ async def storeDIDonBlockchain(did: str, publicKey: str):
     )
 
     # Print the transaction hash for debugging purposes
-    print(f"Transaction Hash: \n{tx_hash.hex()}")
+    if debug >= 1:
+        print(f"[storeDIDonBlockchain()] Transaction Hash: {tx_hash.hex()}")
 
-    # Return the CID and the transaction hash as JSON
-    return {"CID": ipfs_did_hash, "TX": tx_hash.hex()}
+    # Return the CID and the transaction hash
+    return ipfs_did_hash, tx_hash.hex()
 
 
 async def storeVCOnBlockchain(did: str, vc: str):
@@ -300,19 +315,23 @@ async def storeVCOnBlockchain(did: str, vc: str):
 
     # Store VC on IPFS
     ifps_VC_CID = add_file_to_ipfs(vc)
-    print(f"IPFS VC CID: {ifps_VC_CID}")
+    if debug >= 2:
+        print(f"[storeVCOnBlockchain()] IPFS VC CID: {ifps_VC_CID}")
 
     # Create a keccak256 hash of the VC
     vc_hash = w3.solidity_keccak(["string"], [vc]).hex()
-    print(f"VC Hash: {vc_hash}")
+    if debug >= 2:
+        print(f"[storeVCOnBlockchain()] VC Hash: {vc_hash}")
 
     # Call the storeCredential function from the contract
     tx_hash = get_vc_manager().functions.issueVC(did, vc_hash, ifps_VC_CID).transact()
 
     # Print the transaction hash for debugging purposes
-    print(f"Transaction Hash: \n{tx_hash.hex()}")
+    if debug >= 1:
+        print(f"[storeVCOnBlockchain()] Transaction Hash: \n{tx_hash.hex()}")
 
-    return {"CID": ifps_VC_CID, "TX": tx_hash.hex()}
+    # Return the CID and the transaction hash
+    return ifps_VC_CID, tx_hash.hex()
 
 
 async def udpateAccumulatorOnBlockchain():
