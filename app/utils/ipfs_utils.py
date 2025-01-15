@@ -1,9 +1,21 @@
 import json
 import tempfile
+from functools import lru_cache
 
 import requests
+from fastapi import Depends
+from typing_extensions import Annotated
 
-IPFS_API_URL = "http://localhost:5001/api/v0"
+from ..core.config import Settings
+
+
+@lru_cache
+def get_settings():
+    return Settings()
+
+
+settings_dependency = Annotated[Settings, Depends(get_settings)]
+IPFS_API_URL = settings_dependency().IPFS_API_URL
 
 
 def add_file_to_ipfs(file_content):
