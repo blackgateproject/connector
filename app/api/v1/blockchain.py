@@ -85,7 +85,7 @@ async def issueDid():
     jwk, did = await issue_did()
     jwkJSON = json.loads(jwk)
     cid, tx = await storeDIDonBlockchain(did, jwkJSON.get("x"))
-
+    print(f"[issueDid()] CID: {cid} \nTX: {tx}")
     # Create a JSON object with the DID, cid and tx
     response = {
         "jwk": jwkJSON,
