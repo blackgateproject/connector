@@ -7,7 +7,7 @@ from .api.v1 import admin, auth, blockchain, user
 from .utils.utils import settings_dependency, verify_jwt
 
 app = FastAPI()
-
+debug = settings_dependency().DEBUG
 
 # CORS Middleware
 origins = ["*"]
@@ -25,14 +25,13 @@ app.add_middleware(
 async def redirect_invalid_jwt(request: Request, call_next):
     try:
         # print(f"JWT_MIDDLEWARE: Verifying JWT")
-        print(f"JWT_MIDDLEWARE: Request URL: {request.url}")
+        if debug >= 3:
+            print(f"JWT_MIDDLEWARE: Request URL: {request.url}")
         await verify_jwt(request)
     except HTTPException as e:
         if e.status_code == 401:
             print(f"JWT_MIDDLEWARE: Caught a 401. Redirecting to /")
-            return RedirectResponse(url="/",headers={"Location": "/"}, status_code=302)
-    response = await call_next(request)
-    return response
+    return await call_next(request)
 
 
 # Load routes
