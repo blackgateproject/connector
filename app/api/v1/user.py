@@ -1,23 +1,23 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, Depends
 from fastapi.responses import JSONResponse
 from supabase import Client, create_client
 
 from ...utils.pki_utils import generate_private_key, generate_public_key
-from ...utils.utils import log_user_action, settings_dependency
+from ...utils.utils import log_user_action, settings_dependency, verify_jwt
 
 # Initialize the API router
 router = APIRouter()
 
 # Health check endpoint
 @router.get("/")
-async def health_check():
+async def health_check(_: dict = Depends(verify_jwt)):
     return "Reached User Endpoint, Router User is Active"
 
 # Endpoint to create a new ticket
 @router.post("/tickets")
-async def create_ticket(request: Request, settings: settings_dependency):
+async def create_ticket(request: Request, settings: settings_dependency, _: dict = Depends(verify_jwt)):
     data = await request.json()
     title = data.get("title")
     description = data.get("description")
@@ -60,7 +60,7 @@ async def create_ticket(request: Request, settings: settings_dependency):
 
 # Endpoint to get user profile
 @router.get("/profile")
-async def get_user_profile(request: Request, settings: settings_dependency):
+async def get_user_profile(request: Request, settings: settings_dependency, _: dict = Depends(verify_jwt)):
     access_token = request.headers.get("Authorization").split(" ")[1]
     
     # Initialize Supabase client
@@ -114,7 +114,7 @@ async def get_user_profile(request: Request, settings: settings_dependency):
 
 # Endpoint to enable 2FA
 @router.post("/enable-2fa")
-async def enable_2fa(request: Request, settings: settings_dependency):
+async def enable_2fa(request: Request, settings: settings_dependency, _: dict = Depends(verify_jwt)):
     try:
         data = await request.json()
         user_id = data.get("user_id")
@@ -142,7 +142,7 @@ async def enable_2fa(request: Request, settings: settings_dependency):
 
 # Endpoint to save keys and enable 2FA
 @router.post("/save-keys")
-async def save_keys(request: Request, settings: settings_dependency):
+async def save_keys(request: Request, settings: settings_dependency, _: dict = Depends(verify_jwt)):
     data = await request.json()
     user_id = data.get("user_id")
     private_key = data.get("private_key")

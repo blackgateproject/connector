@@ -40,7 +40,6 @@ create table
     constraint user_activity_logs_user_id_fkey foreign key (user_id) references auth.users (id) on delete cascade
   ) tablespace pg_default;
 
-
 -- Create a new table to store user keys
 create table
   public.user_keys (
@@ -73,6 +72,30 @@ select
 from
   auth.users u
   left join user_keys uk on u.id = uk.user_id;
+
+-- create a view to read the auth.sessions table
+create view
+  public.sessions as
+select
+  sessions.id,
+  sessions.user_id,
+  sessions.created_at,
+  sessions.updated_at,
+  sessions.factor_id,
+  sessions.aal,
+  sessions.not_after,
+  sessions.refreshed_at,
+  sessions.user_agent,
+  sessions.ip,
+  sessions.tag
+from
+  auth.sessions;
+
+-- //////
+-- NOTE::
+-- //////
+
+-- Setup 2 accounts in the Authn section of supabase by logging into supabase studio
 
 
 -- /// TEST DATA ///

@@ -1,11 +1,10 @@
 import json
 from datetime import datetime, timedelta, timezone, tzinfo
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, Depends
 from fastapi.responses import JSONResponse
 
 from ...utils.ipfs_utils import add_file_to_ipfs, get_file_from_ipfs
-from ...utils.utils import settings_dependency
 from ...utils.web3_utils import (
     getContract,
     getCurrentAccumulator,
@@ -17,6 +16,7 @@ from ...utils.web3_utils import (
     storeVCOnBlockchain,
     w3,
 )
+from ...utils.utils import settings_dependency, verify_jwt
 
 # Initialize the API router
 router = APIRouter()
@@ -34,7 +34,7 @@ router = APIRouter()
 
 
 @router.get("/")
-async def health_check():
+async def health_check(_: dict = Depends(verify_jwt)):
     """
     Blockchain Endpoint Health Check
     """
@@ -42,7 +42,7 @@ async def health_check():
 
 
 @router.get("/contract-test")
-async def contract_test():
+async def contract_test(_: dict = Depends(verify_jwt)):
     """
     Test Contract Endpoint
     """
@@ -54,7 +54,7 @@ async def contract_test():
 
 
 @router.get("/currentAccumulator")
-async def current_accumulator():
+async def current_accumulator(_: dict = Depends(verify_jwt)):
     """
     Get Current Accumulator
     """
@@ -78,7 +78,7 @@ async def current_accumulator():
 
 
 @router.get("/issueDID")
-async def issueDid():
+async def issueDid(_: dict = Depends(verify_jwt)):
     """
     Issue a DID
     """
@@ -98,7 +98,7 @@ async def issueDid():
 
 
 @router.post("/issueVC")
-async def issueVC(request: Request, settings: settings_dependency):
+async def issueVC(request: Request, settings: settings_dependency, _: dict = Depends(verify_jwt)):
     """
     Issue a VC and sign it based on the recieved DID
     """
@@ -123,7 +123,7 @@ async def issueVC(request: Request, settings: settings_dependency):
 
 # Test Getting ACC Val
 @router.get("/getAcc")
-async def get_acc():
+async def get_acc(_: dict = Depends(verify_jwt)):
     """
     Get Current Accumulator
     """
@@ -135,7 +135,7 @@ async def get_acc():
 
 
 @router.get("/testUpdateACC")
-async def updateAcc():
+async def updateAcc(_: dict = Depends(verify_jwt)):
     """
     Update the Accumulator
     """

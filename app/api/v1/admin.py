@@ -1,7 +1,7 @@
 import json
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 from supabase import AuthApiError, Client, ClientOptions, create_client
 
@@ -11,7 +11,12 @@ from ...api.v1.blockchain import (
     storeDIDonBlockchain,
     storeVCOnBlockchain,
 )
-from ...utils.utils import json_serialize, log_user_action, settings_dependency
+from ...utils.utils import (
+    json_serialize,
+    log_user_action,
+    settings_dependency,
+    verify_jwt,
+)
 
 # from ...utils.web3_utils import (
 #     get_did_from_registry,
@@ -23,7 +28,9 @@ router = APIRouter()
 
 
 @router.get("/user-activity-logs")
-async def get_user_activity_logs(settings: settings_dependency):
+async def get_user_activity_logs(
+    settings: settings_dependency, _: dict = Depends(verify_jwt)
+):
     supabase: Client = create_client(
         supabase_url=settings.SUPABASE_URL,
         supabase_key=settings.SUPABASE_SERV_KEY,
@@ -37,7 +44,9 @@ async def get_user_activity_logs(settings: settings_dependency):
 
 
 @router.post("/log")
-async def log_action(request: Request, settings: settings_dependency):
+async def log_action(
+    request: Request, settings: settings_dependency, _: dict = Depends(verify_jwt)
+):
     data = await request.json()
     user_id = data.get("user_id")
     activity = data.get("activity")
@@ -67,12 +76,12 @@ async def log_action(request: Request, settings: settings_dependency):
 
 
 @router.get("/")
-async def health_check():
+async def health_check(_: dict = Depends(verify_jwt)):
     return "Reached Admin Endpoint, Router Admin is Active"
 
 
 @router.get("/getUsers")
-async def getUsers(settings: settings_dependency):
+async def getUsers(settings: settings_dependency, _: dict = Depends(verify_jwt)):
     # Initialize the Supabase client
     supabase: Client = create_client(
         supabase_url=settings.SUPABASE_URL,
@@ -210,7 +219,7 @@ async def getUsers(settings: settings_dependency):
 
 
 @router.get("/getAllUsers")
-async def get_all_users(settings: settings_dependency):
+async def get_all_users(settings: settings_dependency, _: dict = Depends(verify_jwt)):
     supabase: Client = create_client(
         supabase_url=settings.SUPABASE_URL,
         supabase_key=settings.SUPABASE_SERV_KEY,
@@ -248,7 +257,9 @@ async def get_all_users(settings: settings_dependency):
 
 
 @router.post("/addUser")
-async def addUsers(request: Request, settings: settings_dependency):
+async def addUsers(
+    request: Request, settings: settings_dependency, _: dict = Depends(verify_jwt)
+):
     # Get data
     data = await request.json()
     firstName = data.get("firstName")
@@ -349,7 +360,7 @@ async def addUsers(request: Request, settings: settings_dependency):
 
 
 @router.get("/tickets")
-async def get_tickets(settings: settings_dependency):
+async def get_tickets(settings: settings_dependency, _: dict = Depends(verify_jwt)):
     supabase: Client = create_client(
         supabase_url=settings.SUPABASE_URL,
         supabase_key=settings.SUPABASE_ANON_KEY,
@@ -364,7 +375,9 @@ async def get_tickets(settings: settings_dependency):
 
 
 @router.post("/tickets/{ticket_id}/complete")
-async def complete_ticket(ticket_id: int, settings: settings_dependency):
+async def complete_ticket(
+    ticket_id: int, settings: settings_dependency, _: dict = Depends(verify_jwt)
+):
     supabase: Client = create_client(
         supabase_url=settings.SUPABASE_URL,
         supabase_key=settings.SUPABASE_SERV_KEY,
@@ -392,7 +405,9 @@ async def complete_ticket(ticket_id: int, settings: settings_dependency):
 
 
 @router.delete("/deleteUser/{user_id}")
-async def delete_user(user_id: str, settings: settings_dependency):
+async def delete_user(
+    user_id: str, settings: settings_dependency, _: dict = Depends(verify_jwt)
+):
     supabase: Client = create_client(
         supabase_url=settings.SUPABASE_URL,
         supabase_key=settings.SUPABASE_SERV_KEY,
@@ -412,7 +427,9 @@ async def delete_user(user_id: str, settings: settings_dependency):
 
 
 @router.put("/editUser")
-async def edit_user(request: Request, settings: settings_dependency):
+async def edit_user(
+    request: Request, settings: settings_dependency, _: dict = Depends(verify_jwt)
+):
     data = await request.json()
     user_id = data.get("id")
     first_name = data.get("firstName")
@@ -473,7 +490,9 @@ async def edit_user(request: Request, settings: settings_dependency):
 
 
 @router.get("/profile")
-async def get_admin_profile(request: Request, settings: settings_dependency):
+async def get_admin_profile(
+    request: Request, settings: settings_dependency, _: dict = Depends(verify_jwt)
+):
     access_token = request.headers.get("Authorization").split(" ")[1]
     if debug >= 1:
         print(f"Access Token: {access_token}")
@@ -515,7 +534,9 @@ async def get_admin_profile(request: Request, settings: settings_dependency):
 
 
 @router.get("/dashboard")
-async def get_dashboard_stats(settings: settings_dependency):
+async def get_dashboard_stats(
+    settings: settings_dependency, _: dict = Depends(verify_jwt)
+):
     supabase: Client = create_client(
         supabase_url=settings.SUPABASE_URL,
         supabase_key=settings.SUPABASE_SERV_KEY,

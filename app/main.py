@@ -1,9 +1,10 @@
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, Request
+from fastapi.exceptions import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 
 from .api.v1 import admin, auth, blockchain, user
-from .utils.utils import settings_dependency
+from .utils.utils import settings_dependency, verify_jwt
 
 app = FastAPI()
 
@@ -17,6 +18,22 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# Add a redirect middleware for invalid JWT, this will redirect to the login page at "/"
+@app.middleware("http")
+async def redirect_invalid_jwt(request: Request, call_next):
+    try:
+        # print(f"JWT_MIDDLEWARE: Verifying JWT")
+        print(f"JWT_MIDDLEWARE: Request URL: {request.url}")
+        await verify_jwt(request)
+    except HTTPException as e:
+        if e.status_code == 401:
+            print(f"JWT_MIDDLEWARE: Caught a 401. Redirecting to /")
+            return RedirectResponse(url="/",headers={"Location": "/"}, status_code=302)
+    response = await call_next(request)
+    return response
+
 
 # Load routes
 API_VERSION = "v1"

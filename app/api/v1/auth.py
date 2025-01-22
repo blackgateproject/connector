@@ -1,7 +1,7 @@
 from uuid import UUID
 
 import didkit
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.requests import Request
 from fastapi.responses import JSONResponse
 from supabase import AuthApiError
@@ -18,6 +18,7 @@ from ...utils.utils import (
     extractUserInfo,
     log_user_action,
     settings_dependency,
+    verify_jwt,
 )
 
 # from ...utils.web3_utils import verify_identity_with_stateless_blockchain, verify_vc, verify_with_rsa_accumulator, get_did_from_registry
@@ -63,6 +64,8 @@ async def verify(request: Request, settings: settings_dependency):
                 print(f"Session Data (Access Token): {session.session.access_token}")
                 print(f"Session Data (Refresh Token): {session.session.refresh_token}")
             user_data = extractUserInfo(session)
+
+            # UPDATE:: Move this to supabase when ready
             if any(UUID(user_data["id"]) == user.id for user in logged_in_users):
                 raise Exception("User is already logged in")
 
@@ -82,6 +85,10 @@ async def verify(request: Request, settings: settings_dependency):
             await log_user_action(
                 user_data["id"], "User logged in", settings, type="Login"
             )
+
+            # Print user aud 
+            if debug >= 2:
+                print(f"User Aud: {user_data['aud']}")
 
             # Return authenticated response
             return JSONResponse(
@@ -132,7 +139,9 @@ async def verify(request: Request, settings: settings_dependency):
 
 
 @router.post("/logout")
-async def logout(request: Request, settings: settings_dependency):
+async def logout(
+    request: Request, settings: settings_dependency, _: dict = Depends(verify_jwt)
+):
     """
     Log the user out and remove the user from the logged_in_users list
     :param request:
@@ -170,19 +179,21 @@ async def logout(request: Request, settings: settings_dependency):
 
 
 @router.post("/request-signing-challenge")
-async def request_signing_challenge(request: Request):
+async def request_signing_challenge(
+    request: Request, settings: settings_dependency, _: dict = Depends(verify_jwt)
+):
     """
     Generate a signing challenge for the client.
     """
     try:
         body = await request.json()
-        if debug >=2:
+        if debug >= 2:
             print(f"Got Body:\n{body}")
         public_key_hex = body.get("public_key")
-        if debug >=2:
+        if debug >= 2:
             print(f"Public Key Hex: {public_key_hex}")
         challenge = create_signing_challenge()
-        if debug >=2:
+        if debug >= 2:
             print(f"Created Challenge:\n{challenge}")
         challenges[public_key_hex] = challenge
         return JSONResponse(content={"challenge": challenge}, status_code=200)
@@ -192,7 +203,9 @@ async def request_signing_challenge(request: Request):
 
 
 @router.post("/verify-signing-challenge")
-async def verify_signing_challenge_endpoint(request: Request):
+async def verify_signing_challenge_endpoint(
+    request: Request, settings: settings_dependency, _: dict = Depends(verify_jwt)
+):
     """
     Verify the signing challenge response from the client.
     """
@@ -201,7 +214,7 @@ async def verify_signing_challenge_endpoint(request: Request):
         public_key_hex = body.get("public_key")
         signature = body.get("signature")
         challenge = body.get("challenge")
-        if debug >=2:
+        if debug >= 2:
             print(f"Got Body:\n{body}")
             print(f"Public Key Hex: {public_key_hex}")
             print(f"Signature: {signature}")
@@ -213,7 +226,7 @@ async def verify_signing_challenge_endpoint(request: Request):
             )
 
         verified = verify_signing_challenge(public_key_hex, challenge, signature)
-        if debug >=2:
+        if debug >= 2:
             print(f"Verified: {verified}")
         if verified:
             del challenges[public_key_hex]  # Remove the challenge once verified
@@ -229,7 +242,9 @@ async def verify_signing_challenge_endpoint(request: Request):
 
 
 @router.post("/sign-challenge")
-async def sign_challenge_endpoint(request: Request):
+async def sign_challenge_endpoint(
+    request: Request, settings: settings_dependency, _: dict = Depends(verify_jwt)
+):
     """
     Sign the challenge on the server side.
     """
@@ -237,13 +252,13 @@ async def sign_challenge_endpoint(request: Request):
         body = await request.json()
         private_key_hex = body.get("private_key")
         challenge = body.get("challenge")
-        if debug >=2:
+        if debug >= 2:
             print(f"Got Body:\n{body}")
             print(f"Private Key Hex: {private_key_hex}")
             print(f"Challenge: {challenge}")
 
         signature = sign_challenge(private_key_hex, challenge)
-        if debug >=2:
+        if debug >= 2:
             print(f"Generated Signature: {signature}")
 
         return JSONResponse(content={"signature": signature}, status_code=200)
@@ -272,7 +287,7 @@ async def get_uuid_and_2fa(request: Request, settings: settings_dependency):
         )
         if not response.data:
             return JSONResponse(content={"error": "User not found"}, status_code=404)
-        if debug >=1:
+        if debug >= 1:
             print(f"UUID and 2FA Query Response: {response.data}")
         uuid = response.data["user_id"]
         enabled2fa = response.data["two_factor_auth"]
@@ -293,7 +308,7 @@ async def set_2fa_state(request: Request, settings: settings_dependency):
     body = await request.json()
     uuid = body.get("uuid")
     state = body.get("state")
-    if debug >=1:
+    if debug >= 1:
         print(f"Got UUID: {uuid}")
         print(f"Got State: {state}")
     supabase: Client = create_client(
@@ -307,7 +322,7 @@ async def set_2fa_state(request: Request, settings: settings_dependency):
             .eq("user_id", uuid)
             .execute()
         )
-        if debug >=1:
+        if debug >= 1:
             print(f"Response: {response}")
 
         if response.data:
@@ -393,7 +408,9 @@ async def twofa_loggedin(request: Request, settings: settings_dependency):
     """
     Now that the user has set isLoginAccepted to true, the frontend will check if the user has logged in
     """
-
+    print(
+        f"[/2fa-frontend-check] DEV_NOTE:: BROKEN FUNCTION. Need to add isLoginAccepted Column"
+    )
     body = await request.json()
     uuid = body.get("uuid")
 
@@ -428,77 +445,3 @@ async def twofa_loggedin(request: Request, settings: settings_dependency):
     except Exception as e:
         print(f"Error: {str(e)}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
-
-
-# @router.post("/passwordless-login")
-# async def passwordless_login(request: Request, settings: settings_dependency):
-#     """
-#     Passwordless login using W3C compliant DID and Verifiable Credentials.
-#     """
-#     body = await request.json()
-#     did = body.get("did")
-#     proof = body.get("proof")
-#     context = body.get("context")
-#     issuance_date = body.get("issuance_date")
-
-#     supabase: Client = create_client(
-#         supabase_url=settings.SUPABASE_URL, supabase_key=settings.SUPABASE_ANON_KEY
-#     )
-
-#     try:
-#         user_response = supabase.auth.get_user_by_did(did)
-#         user = user_response.user
-#         user_details = extract_user_details_for_passwordless(user)
-
-#         vc = {
-#             "@context": context,
-#             "type": ["VerifiableCredential"],
-#             "issuer": did,
-#             "issuanceDate": issuance_date,
-#             "credentialSubject": {"id": user_details["id"], "proof": proof},
-#         }
-
-#         if verify_vc(vc):
-#             await log_user_action(
-#                 user_details["id"], "Passwordless login", settings, type="Login"
-#             )
-#             return JSONResponse(
-#                 content={
-#                     "authenticated": True,
-#                     "user": user_details,
-#                 },
-#                 status_code=200,
-#             )
-#         else:
-#             return JSONResponse(
-#                 content={"authenticated": False, "error": "Invalid proof"},
-#                 status_code=401,
-#             )
-#     except Exception as e:
-#         return JSONResponse(
-#             content={"authenticated": False, "error": str(e)}, status_code=500
-#         )
-
-
-# @router.post("/verify-identity")
-# async def verify_identity(request: Request):
-#     data = await request.json()
-#     user = data.get("user")
-#     identity_credential = data.get("identity_credential")
-#     result = verify_identity_with_stateless_blockchain(user, identity_credential)
-#     return JSONResponse(content={"result": result}, status_code=200)
-
-
-# @router.post("/verify-rsa")
-# async def verify_rsa(request: Request):
-#     data = await request.json()
-#     base = data.get("base")
-#     e = data.get("e")
-#     result = verify_with_rsa_accumulator(base, e)
-#     return JSONResponse(content={"result": result}, status_code=200)
-
-
-# @router.get("/get-did/{controller}")
-# async def get_did(controller: str):
-#     did = get_did_from_registry(controller)
-#     return JSONResponse(content={"did": did}, status_code=200)

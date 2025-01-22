@@ -1,14 +1,24 @@
+"""
+ERROR NOTE:
+it is very easy to start a circular import here, make sure that all setting_dependency calls here are done via
+`settings_dependency()` and not `settings_dependency` to avoid circular imports
+"""
+
+
 import json
 import uuid
 from datetime import datetime, timedelta, timezone, tzinfo
 from functools import lru_cache
 
+import jwt
+
 # from cryptography.hazmat.primitives import hashes, serialization
 # from cryptography.hazmat.primitives.asymmetric import padding, rsa
 from eth_keys import keys
 from eth_utils import decode_hex
-from fastapi import Depends
+from fastapi import Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from gotrue import AuthResponse
 from gotrue.types import AuthResponse
 from supabase import Client, create_async_client, create_client
@@ -32,6 +42,31 @@ def get_settings():
 
 
 settings_dependency = Annotated[Settings, Depends(get_settings)]
+
+security = HTTPBearer()
+
+
+async def verify_jwt(request: Request):
+    credentials: HTTPAuthorizationCredentials = await security(request)
+    token = credentials.credentials
+    print(f"[VERIFY_JWT()] JWT_SECRET: {settings_dependency().JWT_SECRET}")
+    print(f"[VERIFY_JWT()] JWT_ALGORITHM: {settings_dependency().JWT_ALGORITHM}")
+    print(f"[VERIFY_JWT()] JWT Token: {token}")
+    try:
+        payload = jwt.decode(
+            jwt=token,
+            key=settings_dependency().JWT_SECRET,
+            algorithms=[
+                settings_dependency().JWT_ALGORITHM,
+            ],
+            audience="authenticated",
+        )
+        print(f"[VERIFY_JWT()] Payload: {payload}")
+        return payload
+    except Exception as e:
+        print(f"[VERIFY_JWT()] Exception: {e}")
+        raise HTTPException(status_code=401, detail="Invalid token")
+
 
 # HIGHLY POSSIBLE THAT THE FUNCTION WAS NOT BEING CALLED CORRECTLY
 # ERROR COMING FROM THE FACT THAT SUPABASE_KEY IS CALLED NOT SUPABASE_ANON_KEY OR
