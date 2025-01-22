@@ -4,7 +4,6 @@ it is very easy to start a circular import here, make sure that all setting_depe
 `settings_dependency()` and not `settings_dependency` to avoid circular imports
 """
 
-
 import json
 import uuid
 from datetime import datetime, timedelta, timezone, tzinfo
@@ -42,16 +41,17 @@ def get_settings():
 
 
 settings_dependency = Annotated[Settings, Depends(get_settings)]
-
+debug = settings_dependency().DEBUG
 security = HTTPBearer()
 
 
 async def verify_jwt(request: Request):
     credentials: HTTPAuthorizationCredentials = await security(request)
     token = credentials.credentials
-    print(f"[VERIFY_JWT()] JWT_SECRET: {settings_dependency().JWT_SECRET}")
-    print(f"[VERIFY_JWT()] JWT_ALGORITHM: {settings_dependency().JWT_ALGORITHM}")
-    print(f"[VERIFY_JWT()] JWT Token: {token}")
+    if debug >= 3:
+        print(f"[VERIFY_JWT()] JWT_SECRET: {settings_dependency().JWT_SECRET}")
+        print(f"[VERIFY_JWT()] JWT_ALGORITHM: {settings_dependency().JWT_ALGORITHM}")
+        print(f"[VERIFY_JWT()] JWT Token: {token}")
     try:
         payload = jwt.decode(
             jwt=token,
@@ -61,7 +61,8 @@ async def verify_jwt(request: Request):
             ],
             audience="authenticated",
         )
-        print(f"[VERIFY_JWT()] Payload: {payload}")
+        if debug >= 3:
+            print(f"[VERIFY_JWT()] Payload: {payload}")
         return payload
     except Exception as e:
         print(f"[VERIFY_JWT()] Exception: {e}")
