@@ -5,9 +5,12 @@ from datetime import datetime, timezone
 from functools import lru_cache
 
 import didkit
+from eth_account import Account
 from fastapi import Depends
 from typing_extensions import Annotated
 from web3 import Web3
+from zksync2.module.module_builder import ZkSyncBuilder
+from zksync2.signer.eth_signer import PrivateKeyEthSigner
 
 from ..core.config import Settings
 from ..utils.ipfs_utils import (
@@ -30,6 +33,26 @@ settings_dependency = Annotated[Settings, Depends(get_settings)]
 w3 = Web3(Web3.HTTPProvider(settings_dependency().HARDHAT_URL))
 
 debug = settings_dependency().DEBUG
+
+wallet_prv_key = ""
+wallet_addr = ""
+if settings_dependency().BLOCKCHAIN_WALLET_ADDR:
+    wallet_prv_key = settings_dependency().BLOCKCHAIN_WALLET_PRVT_KEY
+    wallet_addr = settings_dependency().BLOCKCHAIN_WALLET_ADDR
+    
+    derived_addr = Account.from_key(wallet_prv_key).address
+    if derived_addr != wallet_addr:
+        print(
+            f"Derived Address({derived_addr}) does not match the provided address({wallet_addr})"
+        )
+    
+    if debug >= 2:
+        print("Using Wallet Address from .env")
+
+else:
+    print(
+        f"BLOCKCHAIN_WALLET_ADDR not set in .env, please use a valid private key and address"
+    )
 
 # Secrets dict for the RSA Accumulator
 # accMod, accInit, accState = setup(
@@ -79,9 +102,15 @@ async def issue_vc(did: str, jwk: str, user_uuid: str):
         print(f"[issue_vc()] Server-DID(env): {server_did}")
         print(f"[issue_vc()] Server-JWK(env): \n{server_jwk}")
 
-    missing_params = [param for param, name in [(did, "DID"), (jwk, "JWK"), (user_uuid, "User-UUID")] if not param]
+    missing_params = [
+        param
+        for param, name in [(did, "DID"), (jwk, "JWK"), (user_uuid, "User-UUID")]
+        if not param
+    ]
     if missing_params:
-        raise ValueError(f"[issue_vc()] Error: {', '.join(name for _, name in missing_params)} not provided")
+        raise ValueError(
+            f"[issue_vc()] Error: {', '.join(name for _, name in missing_params)} not provided"
+        )
 
     user_did = didkit.key_to_did("key", didkit.generate_ed25519_key())
 
@@ -109,12 +138,16 @@ async def issue_vc(did: str, jwk: str, user_uuid: str):
     #         print(f"[issue_vc()] IPFS VC Hash: {ipfs_vc_hash}")
     #     return {"VC": json.loads(signed_vc), "IPFS": ipfs_vc_hash}
     # if debug >=2:
-        # print(f"[issue_vc()] Signed VC: \n{json.loads(signed_vc)}")
+    # print(f"[issue_vc()] Signed VC: \n{json.loads(signed_vc)}")
     return json.loads(signed_vc)
 
 
+# NOTE:: Changed for zksync
 # Load the deployment information
 def getContract(contract_name: str, debug: bool = False):
+    """
+    Loads the contract details from the deployment files in the hardhat project (w/o zksync)
+    """
     if not contract_name:
         raise ValueError("Contract name cannot be empty!")
     # Define the base directory (prefix path)
@@ -182,6 +215,71 @@ def getContract(contract_name: str, debug: bool = False):
     return contract_address, contract_abi
 
 
+def getContractZKsync(contract_name: str):
+    """
+    Loads the contract details from the deployment files in the hardhat project (w/zksync)
+    Will merge to getContract once the pull request is completed for zksync
+    """
+    # Basic error checks
+    if not contract_name:
+        raise ValueError("Contract name cannot be empty!")
+    elif contract_name not in [
+        "DIDRegistry",
+        "RSAAccumulator",
+        "VerifiableCredentialManager",
+    ]:
+        raise ValueError("Invalid contract name provided!")
+
+    # Define the base directory (prefix path)
+    base_dir = r"..\..\blockchain"
+
+    # zksyncNodeType[dockerizedNode, anvilZKsync, zkSyncSepoliaTestnet, zkSyncSepoliaMainet]
+    zksyncNodeType = "anvilZKsync"
+    deployments_json_path = os.path.join(
+        base_dir,
+        "deployments-zk",
+        zksyncNodeType,
+        f"contracts/{contract_name}.sol",
+        f"{contract_name}.json",
+    )
+
+    if debug >= 3:
+        print(f"Loading {contract_name} contract details...")
+        print(f"  Deployments Path: {deployments_json_path}")
+
+    # Load contract deployment json
+    with open(deployments_json_path, "r") as contract_file:
+        contract_data = json.load(contract_file)
+        # if debug >= 2:
+        # print(f"Contract Data: {json.dumps(contract_data)}")
+
+    # Extract contract ABI
+    contract_abi = contract_data.get("abi")
+
+    # Extract contract address, txHash, constructorArgs
+    for entry in contract_data.get("entries", []):
+        contract_address = entry.get("address")
+        txHash = entry.get("txHash")
+        constructorArgs = entry.get("constructorArgs")
+
+        if debug >= 4:
+
+            print(f"Contract Address: {contract_address}")
+            print(f"Contract ABI: {contract_abi}")
+            print(f"Transaction Hash: {txHash}")
+            print(f"Constructor Args: {constructorArgs}")
+            print("\n")
+
+    # # Return both the contract address and ABI for further use
+
+    if not contract_address:
+        raise ValueError("Contract address not found in the deployment file!")
+    elif not contract_abi:
+        raise ValueError("Contract ABI not found in the deployment file!")
+
+    return contract_address, contract_abi
+
+
 def setAccumulator(accumulator: str):
     """
     Set the accumulator on the blockchain
@@ -196,17 +294,30 @@ def setAccumulator(accumulator: str):
     return tx_hash.hex()
 
 
+# Function to get the current accumulator (view function)
 def getCurrentAccumulator():
     """
-    Get the current accumulator from the blockchain
+    Get the current accumulator from the blockchain (view function).
     """
-    # Create Contract Instance and Call the getAccumulator function from the contract
-    current_accumulator = get_rsa_accumulator().functions.getAccumulator().call()
-    current_accumulator = f"0x{current_accumulator.hex()}"
-    if debug >= 2:
-        print(f"[getCurrentAccumulator()] Current Accumulator: \n{current_accumulator}")
+    # Create Contract Instance
+    contract = get_rsa_accumulator()
 
-    return current_accumulator
+    # Call the getAccumulator function (view function, no gas required)
+    try:
+        current_accumulator = contract.functions.getAccumulator().call(
+            {"from": wallet_addr}
+        )
+
+        # Since it's returned as bytes, we can format it into hex
+        current_accumulator = f"0x{current_accumulator.hex()}"
+
+        if debug >= 2:
+            print(f"[getCurrentAccumulator()] Current Accumulator: {current_accumulator}")
+        return current_accumulator
+
+    except Exception as e:
+        print(f"Error while calling getAccumulator: {e}")
+        return None
 
 
 async def recalcAccumulator():
@@ -345,18 +456,6 @@ async def udpateAccumulatorOnBlockchain():
     pass
 
 
-# Get all accounts from hardhat testnet
-def get_loaded_accounts():
-    return w3.eth.accounts
-
-
-# Parse accounts.json and return a list of w3 accounts
-def get_accounts():
-    with open("accounts.json", "r") as file:
-        accounts = json.load(file)
-    return accounts
-
-
 """
 Contract init functions
 """
@@ -364,17 +463,17 @@ Contract init functions
 
 # Return a DIDRegistry instance
 def get_did_registry():
-    contract_address, contract_abi = getContract("DIDRegistry")
+    contract_address, contract_abi = getContractZKsync("DIDRegistry")
     return w3.eth.contract(address=contract_address, abi=contract_abi)
 
 
 # Return a VerifiableCredentialManager instance
 def get_vc_manager():
-    contract_address, contract_abi = getContract("VerifiableCredentialManager")
+    contract_address, contract_abi = getContractZKsync("VerifiableCredentialManager")
     return w3.eth.contract(address=contract_address, abi=contract_abi)
 
 
 # Return a RSAAccumulator instance
 def get_rsa_accumulator():
-    contract_address, contract_abi = getContract("RSAAccumulator")
+    contract_address, contract_abi = getContractZKsync("RSAAccumulator")
     return w3.eth.contract(address=contract_address, abi=contract_abi)
