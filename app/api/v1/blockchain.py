@@ -1,12 +1,14 @@
 import json
 from datetime import datetime, timedelta, timezone, tzinfo
 
-from fastapi import APIRouter, Request, Depends
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
 from ...utils.ipfs_utils import add_file_to_ipfs, get_file_from_ipfs
+from ...utils.utils import settings_dependency, verify_jwt
 from ...utils.web3_utils import (
     getContract,
+    getContractZKsync,
     getCurrentAccumulator,
     issue_did,
     issue_vc,
@@ -16,7 +18,6 @@ from ...utils.web3_utils import (
     storeVCOnBlockchain,
     w3,
 )
-from ...utils.utils import settings_dependency, verify_jwt
 
 # Initialize the API router
 router = APIRouter()
@@ -34,51 +35,38 @@ router = APIRouter()
 
 
 @router.get("/")
-async def health_check(_: dict = Depends(verify_jwt)):
+async def health_check():
     """
     Blockchain Endpoint Health Check
     """
     return "Reached Blockchain Endpoint, Router Blockchain is Active"
 
 
-@router.get("/contract-test")
-async def contract_test(_: dict = Depends(verify_jwt)):
+@router.get("/contracts-test")
+async def contract_test():
     """
-    Test Contract Endpoint
+    Test if contracts can be fetched from /blockchain
     """
     # Retrieve and concatenate contract information for multiple contracts
-    contract = getContract("DIDRegistry")
-    contract += getContract("RSAAccumulator")
-    contract += getContract("VerifiableCredentialManager")
+    contract = getContractZKsync("DIDRegistry")
+    contract += getContractZKsync("RSAAccumulator")
+    contract += getContractZKsync("VerifiableCredentialManager")
     return {"contract": contract}
 
 
 @router.get("/currentAccumulator")
-async def current_accumulator(_: dict = Depends(verify_jwt)):
+async def current_accumulator():
     """
     Get Current Accumulator
     """
-    # Retrieve contract address and ABI for RSAAccumulator
-    contract_address, contract_abi = getContract("RSAAccumulator")
-
-    # Create a contract instance using web3
-    contract_instance = w3.eth.contract(address=contract_address, abi=contract_abi)
-
-    # Call the getAccumulator function from the contract
-    current_accumulator = contract_instance.functions.getAccumulator().call()
-
-    # Convert the accumulator to a hexadecimal string
-    current_accumulator = current_accumulator.hex()
-
-    # Print the current accumulator for debugging purposes
-    print(f"Current Accumulator: \n{current_accumulator}")
+    accumulatorValue = getCurrentAccumulator()
 
     # Return the accumulator in a JSON response
-    return JSONResponse(content={"Accumulator": current_accumulator}, status_code=200)
+    return JSONResponse(content={"Accumulator": accumulatorValue}, status_code=200)
 
 
 @router.get("/issueDID")
-async def issueDid(_: dict = Depends(verify_jwt)):
+async def issueDid():
     """
     Issue a DID
     """
@@ -98,7 +86,10 @@ async def issueDid(_: dict = Depends(verify_jwt)):
 
 
 @router.post("/issueVC")
-async def issueVC(request: Request, settings: settings_dependency, _: dict = Depends(verify_jwt)):
+async def issueVC(
+    request: Request,
+    settings: settings_dependency,
+):
     """
     Issue a VC and sign it based on the recieved DID
     """
@@ -121,21 +112,8 @@ async def issueVC(request: Request, settings: settings_dependency, _: dict = Dep
     return JSONResponse(content=response, status_code=200)
 
 
-# Test Getting ACC Val
-@router.get("/getAcc")
-async def get_acc(_: dict = Depends(verify_jwt)):
-    """
-    Get Current Accumulator
-    """
-
-    # Call the getAccumulator function from the contract
-    current_accumulator = getCurrentAccumulator()
-
-    return JSONResponse(content={"Accumulator": current_accumulator}, status_code=200)
-
-
 @router.get("/testUpdateACC")
-async def updateAcc(_: dict = Depends(verify_jwt)):
+async def updateAcc():
     """
     Update the Accumulator
     """
