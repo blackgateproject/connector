@@ -19,3 +19,4 @@ class Settings(BaseSettings):
     BACKEND_MODULUS: str
     IPFS_SWARM_KEY: str
     IPFS_API_URL: str
+    ENABLE_IPFS: bool
