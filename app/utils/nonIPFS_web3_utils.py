@@ -19,7 +19,7 @@ from ..utils.ipfs_utils import (
     list_all_files_from_ipfs,
 )
 from .accumulator_utils import *
-from .helpfunctions import hash_to_prime
+from .accumulator_helpfunctions import hash_to_prime
 
 
 @lru_cache
