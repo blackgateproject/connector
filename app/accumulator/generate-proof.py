@@ -2,8 +2,8 @@
 import secrets
 import sys
 
-from helpfunctions import hash_to_prime
-from main import add, generate_proof, setup
+from ..utils.accumulator_helpfunctions import hash_to_prime
+from ..main import add, generate_proof, setup
 
 
 def to_padded_num_str(num, length_in_bytes):

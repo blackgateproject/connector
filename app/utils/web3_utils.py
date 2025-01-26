@@ -18,8 +18,8 @@ from ..utils.ipfs_utils import (
     get_file_from_ipfs,
     list_all_files_from_ipfs,
 )
-from .accumulator_utils import *
-from .helpfunctions import hash_to_prime
+# from .accumulator_utils import *
+from .accumulator_helpfunctions import hash_to_prime
 
 
 @lru_cache
@@ -320,64 +320,64 @@ def getCurrentAccumulator():
         return None
 
 
-async def recalcAccumulator():
-    """
-    Recalculate the Accumulator at this current point in time by using IPFS ls
-    """
+# async def recalcAccumulator():
+#     """
+#     Recalculate the Accumulator at this current point in time by using IPFS ls
+#     """
 
-    # Recalculate the accumulator
-    # Get current accumulator value
-    current_accumulator = int(getCurrentAccumulator(), 16)
+#     # Recalculate the accumulator
+#     # Get current accumulator value
+#     current_accumulator = int(getCurrentAccumulator(), 16)
 
-    # convert modulus to int
-    if debug >= 2:
-        print(f"Modulus({len(str(accMod))}): {accMod}")
-    accModulus = int(accMod, 16)
+#     # convert modulus to int
+#     if debug >= 2:
+#         print(f"Modulus({len(str(accMod))}): {accMod}")
+#     accModulus = int(accMod, 16)
 
-    # List all CIDs currently in IPFS
-    ipfs_cids = list_all_files_from_ipfs()
-    concat_ipfs = "".join(ipfs_cids)
-    concat_bytes = concat_ipfs.encode()
-    hashed_cids = int(hashlib.sha256(concat_bytes).hexdigest(), 16)
-    if debug >= 2:
-        print(
-            f"[recalcAccumulator()] Hash of CIDs({len(str(hashed_cids))}): {hashed_cids}"
-        )
+#     # List all CIDs currently in IPFS
+#     ipfs_cids = list_all_files_from_ipfs()
+#     concat_ipfs = "".join(ipfs_cids)
+#     concat_bytes = concat_ipfs.encode()
+#     hashed_cids = int(hashlib.sha256(concat_bytes).hexdigest(), 16)
+#     if debug >= 2:
+#         print(
+#             f"[recalcAccumulator()] Hash of CIDs({len(str(hashed_cids))}): {hashed_cids}"
+#         )
 
-    x = hashed_cids
-    A1 = add(current_accumulator, accState, x, accModulus)
-    nonce = accState[x]
-    proof = prove_membership(current_accumulator, accState, x, accModulus)
-    prime, nonce = hash_to_prime(x, nonce)
+#     x = hashed_cids
+#     A1 = add(current_accumulator, accState, x, accModulus)
+#     nonce = accState[x]
+#     proof = prove_membership(current_accumulator, accState, x, accModulus)
+#     prime, nonce = hash_to_prime(x, nonce)
 
-    new_accumulator = A1
+#     new_accumulator = A1
 
-    # # Run the list through hash_to_prime to get element1
-    # element1, nonce1 = hash_to_prime(hashed_cids, 3072)
+#     # # Run the list through hash_to_prime to get element1
+#     # element1, nonce1 = hash_to_prime(hashed_cids, 3072)
 
-    # # Generate new accumulator value
-    # # ADD(Accumulator, State, Element, Modulus)
-    # new_accumulator = add(current_accumulator, accState, element1, accModulus)
+#     # # Generate new accumulator value
+#     # # ADD(Accumulator, State, Element, Modulus)
+#     # new_accumulator = add(current_accumulator, accState, element1, accModulus)
 
-    # # Store the nonce after calculating the new accumulator
-    # nonce1 = accState[element1]
+#     # # Store the nonce after calculating the new accumulator
+#     # nonce1 = accState[element1]
 
-    # print(f"Element1({len(str(element1))}): {element1}")
-    # print(f"Nonce1({len(str(nonce1))}): {nonce1}")
+#     # print(f"Element1({len(str(element1))}): {element1}")
+#     # print(f"Nonce1({len(str(nonce1))}): {nonce1}")
 
-    # # Generate Proof
-    # # proof, prime = generate_proof(element1, current_accumulator, accState, accModulus)
-    # prime, nonce = hash_to_prime(element1, nonce1)
-    # print(f"Prime({len(str(prime))}): {prime}")
+#     # # Generate Proof
+#     # # proof, prime = generate_proof(element1, current_accumulator, accState, accModulus)
+#     # prime, nonce = hash_to_prime(element1, nonce1)
+#     # print(f"Prime({len(str(prime))}): {prime}")
 
-    # # Set the new accumulator on the blockchain
-    # print(f"New Accumulator({len(str(new_accumulator))}): {hex(new_accumulator)}")
-    # print(f"\nState: {accState}")
-    return {
-        "isAccTheSame?": "Yes" if new_accumulator == current_accumulator else "No",
-        "NewAccumulator": to_padded_num_str(new_accumulator, 384),
-        "Prime": to_padded_num_str(prime, 32),
-    }
+#     # # Set the new accumulator on the blockchain
+#     # print(f"New Accumulator({len(str(new_accumulator))}): {hex(new_accumulator)}")
+#     # print(f"\nState: {accState}")
+#     return {
+#         "isAccTheSame?": "Yes" if new_accumulator == current_accumulator else "No",
+#         "NewAccumulator": to_padded_num_str(new_accumulator, 384),
+#         "Prime": to_padded_num_str(prime, 32),
+#     }
 
 
 # Create a new prime from hash

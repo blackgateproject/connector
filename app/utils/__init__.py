@@ -1,4 +1,4 @@
-from .accumulator_utils import *
+from .accumulator_helpfunctions import *
 from .ipfs_utils import *
 from .pki_utils import *
 from .utils import *
