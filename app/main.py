@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from .api.v1 import admin, auth, blockchain, user
-from .utils.utils import settings_dependency, verify_jwt
+from .utils.core_utils import settings_dependency, verify_jwt
 
 app = FastAPI()
 debug = settings_dependency().DEBUG

@@ -2,7 +2,7 @@
 import secrets
 import sys
 
-from ..utils.accumulator_helpfunctions import hash_to_prime
+from ..utils.accumulator_utils import hash_to_prime
 from ..main import add, generate_proof, setup
 
 

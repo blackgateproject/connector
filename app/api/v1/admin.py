@@ -11,7 +11,7 @@ from ...api.v1.blockchain import (
     storeDIDonBlockchain,
     storeVCOnBlockchain,
 )
-from ...utils.utils import (
+from ...utils.core_utils import (
     json_serialize,
     log_user_action,
     settings_dependency,

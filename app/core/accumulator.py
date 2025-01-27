@@ -1,7 +1,7 @@
 import math
 import secrets
 
-from ..utils.accumulator_helpfunctions import (
+from ..utils.accumulator_utils import (
     bezoute_coefficients,
     calculate_product,
     concat,

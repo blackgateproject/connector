@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 from supabase import Client, create_client
 
 from ...utils.pki_utils import generate_private_key, generate_public_key
-from ...utils.utils import log_user_action, settings_dependency, verify_jwt
+from ...utils.core_utils import log_user_action, settings_dependency, verify_jwt
 
 # Initialize the API router
 router = APIRouter()

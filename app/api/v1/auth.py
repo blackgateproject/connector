@@ -13,7 +13,7 @@ from ...utils.pki_utils import (
     sign_challenge,
     verify_signing_challenge,
 )
-from ...utils.utils import (
+from ...utils.core_utils import (
     extract_user_details_for_passwordless,
     extractUserInfo,
     log_user_action,

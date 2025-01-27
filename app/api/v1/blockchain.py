@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
 from ...utils.ipfs_utils import add_file_to_ipfs, get_file_from_ipfs
-from ...utils.utils import settings_dependency, verify_jwt
+from ...utils.core_utils import settings_dependency, verify_jwt
 from ...utils.web3_utils import (
     getContract,
     getContractZKsync,
