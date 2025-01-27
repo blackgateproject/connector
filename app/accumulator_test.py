@@ -1,9 +1,7 @@
+import sys, os
+sys.path.append(os.path.join(os.path.dirname(__file__)))
 from core.accumulator import AccumulatorClass
 
-accumulator = AccumulatorClass()
+acc = AccumulatorClass()
 
-n, a0, s = accumulator.setup()
-
-print(
-    f"Accumulator setup:\n\tN = {accumulator.modulus}\n\tA0 = {accumulator.currentAccumulator}\n\trandomDict() S = {s}"
-)
+print(f"SETUP: {acc.setup()}")

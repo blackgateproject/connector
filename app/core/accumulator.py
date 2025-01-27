@@ -1,7 +1,18 @@
 import math
 import secrets
+# Normal run when not using python -m
+# from ..utils.accumulator_utils import (
+#     bezoute_coefficients,
+#     calculate_product,
+#     concat,
+#     generate_two_large_distinct_primes,
+#     hash_to_prime,
+#     mul_inv,
+#     shamir_trick,
+# )
 
-from ..utils.accumulator_utils import (
+# Modified to run using python -m
+from utils.accumulator_utils import (
     bezoute_coefficients,
     calculate_product,
     concat,
@@ -10,7 +21,6 @@ from ..utils.accumulator_utils import (
     mul_inv,
     shamir_trick,
 )
-
 
 class AccumulatorClass:
     def __init__(self):

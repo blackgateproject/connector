@@ -1,2 +1,2 @@
-from .accumulator import AccumulatorClass
+from .accumulator import *
 from .config import *
