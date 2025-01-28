@@ -49,20 +49,11 @@ async def contract_test():
     """
     # Retrieve and concatenate contract information for multiple contracts
     contract = getContractZKsync("DIDRegistry")
-    contract += getContractZKsync("RSAAccumulator")
+    contract += getContractZKsync("RSAAccumulatorVerifier")
     contract += getContractZKsync("VerifiableCredentialManager")
     return {"contract": contract}
 
 
-@router.get("/currentAccumulator")
-async def current_accumulator():
-    """
-    Get Current Accumulator
-    """
-    accumulatorValue = getCurrentAccumulator()
-
-    # Return the accumulator in a JSON response
-    return JSONResponse(content={"Accumulator": accumulatorValue}, status_code=200)
 
 
 @router.get("/issueDID")
@@ -112,14 +103,3 @@ async def issueVC(
     return JSONResponse(content=response, status_code=200)
 
 
-# @router.get("/testUpdateACC")
-# async def updateAcc():
-#     """
-#     Update the Accumulator
-#     """
-#     accumulator_result = await recalcAccumulator()
-
-#     return JSONResponse(
-#         content={"Message": "Accumulator Updated", "Result": accumulator_result},
-#         status_code=200,
-#     )

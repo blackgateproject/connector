@@ -225,7 +225,7 @@ def getContractZKsync(contract_name: str):
         raise ValueError("Contract name cannot be empty!")
     elif contract_name not in [
         "DIDRegistry",
-        "RSAAccumulator",
+        "RSAAccumulatorVerifier",
         "VerifiableCredentialManager",
     ]:
         raise ValueError("Invalid contract name provided!")
@@ -320,65 +320,6 @@ def getCurrentAccumulator():
         return None
 
 
-# async def recalcAccumulator():
-#     """
-#     Recalculate the Accumulator at this current point in time by using IPFS ls
-#     """
-
-#     # Recalculate the accumulator
-#     # Get current accumulator value
-#     current_accumulator = int(getCurrentAccumulator(), 16)
-
-#     # convert modulus to int
-#     if debug >= 2:
-#         print(f"Modulus({len(str(accMod))}): {accMod}")
-#     accModulus = int(accMod, 16)
-
-#     # List all CIDs currently in IPFS
-#     ipfs_cids = list_all_files_from_ipfs()
-#     concat_ipfs = "".join(ipfs_cids)
-#     concat_bytes = concat_ipfs.encode()
-#     hashed_cids = int(hashlib.sha256(concat_bytes).hexdigest(), 16)
-#     if debug >= 2:
-#         print(
-#             f"[recalcAccumulator()] Hash of CIDs({len(str(hashed_cids))}): {hashed_cids}"
-#         )
-
-#     x = hashed_cids
-#     A1 = add(current_accumulator, accState, x, accModulus)
-#     nonce = accState[x]
-#     proof = prove_membership(current_accumulator, accState, x, accModulus)
-#     prime, nonce = hash_to_prime(x, nonce)
-
-#     new_accumulator = A1
-
-#     # # Run the list through hash_to_prime to get element1
-#     # element1, nonce1 = hash_to_prime(hashed_cids, 3072)
-
-#     # # Generate new accumulator value
-#     # # ADD(Accumulator, State, Element, Modulus)
-#     # new_accumulator = add(current_accumulator, accState, element1, accModulus)
-
-#     # # Store the nonce after calculating the new accumulator
-#     # nonce1 = accState[element1]
-
-#     # print(f"Element1({len(str(element1))}): {element1}")
-#     # print(f"Nonce1({len(str(nonce1))}): {nonce1}")
-
-#     # # Generate Proof
-#     # # proof, prime = generate_proof(element1, current_accumulator, accState, accModulus)
-#     # prime, nonce = hash_to_prime(element1, nonce1)
-#     # print(f"Prime({len(str(prime))}): {prime}")
-
-#     # # Set the new accumulator on the blockchain
-#     # print(f"New Accumulator({len(str(new_accumulator))}): {hex(new_accumulator)}")
-#     # print(f"\nState: {accState}")
-#     return {
-#         "isAccTheSame?": "Yes" if new_accumulator == current_accumulator else "No",
-#         "NewAccumulator": to_padded_num_str(new_accumulator, 384),
-#         "Prime": to_padded_num_str(prime, 32),
-#     }
-
 
 # Create a new prime from hash
 async def storeDIDonBlockchain(did: str, publicKey: str):
@@ -445,16 +386,6 @@ async def storeVCOnBlockchain(did: str, vc: str):
     return ifps_VC_CID, tx_hash.hex()
 
 
-async def udpateAccumulatorOnBlockchain():
-    """
-    Update the accumulator on the blockchain, by recalculating the accumulator from the IPFS files
-    """
-
-    # Recalculate the accumulator
-    # Create a RSAAcc contract instance
-    # Update the ACC
-    pass
-
 
 """
 Contract init functions
@@ -475,5 +406,5 @@ def get_vc_manager():
 
 # Return a RSAAccumulator instance
 def get_rsa_accumulator():
-    contract_address, contract_abi = getContractZKsync("RSAAccumulator")
+    contract_address, contract_abi = getContractZKsync("RSAAccumulatorVerifier")
     return w3.eth.contract(address=contract_address, abi=contract_abi)
