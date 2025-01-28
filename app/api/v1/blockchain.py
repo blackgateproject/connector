@@ -12,7 +12,7 @@ from ...utils.web3_utils import (
     getCurrentAccumulator,
     issue_did,
     issue_vc,
-    recalcAccumulator,
+    # recalcAccumulator,
     setAccumulator,
     storeDIDonBlockchain,
     storeVCOnBlockchain,
@@ -112,14 +112,14 @@ async def issueVC(
     return JSONResponse(content=response, status_code=200)
 
 
-@router.get("/testUpdateACC")
-async def updateAcc():
-    """
-    Update the Accumulator
-    """
-    accumulator_result = await recalcAccumulator()
+# @router.get("/testUpdateACC")
+# async def updateAcc():
+#     """
+#     Update the Accumulator
+#     """
+#     accumulator_result = await recalcAccumulator()
 
-    return JSONResponse(
-        content={"Message": "Accumulator Updated", "Result": accumulator_result},
-        status_code=200,
-    )
+#     return JSONResponse(
+#         content={"Message": "Accumulator Updated", "Result": accumulator_result},
+#         status_code=200,
+#     )

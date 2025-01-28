@@ -15,8 +15,8 @@ class Settings(BaseSettings):
     DEBUG: int
     BACKEND_DID: str
     BACKEND_JWK: str
-    BACKEND_ACC: str
-    BACKEND_MODULUS: str
+    BACKEND_ACC: int
+    BACKEND_MODULUS: int
     IPFS_SWARM_KEY: str
     IPFS_API_URL: str
     ENABLE_IPFS: bool

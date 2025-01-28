@@ -1,8 +1,13 @@
 import math
 import secrets
+from functools import lru_cache
 
-# Modified to run using python -m
-from utils.accumulator_utils import (
+from fastapi import Depends
+from typing_extensions import Annotated
+from web3 import Web3
+
+from ..core.config import Settings
+from ..utils.accumulator_utils import (  # settings_dependency,
     bezoute_coefficients,
     calculate_product,
     concat,
@@ -12,6 +17,15 @@ from utils.accumulator_utils import (
     shamir_trick,
     to_padded_num_str,
 )
+
+
+@lru_cache
+def get_settings():
+    return Settings()
+
+
+settings_dependency = Annotated[Settings, Depends(get_settings)]
+
 
 # Normal run when not using python -m
 # from ..utils.accumulator_utils import (
@@ -29,12 +43,20 @@ class AccumulatorClass:
     def __init__(self):
         self.currentAccumulator = 0
         self.MODULUS = 0
-        self.SECRETS_DICT = None
+        self.SECRETS_DICT = dict()
         self.GENERATOR = 0
         self.RSA_KEY_SIZE = 3072
         self.RSA_PRIME_SIZE = int(self.RSA_KEY_SIZE / 2)
         self.ACCUMULATED_PRIME_SIZE = 128
         self.GQUADDIVISOR = 20
+
+        envModulus = settings_dependency().BACKEND_MODULUS
+        envGenerator = settings_dependency().BACKEND_ACC
+        if envModulus and envGenerator:
+            # print(f"[CORE] Using ENV RSA Modulus and Generator")
+            self.MODULUS = envModulus
+            self.GENERATOR = envGenerator
+            print(f"\n\tModulus: {self.MODULUS}\n\tGenerator: {self.GENERATOR}")
 
     def setup(self, modulus: int = None, generator: int = None):
         """
@@ -67,13 +89,17 @@ class AccumulatorClass:
         :param n: modulus
         :return: new accumulator value
         """
+        x = Web3.solidity_keccak(["string"], [x]).hex()
+
         if x in self.SECRETS_DICT.keys():
             return A
         else:
             hash_prime, nonce = hash_to_prime(x, self.ACCUMULATED_PRIME_SIZE)
             A = pow(A, hash_prime, self.MODULUS)
             self.SECRETS_DICT[x] = nonce
-            print(f"[ADD]:\n\tAdded to SECRET_DICT: \n\t\tELEMENT: {x}\n\t\tNONCE: {nonce}")
+            print(
+                f"[ADD]:\n\tAdded to SECRET_DICT: \n\t\tELEMENT: {x}\n\t\tNONCE: {nonce}\n\t\tSECRET_DICT: {self.SECRETS_DICT}"
+            )
             self.currentAccumulator = A
 
             print(f"\n\tGenerating Proof")
@@ -141,7 +167,9 @@ class AccumulatorClass:
             for element in self.SECRETS_DICT.keys():
                 if element != x:
                     nonce = self.SECRETS_DICT[element]
-                    product *= hash_to_prime(element, self.ACCUMULATED_PRIME_SIZE, nonce)[0]
+                    product *= hash_to_prime(
+                        element, self.ACCUMULATED_PRIME_SIZE, nonce
+                    )[0]
                     print(f"[PRV_MBMRSHP] \n\tnonce: {nonce} for element {element}")
             # If the loop did not run, meaning x is the only element in SECRETS_DICT, we can handle this case:
             if "nonce" not in locals():
@@ -241,7 +269,7 @@ class AccumulatorClass:
         :param w: final accumulator value
         :return: proof of membership with NI-PoE
         """
-        u = self.prove_membership(self.GENERATOR, self.SECRETS_DICT, x, n)
+        u = self.prove_membership(self.GENERATOR, self.SECRETS_DICT, x, self.MODULUS)
         x_prime, x_nonce = hash_to_prime(x=x, nonce=self.SECRETS_DICT[x])
         Q, l_nonce = self.prove_exponentiation(u, x_prime, w, self.MODULUS)
         return Q, l_nonce, u
@@ -412,6 +440,7 @@ class AccumulatorClass:
         :return: True if proof is valid, False otherwise
         """
         # print(f"Checking if element has a Nonce")
+        x = Web3.solidity_keccak(["string"], [x]).hex()
         if x not in self.SECRETS_DICT.keys():
             print(f"[ERR] Element {x} not in SECRETS_DICT")
             return False
@@ -547,6 +576,8 @@ class AccumulatorClass:
         :param x: element to generate proof for
         :return: proof of membership and prime
         """
+        # x = Web3.solidity_keccak(["string"], [x]).hex()
+
         nonce = self.SECRETS_DICT[x]
         proof = self.prove_membership(x)
         prime, nonce = hash_to_prime(x=x, nonce=nonce)
@@ -556,29 +587,29 @@ class AccumulatorClass:
     ====== from generate_proof.py ======
     """
 
-    def to_padded_num_str_FROMFILE(num, length_in_bytes):
-        length_in_hex_str = length_in_bytes * 2 + 2
-        num_str = format(num, "#0" + str(length_in_hex_str) + "x")
-        return num_str
+    # def to_padded_num_str_FROMFILE(num, length_in_bytes):
+    #     length_in_hex_str = length_in_bytes * 2 + 2
+    #     num_str = format(num, "#0" + str(length_in_hex_str) + "x")
+    #     return num_str
 
-    def generate_proof_FROMFILE(self):
-        n, generator, S = self.setup()
+    # def generate_proof_FROMFILE(self):
+    #     n, generator, S = self.setup()
 
-        x = secrets.randbelow(pow(2, 256))
-        A1 = self.add(generator, S, x, n)
-        nonce = S[x]
-        proof = self.prove_membership(generator, S, x, n)
-        prime, nonce = hash_to_prime(x=x, nonce=nonce)
+    #     x = secrets.randbelow(pow(2, 256))
+    #     A1 = self.add(generator, S, x, n)
+    #     nonce = S[x]
+    #     proof = self.prove_membership(generator, S, x, n)
+    #     prime, nonce = hash_to_prime(x=x, nonce=nonce)
 
-        print(
-            self.to_padded_num_str(n, 384)
-            + ","
-            + self.to_padded_num_str(proof, 384)
-            + ","
-            + self.to_padded_num_str(prime, 32)
-            + ","
-            + self.to_padded_num_str(A1, 384)
-        )
+    #     print(
+    #         self.to_padded_num_str(n, 384)
+    #         + ","
+    #         + self.to_padded_num_str(proof, 384)
+    #         + ","
+    #         + self.to_padded_num_str(prime, 32)
+    #         + ","
+    #         + self.to_padded_num_str(A1, 384)
+    # )
 
     """
     ==== calculate mod exp gas ====
@@ -651,3 +682,10 @@ class AccumulatorClass:
             return (
                 8 * (length_of_exponent - 32) + highest_bit_in_exponent_first_256_bits
             )
+
+
+accumulatorCore = AccumulatorClass()
+print(f"[CORE] AccumulatorClass instance created")
+print(
+    f"\n\tMODULUS: {accumulatorCore.MODULUS}\n\tGENERATOR: {accumulatorCore.GENERATOR}"
+)
