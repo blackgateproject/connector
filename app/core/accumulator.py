@@ -25,23 +25,12 @@ def get_settings():
 
 
 settings_dependency = Annotated[Settings, Depends(get_settings)]
-
-
-# Normal run when not using python -m
-# from ..utils.accumulator_utils import (
-#     bezoute_coefficients,
-#     calculate_product,
-#     concat,
-#     generate_two_large_distinct_primes,
-#     hash_to_prime,
-#     mul_inv,
-#     shamir_trick,
-# )
-
+debug = settings_dependency().DEBUG
 
 class AccumulatorClass:
     def __init__(self):
         self.currentAccumulator = 0
+        self.prevAccumulator = 0
         self.MODULUS = 0
         self.SECRETS_DICT = dict()
         self.GENERATOR = 0
@@ -56,7 +45,12 @@ class AccumulatorClass:
             # print(f"[CORE] Using ENV RSA Modulus and Generator")
             self.MODULUS = envModulus
             self.GENERATOR = envGenerator
-            print(f"\n\tModulus: {self.MODULUS}\n\tGenerator: {self.GENERATOR}")
+            self.prevAccumulator = 1
+            self.currentAccumulator = self.GENERATOR
+            if debug >= 3:
+                print(
+                    f"\n\tMODULUS: {self.MODULUS}\n\tpaddStrMOD: {to_padded_num_str(self.MODULUS, 384)}\n\tGENERATOR: {self.GENERATOR}"
+                )
 
     def setup(self, modulus: int = None, generator: int = None):
         """
@@ -80,10 +74,11 @@ class AccumulatorClass:
         self.SECRETS_DICT = dict()
         return self.MODULUS, self.GENERATOR, self.SECRETS_DICT
 
-    def add(self, A, x):
+    # def add(self, A, x):
+    def add(self, x):
         """
         Add an element to the accumulator
-        :param A: current accumulator value
+        # :param A: current accumulator value
         :param S: set of accumulated elements
         :param x: element to add
         :param n: modulus
@@ -92,22 +87,29 @@ class AccumulatorClass:
         x = Web3.solidity_keccak(["string"], [x]).hex()
 
         if x in self.SECRETS_DICT.keys():
-            return A
+            return self.prevAccumulator
         else:
             hash_prime, nonce = hash_to_prime(x, self.ACCUMULATED_PRIME_SIZE)
-            A = pow(A, hash_prime, self.MODULUS)
-            self.SECRETS_DICT[x] = nonce
-            print(
-                f"[ADD]:\n\tAdded to SECRET_DICT: \n\t\tELEMENT: {x}\n\t\tNONCE: {nonce}\n\t\tSECRET_DICT: {self.SECRETS_DICT}"
+            self.prevAccumulator = self.currentAccumulator
+            self.currentAccumulator = pow(
+                self.prevAccumulator, hash_prime, self.MODULUS
             )
-            self.currentAccumulator = A
-
-            print(f"\n\tGenerating Proof")
+            self.SECRETS_DICT[x] = nonce
+            if debug >= 4:
+                print(
+                    f"[ADD]:\n\tAdded to SECRET_DICT: \n\t\tELEMENT: {x}\n\t\tNONCE: {nonce}\n\t\tSECRET_DICT: {self.SECRETS_DICT}"
+                )
+                # self.currentAccumulator = A
+                print(f"\n\tGenerating Proof")
             # proof = self.prove_membership(x)
             proof, prime = self.generate_proof(x)
-            print(f"\n\t\tProof: {to_padded_num_str(proof, 384)}")
-            print(f"\n\t\tPrime: {to_padded_num_str(prime, 32)}")
-            return self.currentAccumulator, proof, prime
+            paddStrAccumulator = to_padded_num_str(self.currentAccumulator, 384)
+            if debug >= 4:
+                print(f"\n\t\tProof: {to_padded_num_str(proof, 384)}")
+                print(f"\n\t\tPrime: {to_padded_num_str(prime, 32)}")
+                print(f"\n\t\tAccumulator: {paddStrAccumulator}")
+
+            return paddStrAccumulator, proof, prime
 
     def batch_add(self, A_pre_add, S, x_list, n):
         """
@@ -162,7 +164,8 @@ class AccumulatorClass:
             print(f"[ERR] Element {x} not in SECRETS_DICT")
             return None
         else:
-            print(f"[PRV_MBMRSHP]: Element {x} in SECRETS_DICT")
+            if debug >=4:
+                print(f"[PRV_MBMRSHP]: Element {x} in SECRETS_DICT")
             product = 1
             for element in self.SECRETS_DICT.keys():
                 if element != x:
@@ -170,11 +173,14 @@ class AccumulatorClass:
                     product *= hash_to_prime(
                         element, self.ACCUMULATED_PRIME_SIZE, nonce
                     )[0]
-                    print(f"[PRV_MBMRSHP] \n\tnonce: {nonce} for element {element}")
+                    if debug >=4:
+                        print(f"[PRV_MBMRSHP] \n\tnonce: {nonce} for element {element}")
             # If the loop did not run, meaning x is the only element in SECRETS_DICT, we can handle this case:
             if "nonce" not in locals():
-                print(f"[PRV_MBMRSHP] No nonces processed (only {x} in SECRETS_DICT)")
-            print(f"[PRV_MBMRSHP] \n\tPRODUCT: {product}")
+                if debug >=4:
+                    print(f"[PRV_MBMRSHP] No nonces processed (only {x} in SECRETS_DICT)")
+            if debug >=4:
+                print(f"[PRV_MBMRSHP] \n\tPRODUCT: {product}")
             # A = g^product mod n
             A = pow(self.GENERATOR, product, self.MODULUS)
             return A
@@ -446,7 +452,8 @@ class AccumulatorClass:
             return False
 
         nonce = self.SECRETS_DICT[x]
-        print(f"Element {x} has a Nonce {nonce}")
+        if debug >=4:
+            print(f"Element {x} has a Nonce {nonce}")
         return self.__verify_membership(
             A,
             hash_to_prime(x=x, num_of_bits=self.ACCUMULATED_PRIME_SIZE, nonce=nonce)[0],
@@ -686,6 +693,18 @@ class AccumulatorClass:
 
 accumulatorCore = AccumulatorClass()
 print(f"[CORE] AccumulatorClass instance created")
-print(
-    f"\n\tMODULUS: {accumulatorCore.MODULUS}\n\tGENERATOR: {accumulatorCore.GENERATOR}"
-)
+# print(
+#     f"\n\tMODULUS: {accumulatorCore.MODULUS}\n\tpaddStrMOD:{to_padded_num_str(accumulatorCore.MODULUS, 384)}\n\tGENERATOR: {accumulatorCore.GENERATOR}\n\tpaddStrGEN: {to_padded_num_str(accumulatorCore.GENERATOR, 384)}"
+# )
+
+newAcc, proof, prime = accumulatorCore.add("1")
+# print(f"\n\tnewAcc: {newAcc}\n\tproof: {proof}\n\tprime: {prime}")
+newAcc, proof, prime = accumulatorCore.add("2")
+# print(f"\n\tnewAcc: {newAcc}\n\tproof: {proof}\n\tprime: {prime}")
+newAcc, proof, prime = accumulatorCore.add("3")
+# print(f"\n\tnewAcc: {newAcc}\n\tproof: {proof}\n\tprime: {prime}")
+
+
+# newAcc, proof, prime= accumulatorCore.add(accumulatorCore.GENERATOR, "1")
+
+# newAcc, proof, prime = accumulatorCore.add(newAcc, "2")
