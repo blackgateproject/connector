@@ -18,6 +18,7 @@ from ..utils.ipfs_utils import (
     get_file_from_ipfs,
     list_all_files_from_ipfs,
 )
+
 # from .accumulator_utils import *
 # from .accumulator_utils import hash_to_prime
 
@@ -39,13 +40,13 @@ wallet_addr = ""
 if settings_dependency().BLOCKCHAIN_WALLET_ADDR:
     wallet_prv_key = settings_dependency().BLOCKCHAIN_WALLET_PRVT_KEY
     wallet_addr = settings_dependency().BLOCKCHAIN_WALLET_ADDR
-    
+
     derived_addr = Account.from_key(wallet_prv_key).address
     if derived_addr != wallet_addr:
         print(
             f"Derived Address({derived_addr}) does not match the provided address({wallet_addr})"
         )
-    
+
     if debug >= 2:
         print("Using Wallet Address from .env")
 
@@ -280,31 +281,17 @@ def getContractZKsync(contract_name: str):
     return contract_address, contract_abi
 
 
-def setAccumulator(accumulator: str):
-    """
-    Set the accumulator on the blockchain
-    """
-    # Create Contract Instance & Call the setAccumulator function from the contract
-    tx_hash = get_rsa_accumulator().functions.setAccumulator(accumulator).transact()
-
-    # Print the transaction hash for debugging purposes
-    if debug >= 1:
-        print(f"[setAccumulator()] Transaction Hash: \n{tx_hash.hex()}")
-
-    return tx_hash.hex()
-
-
 # Function to get the current accumulator (view function)
-def getCurrentAccumulator():
+def getCurrentAccumulatorMod():
     """
-    Get the current accumulator from the blockchain (view function).
+    Get the current accumulator modulus from the blockchain (view function).
     """
     # Create Contract Instance
     contract = get_rsa_accumulator()
 
     # Call the getAccumulator function (view function, no gas required)
     try:
-        current_accumulator = contract.functions.getAccumulator().call(
+        current_accumulator = contract.functions.getModulus().call(
             {"from": wallet_addr}
         )
 
@@ -312,13 +299,37 @@ def getCurrentAccumulator():
         current_accumulator = f"0x{current_accumulator.hex()}"
 
         if debug >= 2:
-            print(f"[getCurrentAccumulator()] Current Accumulator: {current_accumulator}")
+            print(
+                f"[getCurrentAccumulatorMod()] Current Accumulator: {current_accumulator}"
+            )
         return current_accumulator
 
     except Exception as e:
         print(f"Error while calling getAccumulator: {e}")
         return None
 
+
+# Function to verify the accumulator
+def verifyUserOnAccumulator(accVal: str, proof: str, prime: str):
+    """
+    Verify the user on the RSA accumulator
+    """
+    # Create Contract Instance
+    contract = get_rsa_accumulator()
+
+    # Call the verify function from the contract
+    try:
+        result = contract.functions.verify(proof, prime, accVal).call(
+            {"from": wallet_addr}
+        )
+
+        if debug >= 2:
+            print(f"[verifyUserOnAccumulator()] Verification Result: {result}")
+
+        return result
+
+    except Exception as e:
+        print(f"Error while calling verify: {e}")
 
 
 # Create a new prime from hash
@@ -327,7 +338,7 @@ async def storeDIDonBlockchain(did: str, publicKey: str):
     Store DID on IPFS and then on the blockchain
     """
     # Get currentAccumulator value
-    current_accumulator = getCurrentAccumulator()
+    current_accumulator = getCurrentAccumulatorMod()
 
     try:
         # Store DID on IPFS
@@ -384,7 +395,6 @@ async def storeVCOnBlockchain(did: str, vc: str):
 
     # Return the CID and the transaction hash
     return ifps_VC_CID, tx_hash.hex()
-
 
 
 """

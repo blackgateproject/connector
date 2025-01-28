@@ -4,18 +4,17 @@ from datetime import datetime, timedelta, timezone, tzinfo
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
-from ...utils.ipfs_utils import add_file_to_ipfs, get_file_from_ipfs
 from ...utils.core_utils import settings_dependency, verify_jwt
+from ...utils.ipfs_utils import add_file_to_ipfs, get_file_from_ipfs
+from ...utils.web3_utils import getContract  # recalcAccumulator,
 from ...utils.web3_utils import (
-    getContract,
     getContractZKsync,
-    getCurrentAccumulator,
+    getCurrentAccumulatorMod,
     issue_did,
     issue_vc,
-    # recalcAccumulator,
-    setAccumulator,
     storeDIDonBlockchain,
     storeVCOnBlockchain,
+    verifyUserOnAccumulator,
     w3,
 )
 
@@ -54,6 +53,27 @@ async def contract_test():
     return {"contract": contract}
 
 
+@router.get("/getAccumulatorMod")
+async def get_accumulator_mod():
+    """
+    Get the current accumulator mod
+    """
+    accumulator_mod = getCurrentAccumulatorMod()  # Removed await
+    return JSONResponse(content=accumulator_mod, status_code=200)
+
+
+@router.post("/verifyAccumulator")
+async def verify_accumulator(request: Request):
+    """
+    Verify the accumulator
+    """
+    body = await request.json()
+    accumulator = body["accVal"]
+    proof = body["proof"]
+    prime = body["prime"]
+    result = verifyUserOnAccumulator(accumulator, proof, prime)
+
+    return JSONResponse(content=result, status_code=200)
 
 
 @router.get("/issueDID")
@@ -101,5 +121,3 @@ async def issueVC(
     }
 
     return JSONResponse(content=response, status_code=200)
-
-
