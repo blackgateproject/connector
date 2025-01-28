@@ -234,16 +234,26 @@ def generate_large_prime(num_of_bits):
 
 
 def generate_two_large_distinct_primes(num_of_bits):
+    """
+    Generates two distinct large primes
+    :param num_of_bits: number of bits for the prime
+    :return: tuple of two distinct large primes
+    """
     p = generate_large_prime(num_of_bits)
     while True:
+        # we need to make sure that p != q
         q = generate_large_prime(num_of_bits)
         while q != p:
+            # we have two distinct primes
             return p, q
 
 
 def hash_to_prime(x, num_of_bits=128, nonce=0):
     while True:
-        num = hash_to_length(x + nonce, num_of_bits)
+        # num = hash_to_length(x + nonce, num_of_bits)
+
+        # AWAIS:: Convert hexstr to int
+        num = hash_to_length(int(x, 16) + nonce, num_of_bits)
         if is_prime(num):
             return num, nonce
         nonce = nonce + 1

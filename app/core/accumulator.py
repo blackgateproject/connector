@@ -1,5 +1,18 @@
 import math
 import secrets
+
+# Modified to run using python -m
+from utils.accumulator_utils import (
+    bezoute_coefficients,
+    calculate_product,
+    concat,
+    generate_two_large_distinct_primes,
+    hash_to_prime,
+    mul_inv,
+    shamir_trick,
+    to_padded_num_str,
+)
+
 # Normal run when not using python -m
 # from ..utils.accumulator_utils import (
 #     bezoute_coefficients,
@@ -11,47 +24,41 @@ import secrets
 #     shamir_trick,
 # )
 
-# Modified to run using python -m
-from utils.accumulator_utils import (
-    bezoute_coefficients,
-    calculate_product,
-    concat,
-    generate_two_large_distinct_primes,
-    hash_to_prime,
-    mul_inv,
-    shamir_trick,
-)
 
 class AccumulatorClass:
     def __init__(self):
         self.currentAccumulator = 0
-        self.modulus = 0
+        self.MODULUS = 0
+        self.SECRETS_DICT = None
+        self.GENERATOR = 0
         self.RSA_KEY_SIZE = 3072
         self.RSA_PRIME_SIZE = int(self.RSA_KEY_SIZE / 2)
         self.ACCUMULATED_PRIME_SIZE = 128
         self.GQUADDIVISOR = 20
 
-    def setup(self, modulus: int = None, A0: int = None):
+    def setup(self, modulus: int = None, generator: int = None):
         """
         Setup the RSA accumulator
-        :return: n, A0, S
+        :return: n, generator, S
         """
         if not modulus:
             # draw strong primes p,q
             p, q = generate_two_large_distinct_primes(self.RSA_PRIME_SIZE)
-            n = p * q
+            self.MODULUS = p * q
         else:
-            n = modulus
+            self.MODULUS = modulus
+
         # draw random number within range of [0,n-1]
-
-        if not A0:
-            A0 = secrets.randbelow(n)
+        if not generator:
+            self.GENERATOR = secrets.randbelow(self.MODULUS)
         else:
-            A0 = A0
-        self.currentAccumulator = A0
-        return n, A0, dict()
+            self.GENERATOR = generator
 
-    def add(self, A, S, x, n):
+        # Setup a dicitionary to store the secretes
+        self.SECRETS_DICT = dict()
+        return self.MODULUS, self.GENERATOR, self.SECRETS_DICT
+
+    def add(self, A, x):
         """
         Add an element to the accumulator
         :param A: current accumulator value
@@ -60,13 +67,21 @@ class AccumulatorClass:
         :param n: modulus
         :return: new accumulator value
         """
-        if x in S.keys():
+        if x in self.SECRETS_DICT.keys():
             return A
         else:
             hash_prime, nonce = hash_to_prime(x, self.ACCUMULATED_PRIME_SIZE)
-            A = pow(A, hash_prime, n)
-            S[x] = nonce
-            return A
+            A = pow(A, hash_prime, self.MODULUS)
+            self.SECRETS_DICT[x] = nonce
+            print(f"[ADD]:\n\tAdded to SECRET_DICT: \n\t\tELEMENT: {x}\n\t\tNONCE: {nonce}")
+            self.currentAccumulator = A
+
+            print(f"\n\tGenerating Proof")
+            # proof = self.prove_membership(x)
+            proof, prime = self.generate_proof(x)
+            print(f"\n\t\tProof: {to_padded_num_str(proof, 384)}")
+            print(f"\n\t\tPrime: {to_padded_num_str(prime, 32)}")
+            return self.currentAccumulator, proof, prime
 
     def batch_add(self, A_pre_add, S, x_list, n):
         """
@@ -86,32 +101,60 @@ class AccumulatorClass:
         A_post_add = pow(A_pre_add, product, n)
         return A_post_add, self.prove_exponentiation(A_pre_add, product, A_post_add, n)
 
-    def prove_membership(self, A0, S, x, n):
+    # def prove_membership(self, x):
+    #     """
+    #     Prove membership of an element in the accumulator
+    #     :param x: element to prove membership for
+    #     :return: proof of membership
+    #     """
+    #     if x not in self.SECRETS_DICT.keys():
+    #         print(f"[ERR] Element {x} not in SECRETS_DICT")
+    #         return None
+    #     else:
+    #         print(f"Prove_memebership: Element {x} in SECRETS_DICT")
+    #         product = 1
+    #         for element in self.SECRETS_DICT.keys():
+    #             if element != x:
+    #                 nonce = self.SECRETS_DICT[element]
+    #                 product *= hash_to_prime(
+    #                     element, self.ACCUMULATED_PRIME_SIZE, nonce
+    #                 )[0]
+    #         # A = g^product mod n
+    #         print(f"[PRV_MBMRSHP] \n\tnonce: {nonce}")
+    #         A = pow(self.GENERATOR, product, self.MODULUS)
+    #         # print(f"[PRV_MBMRSHP] A = G^Product mod(n) ===> \n\t{A} = {self.GENERATOR}^{product} mod({self.MODULUS})")
+    #         return A
+
+    # GPT on some shit frfr
+    def prove_membership(self, x):
         """
         Prove membership of an element in the accumulator
-        :param A0: initial accumulator value
-        :param S: set of accumulated elements
         :param x: element to prove membership for
-        :param n: modulus
         :return: proof of membership
         """
-        if x not in S.keys():
+        if x not in self.SECRETS_DICT.keys():
+            print(f"[ERR] Element {x} not in SECRETS_DICT")
             return None
         else:
+            print(f"[PRV_MBMRSHP]: Element {x} in SECRETS_DICT")
             product = 1
-            for element in S.keys():
+            for element in self.SECRETS_DICT.keys():
                 if element != x:
-                    nonce = S[element]
-                    product *= hash_to_prime(
-                        element, self.ACCUMULATED_PRIME_SIZE, nonce
-                    )[0]
-            A = pow(A0, product, n)
+                    nonce = self.SECRETS_DICT[element]
+                    product *= hash_to_prime(element, self.ACCUMULATED_PRIME_SIZE, nonce)[0]
+                    print(f"[PRV_MBMRSHP] \n\tnonce: {nonce} for element {element}")
+            # If the loop did not run, meaning x is the only element in SECRETS_DICT, we can handle this case:
+            if "nonce" not in locals():
+                print(f"[PRV_MBMRSHP] No nonces processed (only {x} in SECRETS_DICT)")
+            print(f"[PRV_MBMRSHP] \n\tPRODUCT: {product}")
+            # A = g^product mod n
+            A = pow(self.GENERATOR, product, self.MODULUS)
             return A
 
-    def prove_non_membership(self, A0, S, x, x_nonce, n):
+    def prove_non_membership(self, generator, S, x, x_nonce, n):
         """
         Prove non-membership of an element in the accumulator
-        :param A0: initial accumulator value
+        :param generator: initial accumulator value
         :param S: set of accumulated elements
         :param x: element to prove non-membership for
         :param x_nonce: nonce for the element
@@ -129,16 +172,16 @@ class AccumulatorClass:
         a, b = bezoute_coefficients(prime, product)
         if a < 0:
             positive_a = -a
-            inverse_A0 = mul_inv(A0, n)
-            d = pow(inverse_A0, positive_a, n)
+            inverse_generator = mul_inv(generator, n)
+            d = pow(inverse_generator, positive_a, n)
         else:
-            d = pow(A0, a, n)
+            d = pow(generator, a, n)
         return d, b
 
-    def verify_non_membership(self, A0, A_final, d, b, x, x_nonce, n):
+    def verify_non_membership(self, generator, A_final, d, b, x, x_nonce, n):
         """
         Verify non-membership proof
-        :param A0: initial accumulator value
+        :param generator: initial accumulator value
         :param A_final: final accumulator value
         :param d: proof component
         :param b: proof component
@@ -154,12 +197,12 @@ class AccumulatorClass:
             second_power = pow(inverse_A_final, positive_b, n)
         else:
             second_power = pow(A_final, b, n)
-        return (pow(d, prime, n) * second_power) % n == A0
+        return (pow(d, prime, n) * second_power) % n == generator
 
-    def batch_prove_membership(self, A0, S, x_list, n):
+    def batch_prove_membership(self, generator, S, x_list, n):
         """
         Batch prove membership of elements in the accumulator
-        :param A0: initial accumulator value
+        :param generator: initial accumulator value
         :param S: set of accumulated elements
         :param x_list: list of elements to prove membership for
         :param n: modulus
@@ -170,20 +213,20 @@ class AccumulatorClass:
             if element not in x_list:
                 nonce = S[element]
                 product *= hash_to_prime(element, self.ACCUMULATED_PRIME_SIZE, nonce)[0]
-        A = pow(A0, product, n)
+        A = pow(generator, product, n)
         return A
 
-    def batch_prove_membership_with_NIPoE(self, A0, S, x_list, n, w):
+    def batch_prove_membership_with_NIPoE(self, generator, S, x_list, n, w):
         """
         Batch prove membership with NI-PoE
-        :param A0: initial accumulator value
+        :param generator: initial accumulator value
         :param S: set of accumulated elements
         :param x_list: list of elements to prove membership for
         :param n: modulus
         :param w: final accumulator value
         :return: proof of membership with NI-PoE
         """
-        u = self.batch_prove_membership(A0, S, x_list, n)
+        u = self.batch_prove_membership(generator, S, x_list, n)
         nonces_list = []
         for x in x_list:
             nonces_list.append(S[x])
@@ -191,19 +234,16 @@ class AccumulatorClass:
         Q, l_nonce = self.prove_exponentiation(u, product, w, n)
         return Q, l_nonce, u
 
-    def prove_membership_with_NIPoE(self, g, S, x, n, w):
+    def prove_membership_with_NIPoE(self, x, w):
         """
         Prove membership with NI-PoE
-        :param g: initial accumulator value
-        :param S: set of accumulated elements
         :param x: element to prove membership for
-        :param n: modulus
         :param w: final accumulator value
         :return: proof of membership with NI-PoE
         """
-        u = self.prove_membership(g, S, x, n)
-        x_prime, x_nonce = hash_to_prime(x=x, nonce=S[x])
-        Q, l_nonce = self.prove_exponentiation(u, x_prime, w, n)
+        u = self.prove_membership(self.GENERATOR, self.SECRETS_DICT, x, n)
+        x_prime, x_nonce = hash_to_prime(x=x, nonce=self.SECRETS_DICT[x])
+        Q, l_nonce = self.prove_exponentiation(u, x_prime, w, self.MODULUS)
         return Q, l_nonce, u
 
     def prove_exponentiation(self, u, x, w, n):
@@ -268,10 +308,10 @@ class AccumulatorClass:
         # check (Q^l)(u^r) == w
         return (pow(Q, l, n) % n) * (pow(u, r, n) % n) % n == w
 
-    def delete(self, A0, A, S, x, n):
+    def delete(self, generator, A, S, x, n):
         """
         Delete an element from the accumulator
-        :param A0: initial accumulator value
+        :param generator: initial accumulator value
         :param A: current accumulator value
         :param S: set of accumulated elements
         :param x: element to delete
@@ -286,13 +326,13 @@ class AccumulatorClass:
             for element in S.keys():
                 nonce = S[element]
                 product *= hash_to_prime(element, self.ACCUMULATED_PRIME_SIZE, nonce)[0]
-            Anew = pow(A0, product, n)
+            Anew = pow(generator, product, n)
             return Anew
 
-    def batch_delete(self, A0, S, x_list, n):
+    def batch_delete(self, generator, S, x_list, n):
         """
         Batch delete elements from the accumulator
-        :param A0: initial accumulator value
+        :param generator: initial accumulator value
         :param S: set of accumulated elements
         :param x_list: list of elements to delete
         :param n: modulus
@@ -302,9 +342,9 @@ class AccumulatorClass:
             del S[x]
 
         if len(S) == 0:
-            return A0
+            return generator
 
-        return self.batch_add(A0, S, x_list, n)
+        return self.batch_add(generator, S, x_list, n)
 
     def batch_delete_using_membership_proofs(
         self,
@@ -362,22 +402,39 @@ class AccumulatorClass:
             A_post_delete, product, A_pre_delete, n
         )
 
-    def verify_membership(self, A, x, nonce, proof, n):
+    def verify_membership(self, A, x, proof):
         """
         Verify membership proof
         :param A: accumulator value
         :param x: element to verify membership for
-        :param nonce: nonce for the element
         :param proof: proof of membership
         :param n: modulus
         :return: True if proof is valid, False otherwise
         """
+        # print(f"Checking if element has a Nonce")
+        if x not in self.SECRETS_DICT.keys():
+            print(f"[ERR] Element {x} not in SECRETS_DICT")
+            return False
+
+        nonce = self.SECRETS_DICT[x]
+        print(f"Element {x} has a Nonce {nonce}")
         return self.__verify_membership(
             A,
             hash_to_prime(x=x, num_of_bits=self.ACCUMULATED_PRIME_SIZE, nonce=nonce)[0],
             proof,
-            n,
+            self.MODULUS,
         )
+
+    def __verify_membership(self, A, x, proof, n):
+        """
+        Helper function to verify membership
+        :param A: accumulator value
+        :param x: element to verify membership for
+        :param proof: proof of membership
+        :param n: modulus
+        :return: True if proof is valid, False otherwise
+        """
+        return pow(proof, x, n) == A
 
     def batch_verify_membership(self, A, x_list, nonce_list, proof, n):
         """
@@ -408,27 +465,16 @@ class AccumulatorClass:
         product = calculate_product(primes_list)
         return product
 
-    def __verify_membership(self, A, x, proof, n):
-        """
-        Helper function to verify membership
-        :param A: accumulator value
-        :param x: element to verify membership for
-        :param proof: proof of membership
-        :param n: modulus
-        :return: True if proof is valid, False otherwise
-        """
-        return pow(proof, x, n) == A
-
-    def create_all_membership_witnesses(self, A0, S, n):
+    def create_all_membership_witnesses(self, generator, S, n):
         """
         Create all membership witnesses
-        :param A0: initial accumulator value
+        :param generator: initial accumulator value
         :param S: set of accumulated elements
         :param n: modulus
         :return: list of membership witnesses
         """
         primes = [hash_to_prime(x=x, nonce=S[x])[0] for x in S.keys()]
-        return self.root_factor(A0, primes, n)
+        return self.root_factor(generator, primes, n)
 
     def root_factor(self, g, primes, N):
         """
@@ -482,35 +528,46 @@ class AccumulatorClass:
 
         return agg_wit, self.prove_exponentiation(agg_wit, product, A, n)
 
-    def generate_proof(self, element, accumulator, secrets_dict, modulus):
+    # def generate_proof(self, element, accumulator, secrets_dict, modulus):
+    #     """
+    #     Generate proof of membership
+    #     :param element: element to generate proof for
+    #     :param accumulator: accumulator value
+    #     :param secrets_dict: dictionary of secrets
+    #     :param modulus: modulus
+    #     :return: proof of membership and prime
+    #     """
+    #     nonce = secrets_dict[element]
+    #     proof = self.prove_membership(accumulator, secrets_dict, element, modulus)
+    #     prime, nonce = hash_to_prime(x=element, nonce=nonce)
+    #     return proof, prime
+    def generate_proof(self, x):
         """
         Generate proof of membership
-        :param element: element to generate proof for
-        :param accumulator: accumulator value
-        :param secrets_dict: dictionary of secrets
-        :param modulus: modulus
+        :param x: element to generate proof for
         :return: proof of membership and prime
         """
-        nonce = secrets_dict[element]
-        proof = self.prove_membership(accumulator, secrets_dict, element, modulus)
-        prime, nonce = hash_to_prime(x=element, nonce=nonce)
+        nonce = self.SECRETS_DICT[x]
+        proof = self.prove_membership(x)
+        prime, nonce = hash_to_prime(x=x, nonce=nonce)
         return proof, prime
 
     """
     ====== from generate_proof.py ======
     """
+
     def to_padded_num_str_FROMFILE(num, length_in_bytes):
         length_in_hex_str = length_in_bytes * 2 + 2
         num_str = format(num, "#0" + str(length_in_hex_str) + "x")
         return num_str
 
     def generate_proof_FROMFILE(self):
-        n, A0, S = self.setup()
+        n, generator, S = self.setup()
 
         x = secrets.randbelow(pow(2, 256))
-        A1 = self.add(A0, S, x, n)
+        A1 = self.add(generator, S, x, n)
         nonce = S[x]
-        proof = self.prove_membership(A0, S, x, n)
+        proof = self.prove_membership(generator, S, x, n)
         prime, nonce = hash_to_prime(x=x, nonce=nonce)
 
         print(
