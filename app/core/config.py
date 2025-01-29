@@ -4,6 +4,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
     HARDHAT_URL: str
+    ZK_HARDHAT_URL : str
     BLOCKCHAIN_WALLET_PRVT_KEY: str
     BLOCKCHAIN_WALLET_ADDR: str
     SUPABASE_URL: str
