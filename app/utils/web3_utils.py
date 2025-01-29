@@ -32,6 +32,7 @@ settings_dependency = Annotated[Settings, Depends(get_settings)]
 
 # Hardhat testnet, Check .env for URL Errors if any
 w3 = Web3(Web3.HTTPProvider(settings_dependency().HARDHAT_URL))
+w3_zk = Web3(Web3.HTTPProvider(settings_dependency().ZK_HARDHAT_URL))
 
 debug = settings_dependency().DEBUG
 
@@ -232,7 +233,7 @@ def getContractZKsync(contract_name: str):
         raise ValueError("Invalid contract name provided!")
 
     # Define the base directory (prefix path)
-    base_dir = r"..\..\blockchain"
+    base_dir = r"..\..\blockchain-1"
 
     # zksyncNodeType[dockerizedNode, anvilZKsync, zkSyncSepoliaTestnet, zkSyncSepoliaMainet]
     zksyncNodeType = "anvilZKsync"
@@ -405,16 +406,16 @@ Contract init functions
 # Return a DIDRegistry instance
 def get_did_registry():
     contract_address, contract_abi = getContractZKsync("DIDRegistry")
-    return w3.eth.contract(address=contract_address, abi=contract_abi)
+    return w3_zk.eth.contract(address=contract_address, abi=contract_abi)
 
 
 # Return a VerifiableCredentialManager instance
 def get_vc_manager():
     contract_address, contract_abi = getContractZKsync("VerifiableCredentialManager")
-    return w3.eth.contract(address=contract_address, abi=contract_abi)
+    return w3_zk.eth.contract(address=contract_address, abi=contract_abi)
 
 
 # Return a RSAAccumulator instance
 def get_rsa_accumulator():
-    contract_address, contract_abi = getContractZKsync("RSAAccumulatorVerifier")
+    contract_address, contract_abi = getContract("RSAAccumulatorVerifier")
     return w3.eth.contract(address=contract_address, abi=contract_abi)
