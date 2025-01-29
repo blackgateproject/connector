@@ -9,8 +9,8 @@
   "author": "",
   "license": "ISC",
   "type": "commonjs",
-  "description": "",
   "devDependencies": {
     "supabase": "^2.2.1"
-  }
+  },
+  "description": ""
 }
