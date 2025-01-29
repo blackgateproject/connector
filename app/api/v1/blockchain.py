@@ -8,6 +8,7 @@ from ...utils.core_utils import settings_dependency, verify_jwt
 from ...utils.ipfs_utils import add_file_to_ipfs, get_file_from_ipfs
 from ...utils.web3_utils import getContract  # recalcAccumulator,
 from ...utils.web3_utils import (
+    getContract,
     getContractZKsync,
     getCurrentAccumulatorMod,
     issue_did,
@@ -48,7 +49,7 @@ async def contract_test():
     """
     # Retrieve and concatenate contract information for multiple contracts
     contract = getContractZKsync("DIDRegistry")
-    contract += getContractZKsync("RSAAccumulatorVerifier")
+    contract += getContract("RSAAccumulatorVerifier")
     contract += getContractZKsync("VerifiableCredentialManager")
     return {"contract": contract}
 
@@ -73,7 +74,7 @@ async def verify_accumulator(request: Request):
     prime = body["prime"]
     result = verifyUserOnAccumulator(accumulator, proof, prime)
 
-    return JSONResponse(content=result, status_code=200)
+    return JSONResponse(content={"IsProven": result}, status_code=200)
 
 
 @router.get("/issueDID")
