@@ -8,11 +8,6 @@ from supabase import AuthApiError
 from supabase.client import Client, create_client
 
 from ...models.user import User
-from ...utils.pki_utils import (
-    create_signing_challenge,
-    sign_challenge,
-    verify_signing_challenge,
-)
 from ...utils.core_utils import (
     extract_user_details_for_passwordless,
     extractUserInfo,
@@ -20,6 +15,12 @@ from ...utils.core_utils import (
     settings_dependency,
     verify_jwt,
 )
+from ...utils.pki_utils import (
+    create_signing_challenge,
+    sign_challenge,
+    verify_signing_challenge,
+)
+from ...utils.web3_utils import verifyUserOnAccumulator
 
 # from ...utils.web3_utils import verify_identity_with_stateless_blockchain, verify_vc, verify_with_rsa_accumulator, get_did_from_registry
 
@@ -50,12 +51,21 @@ async def verify(request: Request, settings: settings_dependency):
     email = body.get("email")
     password = body.get("password")
 
+    # ZKP proofs
+    accVal = body.get("accVal")
+    accProof = body.get("accProof")
+    accPrime = body.get("accPrime")
+
+    # Fetch proofs to validate if the user is part of the accumulator group
+    result = verifyUserOnAccumulator(accVal, accProof, accPrime)
     # supabase = await supaClient(settings_dependency)
     supabase: Client = create_client(
         supabase_url=settings.SUPABASE_URL, supabase_key=settings.SUPABASE_ANON_KEY
     )
     if supabase:
         try:
+
+            # Attempt the login with the email and password
             session = supabase.auth.sign_in_with_password(
                 {"email": email, "password": password}
             )
@@ -86,7 +96,7 @@ async def verify(request: Request, settings: settings_dependency):
                 user_data["id"], "User logged in", settings, type="Login"
             )
 
-            # Print user aud 
+            # Print user aud
             if debug >= 2:
                 print(f"User Aud: {user_data['aud']}")
 
@@ -136,6 +146,18 @@ async def verify(request: Request, settings: settings_dependency):
             )
     else:
         raise Exception("[ERROR]: Supabase client not created")
+
+
+@router.post("/verify-accumulator")
+async def verifyAccumulator(request: Request, settings: settings_dependency):
+    body = await request.json()
+    accVal = body.get("accVal")
+    accProof = body.get("accProof")
+    accPrime = body.get("accPrime")
+    result = verifyUserOnAccumulator(accVal, accProof, accPrime)
+    if not result:
+        return JSONResponse(content={"result": "false"}, status_code=401)
+    return JSONResponse(content={"result": result, "role": "admin"}, status_code=200)
 
 
 @router.post("/logout")
