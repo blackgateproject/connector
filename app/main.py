@@ -25,7 +25,7 @@ app.add_middleware(
 async def redirect_invalid_jwt(request: Request, call_next):
     try:
         # print(f"JWT_MIDDLEWARE: Verifying JWT")
-        if debug >= 3:
+        if debug >= 6:
             print(f"JWT_MIDDLEWARE: Request URL: {request.url}")
         await verify_jwt(request)
     except HTTPException as e:
