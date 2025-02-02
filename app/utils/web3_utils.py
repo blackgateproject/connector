@@ -372,7 +372,7 @@ def storeDIDonBlockchain(did: str, publicKey: str):
                 # "value": 1000000000000000000,
                 "chainId": 270,
                 "gas": 2000000,
-                "gasPrice": w3_zk.to_wei("20", "gwei"),
+                "gasPrice": w3_zk.to_wei("1", "gwei"),
                 "nonce": w3_zk.eth.get_transaction_count(wallet_addr),
             }
         )
@@ -455,7 +455,6 @@ def storeVCOnBlockchain(did: str, vc: str):
     # Call the storeCredential function from the contract
     # NOTE:: TX is state changing,this func does not sign the transaction
     print(f"[storeVCOnBlockchain()] START:: Blockchain EXE")
-    nonce = w3_zk.eth.get_transaction_count(wallet_addr)
     tx_hash = (
         get_vc_manager()
         .functions.issueVC(
@@ -469,9 +468,9 @@ def storeVCOnBlockchain(did: str, vc: str):
                 # "to": get_did_registry().address,
                 # "value": 1000000000000000000,
                 "chainId": 270,
-                "gas": 2000000,
-                "gasPrice": w3_zk.to_wei("20", "gwei"),
-                "nonce": nonce,
+                "gas": 20000000,
+                "gasPrice": w3_zk.to_wei("1", "gwei"),
+                "nonce": w3_zk.eth.get_transaction_count(wallet_addr),
             }
         )
     )
@@ -485,24 +484,31 @@ def storeVCOnBlockchain(did: str, vc: str):
     logs = (
         get_vc_manager()
         .events.VCIssued()
-        .get_logs(from_block=nonce - 1)
+        .get_logs(from_block=w3_zk.eth.block_number - 1)
     )
     # for log in logs:
     #     print(
     #         f"[storeVConBlockchain()] Transaction Successful: \n\tDID: {log.args.did}\n\VC_HASH{log.args.vcHash}\n\tIPFS_CID: {log.args.ipfsCID}\n\tTX_HASH: {logs[0].transactionHash.hex()}"
     #     )
     if debug >= 1:
-        print(
-            f"[storeVConBlockchain()] Transaction Successful: \n\tDID: {logs[0].args.did}\n\VC_HASH{logs[0].args.vcHash}\n\tIPFS_CID: {logs[0].args.ipfsCID}\n\tTX_HASH: {logs[0].transactionHash.hex()}"
-        )
+        if logs:
+            print(
+                f"[storeVConBlockchain()] Transaction Successful: \n\tDID: {logs[0].args.did}\n\tVC_HASH{logs[0].args.vcHash}\n\tIPFS_CID: {logs[0].args.ipfsCID}\n\tTX_HASH: {logs[0].transactionHash.hex()}"
+            )
+        else:
+            print(f"[storeVConBlockchain()] Transaction LOGFETCH Failed: No logs found")
     print(f"[storeVCOnBlockchain()] END:: Blockchain LOGFETCH")
 
     # Return the CID and the transaction hash
     return (
-        logs[0].args.did,
-        logs[0].args.vcHash,
-        logs[0].args.ipfsCID,
-        logs[0].transactionHash.hex(),
+        # logs[0].args.did,
+        # logs[0].args.vcHash,
+        # logs[0].args.ipfsCID,
+        # logs[0].transactionHash.hex(),
+        did,
+        vc_hash,
+        ifps_VC_CID,
+        signed_tx_hash.hex()
     )
 
 
