@@ -50,7 +50,7 @@ create table
     created_at timestamp without time zone null default current_timestamp,
     updated_at timestamp without time zone null default current_timestamp,
     constraint user_keys_pkey primary key (user_id),
-    constraint user_keys_user_id_fkey foreign key (user_id) references auth.users (id)
+    constraint user_keys_user_id_fkey foreign key (user_id) references auth.users (id) on update cascade on delete cascade
   ) tablespace pg_default;
 
 -- Create a new table to store user roles
@@ -115,7 +115,7 @@ values
 -- Insert dummy data into user_keys table
 insert into public.user_keys (user_id, two_factor_auth, private_key, public_key, created_at, updated_at)
 values
-  ((select id from auth.users where email = 'a@admin.com'), true, 'private_key_john', 'public_key_john', now(), now()),
+  ((select id from auth.users where email = 'a@admin.com'), false, 'private_key_john', 'public_key_john', now(), now()),
   ((select id from auth.users where email = 'a@user.com'), false, 'private_key_jane', 'public_key_jane', now(), now());
 
 -- Insert dummy data into user_roles table
