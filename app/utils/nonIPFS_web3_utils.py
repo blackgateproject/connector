@@ -37,13 +37,13 @@ wallet_addr = ""
 if settings_dependency().BLOCKCHAIN_WALLET_ADDR:
     wallet_prv_key = settings_dependency().BLOCKCHAIN_WALLET_PRVT_KEY
     wallet_addr = settings_dependency().BLOCKCHAIN_WALLET_ADDR
-    
+
     derived_addr = Account.from_key(wallet_prv_key).address
     if derived_addr != wallet_addr:
         print(
             f"Derived Address({derived_addr}) does not match the provided address({wallet_addr})"
         )
-    
+
     if debug >= 2:
         print("Using Wallet Address from .env")
 
@@ -59,85 +59,6 @@ else:
 accMod = settings_dependency().BACKEND_MODULUS
 accInit = settings_dependency().BACKEND_ACC
 accState = dict()
-
-
-async def issue_did():
-    """
-    Issue a DID
-    """
-    # Generate a new Ed25519 keypair
-    jwk = didkit.generate_ed25519_key()
-    did = didkit.key_to_did("key", jwk)
-
-    if debug >= 2:
-        print(f"[issue_did()] JWK: {jwk}")
-        print(f"[issue_did()] DID: {did}")
-
-    # print(
-    #     f"\n\n\nDIDKIT DID RESOLVE:\n{await didkit.resolve_did(did, input_metadata=json.dumps({}))}\n\n\n"
-    # )
-    # if storeIPFS:
-    #     # Store DID on IPFS
-    #     ipfs_did_hash = add_file_to_ipfs(did)
-    #     print(f"IPFS DID Hash: {ipfs_did_hash}")
-    #     return jwk, did, ipfs_did_hash
-
-    return jwk, did
-
-
-async def issue_vc(did: str, jwk: str, user_uuid: str):
-    """
-    Issue a VC and sign it based on the received DID
-    """
-    server_did = settings_dependency().BACKEND_DID
-    server_jwk = settings_dependency().BACKEND_JWK
-
-    if debug >= 1:
-        print(f"[issue_vc()] DID-Recv: {did}")
-        print(f"[issue_vc()] JWK-Recv: \n{jwk}")
-        print(f"[issue_vc()] UUID-Recv: {user_uuid}")
-    if debug >= 2:
-        print(f"[issue_vc()] Server-DID(env): {server_did}")
-        print(f"[issue_vc()] Server-JWK(env): \n{server_jwk}")
-
-    missing_params = [
-        param
-        for param, name in [(did, "DID"), (jwk, "JWK"), (user_uuid, "User-UUID")]
-        if not param
-    ]
-    if missing_params:
-        raise ValueError(
-            f"[issue_vc()] Error: {', '.join(name for _, name in missing_params)} not provided"
-        )
-
-    user_did = didkit.key_to_did("key", didkit.generate_ed25519_key())
-
-    credential = {
-        "@context": "https://www.w3.org/2018/credentials/v1",
-        "id": f"urn:uuid:{user_uuid}",
-        "type": ["VerifiableCredential"],
-        "issuer": server_did,
-        "issuanceDate": datetime.now(timezone.utc).isoformat(),
-        "credentialSubject": {
-            "id": user_did,
-        },
-    }
-
-    if debug >= 1:
-        print(f"[issue_vc()] Generated VC: \n{credential}")
-
-    signed_vc = await didkit.issue_credential(json.dumps(credential), "{}", server_jwk)
-
-    # if storeIPFS:
-    #     # Store VC on IPFS
-    #     ipfs_vc_hash = add_file_to_ipfs(signed_vc)
-
-    #     if debug >= 1:
-    #         print(f"[issue_vc()] IPFS VC Hash: {ipfs_vc_hash}")
-    #     return {"VC": json.loads(signed_vc), "IPFS": ipfs_vc_hash}
-    # if debug >=2:
-    # print(f"[issue_vc()] Signed VC: \n{json.loads(signed_vc)}")
-    return json.loads(signed_vc)
 
 
 # NOTE:: Changed for zksync
@@ -278,113 +199,11 @@ def getContractZKsync(contract_name: str):
     return contract_address, contract_abi
 
 
-def setAccumulator(accumulator: str):
-    """
-    Set the accumulator on the blockchain
-    """
-    # Create Contract Instance & Call the setAccumulator function from the contract
-    tx_hash = get_rsa_accumulator().functions.setAccumulator(accumulator).transact()
-
-    # Print the transaction hash for debugging purposes
-    if debug >= 1:
-        print(f"[setAccumulator()] Transaction Hash: \n{tx_hash.hex()}")
-
-    return tx_hash.hex()
-
-
-# Function to get the current accumulator (view function)
-def getCurrentAccumulator():
-    """
-    Get the current accumulator from the blockchain (view function).
-    """
-    # Create Contract Instance
-    contract = get_rsa_accumulator()
-
-    # Call the getAccumulator function (view function, no gas required)
-    try:
-        current_accumulator = contract.functions.getAccumulator().call(
-            {"from": wallet_addr}
-        )
-
-        # Since it's returned as bytes, we can format it into hex
-        current_accumulator = f"0x{current_accumulator.hex()}"
-
-        if debug >= 2:
-            print(f"[getCurrentAccumulator()] Current Accumulator: {current_accumulator}")
-        return current_accumulator
-
-    except Exception as e:
-        print(f"Error while calling getAccumulator: {e}")
-        return None
-
-
-# async def recalcAccumulator():
-#     """
-#     Recalculate the Accumulator at this current point in time by using IPFS ls
-#     """
-
-#     # Recalculate the accumulator
-#     # Get current accumulator value
-#     current_accumulator = int(getCurrentAccumulator(), 16)
-
-#     # convert modulus to int
-#     if debug >= 2:
-#         print(f"Modulus({len(str(accMod))}): {accMod}")
-#     accModulus = int(accMod, 16)
-
-#     # List all CIDs currently in IPFS
-#     ipfs_cids = list_all_files_from_ipfs()
-#     concat_ipfs = "".join(ipfs_cids)
-#     concat_bytes = concat_ipfs.encode()
-#     hashed_cids = int(hashlib.sha256(concat_bytes).hexdigest(), 16)
-#     if debug >= 2:
-#         print(
-#             f"[recalcAccumulator()] Hash of CIDs({len(str(hashed_cids))}): {hashed_cids}"
-#         )
-
-#     x = hashed_cids
-#     A1 = add(current_accumulator, accState, x, accModulus)
-#     nonce = accState[x]
-#     proof = prove_membership(current_accumulator, accState, x, accModulus)
-#     prime, nonce = hash_to_prime(x, nonce)
-
-#     new_accumulator = A1
-
-#     # # Run the list through hash_to_prime to get element1
-#     # element1, nonce1 = hash_to_prime(hashed_cids, 3072)
-
-#     # # Generate new accumulator value
-#     # # ADD(Accumulator, State, Element, Modulus)
-#     # new_accumulator = add(current_accumulator, accState, element1, accModulus)
-
-#     # # Store the nonce after calculating the new accumulator
-#     # nonce1 = accState[element1]
-
-#     # print(f"Element1({len(str(element1))}): {element1}")
-#     # print(f"Nonce1({len(str(nonce1))}): {nonce1}")
-
-#     # # Generate Proof
-#     # # proof, prime = generate_proof(element1, current_accumulator, accState, accModulus)
-#     # prime, nonce = hash_to_prime(element1, nonce1)
-#     # print(f"Prime({len(str(prime))}): {prime}")
-
-#     # # Set the new accumulator on the blockchain
-#     # print(f"New Accumulator({len(str(new_accumulator))}): {hex(new_accumulator)}")
-#     # print(f"\nState: {accState}")
-#     return {
-#         "isAccTheSame?": "Yes" if new_accumulator == current_accumulator else "No",
-#         "NewAccumulator": to_padded_num_str(new_accumulator, 384),
-#         "Prime": to_padded_num_str(prime, 32),
-#     }
-
-
 # Create a new prime from hash
 async def storeDIDonBlockchain(did: str, publicKey: str):
     """
     Store DID on IPFS and then on the blockchain
     """
-    # Get currentAccumulator value
-    current_accumulator = getCurrentAccumulator()
 
     try:
         # Store DID on IPFS
@@ -401,7 +220,6 @@ async def storeDIDonBlockchain(did: str, publicKey: str):
         .functions.registerDID(
             did,
             ipfs_did_hash,
-            current_accumulator,
             publicKey,
         )
         .transact()
@@ -443,17 +261,6 @@ async def storeVCOnBlockchain(did: str, vc: str):
     return ifps_VC_CID, tx_hash.hex()
 
 
-async def udpateAccumulatorOnBlockchain():
-    """
-    Update the accumulator on the blockchain, by recalculating the accumulator from the IPFS files
-    """
-
-    # Recalculate the accumulator
-    # Create a RSAAcc contract instance
-    # Update the ACC
-    pass
-
-
 """
 Contract init functions
 """
@@ -468,10 +275,4 @@ def get_did_registry():
 # Return a VerifiableCredentialManager instance
 def get_vc_manager():
     contract_address, contract_abi = getContractZKsync("VerifiableCredentialManager")
-    return w3.eth.contract(address=contract_address, abi=contract_abi)
-
-
-# Return a RSAAccumulator instance
-def get_rsa_accumulator():
-    contract_address, contract_abi = getContractZKsync("RSAAccumulator")
     return w3.eth.contract(address=contract_address, abi=contract_abi)
