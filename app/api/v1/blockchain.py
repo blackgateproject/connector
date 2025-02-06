@@ -1,6 +1,7 @@
 import json
 from datetime import datetime, timedelta, timezone, tzinfo
 
+import didkit
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
@@ -8,7 +9,6 @@ from ...utils.core_utils import settings_dependency, verify_jwt
 from ...utils.ipfs_utils import add_file_to_ipfs, get_file_from_ipfs
 from ...utils.web3_utils import getContract  # recalcAccumulator,
 from ...utils.web3_utils import (
-    getContract,
     getContractZKsync,
     getCurrentAccumulatorMod,
     issue_did,
@@ -122,3 +122,49 @@ async def issueVC(
     }
 
     return JSONResponse(content=response, status_code=200)
+
+
+@router.get("/resolveDID/{did}")
+async def resolve_did_endpoint(did: str):
+    """
+    Resolve a DID document and sign a VC
+    """
+    try:
+        # Generate didDoc
+        async def resolve_did(did):
+            return await didkit.resolve_did(did, "{}")
+
+        did_doc = await resolve_did(did)
+        did_doc_json = json.loads(did_doc)
+        # print(f"Resolved DID Document: {did_doc_json}\n")
+
+        # Sign VC
+        credential = {
+            "@context": ["https://www.w3.org/2018/credentials/v1"],
+            "type": ["VerifiableCredential"],
+            "issuer": did,
+            "credentialSubject": {"id": "did:example:123"},
+            "issuanceDate": datetime.utcnow().isoformat() + "Z",
+        }
+
+        print(f"[/resolveDID/{did}] Credential: {credential}")
+        proof_options = json.dumps(
+            {
+                "proofPurpose": "assertionMethod",
+                "verificationMethod": f"{did}#controller",
+            }
+        )
+
+        print(f"[/resolveDID/{did}] Proof Options: {proof_options}")
+        response = {
+            "didDocument": did_doc_json,
+            "credential": credential,
+            "proof_options": json.loads(proof_options),
+        }
+
+        print(f"[/resolveDID/{did}] Response: {response}")
+
+        return JSONResponse(content=response, status_code=200)
+    except Exception as e:
+        print(f"[/resolveDID/{did}] Error: {e}")
+        return JSONResponse(content={"error": str(e)}, status_code=400)
