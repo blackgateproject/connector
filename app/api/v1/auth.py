@@ -20,7 +20,7 @@ from ...utils.pki_utils import (
     sign_challenge,
     verify_signing_challenge,
 )
-from ...utils.web3_utils import verifyUserOnAccumulator
+from ...utils.web3_utils import verifyUserOnAccumulator, verifyUserOnMerkle
 
 # from ...utils.web3_utils import verify_identity_with_stateless_blockchain, verify_vc, verify_with_rsa_accumulator, get_did_from_registry
 
@@ -50,14 +50,32 @@ async def verify(request: Request, settings: settings_dependency):
     body = await request.json()
     email = body.get("email")
     password = body.get("password")
+    did = body.get("did")
+    signedVc = body.get("signedVc")
+
+    print(f"Email: {email}")
+    print(f"Password: {password}")
+    print(f"DID: {did}")
+    print(f"Signed VC: {signedVc}")
 
     # ZKP proofs
     accVal = body.get("accVal")
     accProof = body.get("accProof")
     accPrime = body.get("accPrime")
 
-    # Fetch proofs to validate if the user is part of the accumulator group
-    result = verifyUserOnAccumulator(accVal, accProof, accPrime)
+    # if type(accVal) == bytes and type(accProof) == bytes and type(accPrime) == bytes:
+    if accVal and accProof and accPrime and email == "a@acc.com":
+        # Fetch proofs to validate if the user is part of the accumulator group
+        result = verifyUserOnAccumulator(accVal, accProof, accPrime)
+    else:
+        print(f"ZKP Proofs not provided")
+        result = False
+
+    if email == "a@merkle.com":
+        valid = verifyUserOnMerkle(email, password)
+        if valid:
+            print("\n\n[CORE] Merkle Proof Verified\n\n")
+
     # supabase = await supaClient(settings_dependency)
     supabase: Client = create_client(
         supabase_url=settings.SUPABASE_URL, supabase_key=settings.SUPABASE_ANON_KEY
@@ -83,12 +101,12 @@ async def verify(request: Request, settings: settings_dependency):
             user_instance = User(**user_data)
 
             # If not in the list, add the user to the list, If in the list raise an Exception
-            for user in logged_in_users:
-                if user_instance.id == user.id:
-                    raise Exception("User is already logged in")
-            logged_in_users.append(user_instance)
+            # for user in logged_in_users:
+            #     if user_instance.id == user.id:
+            #         raise Exception("User is already logged in")
+            # logged_in_users.append(user_instance)
 
-            # Print logged-in user information
+            # # Print logged-in user information
             # if debug:
             #     print(f"Added user to local store: \n{user_instance}")
 
@@ -100,11 +118,21 @@ async def verify(request: Request, settings: settings_dependency):
             if debug >= 2:
                 print(f"User Aud: {user_data['aud']}")
 
+            # print user metadata from user_data dict
+            print(f"User Metadata: {user_data["user_metadata"]}")
+
+            # Some accounts do not have the role field set in user_metadata, assign them their email domain instead
+            if not user_data["user_metadata"].get("role"):
+                role = email.split("@")[1].split(".")[0]
+            else:
+                role = user_data["user_metadata"]["role"]
+            # role = user_data.user_metadata.get("role")
+            print(f"User Role: {role}")
             # Return authenticated response
             return JSONResponse(
                 content={
                     "authenticated": True,
-                    "role": email.split("@")[1].split(".")[0],
+                    "role": role,
                     "uuid": user_data["id"],
                     "access_token": session.session.access_token,
                     "refresh_token": session.session.refresh_token,
@@ -133,7 +161,7 @@ async def verify(request: Request, settings: settings_dependency):
                 return JSONResponse(
                     content={
                         "authenticated": True,
-                        "role": email.split("@")[1].split(".")[0],
+                        "role": role,
                         "uuid": user_data["id"],
                         "error": "User is already logged in",
                         "access_token": session.session.access_token,
