@@ -51,6 +51,8 @@ class AccumulatorClass:
                 print(
                     f"\n\tMODULUS: {self.MODULUS}\n\tpaddStrMOD: {to_padded_num_str(self.MODULUS, 384)}\n\tGENERATOR: {self.GENERATOR}"
                 )
+        print(f"[ACC_CORE] Accumulator Ready")
+        
 
     def setup(self, modulus: int = None, generator: int = None):
         """
@@ -692,12 +694,11 @@ class AccumulatorClass:
 
 
 accumulatorCore = AccumulatorClass()
-print(f"[CORE] AccumulatorClass instance created")
 # print(
 #     f"\n\tMODULUS: {accumulatorCore.MODULUS}\n\tpaddStrMOD:{to_padded_num_str(accumulatorCore.MODULUS, 384)}\n\tGENERATOR: {accumulatorCore.GENERATOR}\n\tpaddStrGEN: {to_padded_num_str(accumulatorCore.GENERATOR, 384)}"
 # )
 
-newAcc, proof, prime = accumulatorCore.add("1")
+# newAcc, proof, prime = accumulatorCore.add("1")
 # # print(f"\n\tnewAcc: {newAcc}\n\tproof: {proof}\n\tprime: {prime}")
 # newAcc, proof, prime = accumulatorCore.add("2")
 # # print(f"\n\tnewAcc: {newAcc}\n\tproof: {proof}\n\tprime: {prime}")
