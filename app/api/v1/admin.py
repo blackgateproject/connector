@@ -17,6 +17,8 @@ from ...utils.web3_utils import (
     issue_vc,
     storeDIDonBlockchain,
     storeVCOnBlockchain,
+    addUserToMerkle,
+    verifyUserOnMerkle
 )
 
 debug = settings_dependency().DEBUG
@@ -137,14 +139,14 @@ async def getUsers(settings: settings_dependency, _: dict = Depends(verify_jwt))
         for user in serialized_users:
             # Fetch the role from the user_roles table
             role = " "
-            role_response = (
-                supabase.table("user_roles")
-                .select("role")
-                .eq("user_id", user["id"])
-                .single()
-                .execute()
-            )
-            role = role_response.data["role"] if role_response.data else "user"
+            # role_response = (
+            #     supabase.table("user_roles")
+            #     .select("role")
+            #     .eq("user_id", user["id"])
+            #     .single()
+            #     .execute()
+            # )
+            # role = role_response.data["role"] if role_response.data else "user"
 
             # Print User id for debugging
             # print(f"User ID: {user['id']}")
@@ -178,6 +180,7 @@ async def getUsers(settings: settings_dependency, _: dict = Depends(verify_jwt))
             #     print(f"Return USR: \n{returnUser}")
             # else:
             # User has metadata, so extract first and last names
+            # print(f"\n\nTEST ROLE: {user["user_metadata"].get("role", role)}\n\n")
             returnUser = {
                 "id": user["id"],
                 "firstName": user["user_metadata"].get(
@@ -187,7 +190,7 @@ async def getUsers(settings: settings_dependency, _: dict = Depends(verify_jwt))
                     "lastName", ""
                 ),  # Safely get lastName or empty string
                 "email": user["email"],
-                "role": role,
+                "role": user["user_metadata"].get("role", role),
                 "online": (
                     True if user["aud"] == "authenticated" else False
                 ),  # Check if the user is authenticated
@@ -252,28 +255,150 @@ async def get_all_users(settings: settings_dependency, _: dict = Depends(verify_
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
+# @router.post("/addUser")
+# async def addUsers(
+#     # request: Request, settings: settings_dependency, _: dict = Depends(verify_jwt)
+#     request: Request,
+#     settings: settings_dependency,
+# ):
+#     # Get data
+#     data = await request.json()
+#     firstName = data.get("firstName")
+#     lastName = data.get("lastName")
+#     email = data.get("email")
+#     phoneNumber = data.get("phoneNumber")
+#     password = data.get("password")
+#     role = data.get("role")  # Get the role from the request body
+#     autoConfirm = True if data.get("autoConfirm") == "true" else False
+
+#     # Print the data for debugging
+#     if debug >= 2:
+#         print(f"[/addUser] User Data:")
+#         print(
+#             f"First Name: {firstName}\nLast Name: {lastName}\nEmail: {email}\nPhone: {phoneNumber}\nPassword: {password}\nRole: {role}\nAuto Confirm: {autoConfirm}"
+#         )
+
+#     # Initialize the Supabase client
+#     supabase: Client = create_client(
+#         supabase_url=settings.SUPABASE_URL, supabase_key=settings.SUPABASE_ANON_KEY
+#     )
+
+#     try:
+#         # user_id = "1"
+#         # Add users to Supabase
+#         try:
+#             # Issue DID for the user
+#             jwk, did = await issue_did()
+#             jwkJSON = json.loads(jwk)
+#             if debug >= 2:
+#                 print(f"[/addUser] Storing DID: {did}")
+#             did, did_cid, did_tx = storeDIDonBlockchain(did, jwkJSON.get("x"))
+#             # did = "fakeDIDUNCOMMENT THE BLCOKCAHIN"
+#             # did_cid = "fakeDIDUNCOMMENT THE BLCOKCAHIN"
+#             # did_tx = "fakeDIDUNCOMMENT THE BLCOKCAHIN"
+
+#             # if debug >= 1:
+#             #     print(
+#             #         f"[/addUser] DID Stored on Blockchain!:\n\tDID_CID: {DID_CID} \n\tDID_TX: {DID_TX}"
+#             #     )
+
+#             # Issue VC for the user, sign it and commit to blockchain and then to ipfs
+#             signed_vc = await issue_vc(did, jwk, user_id)
+#             if debug >= 2:
+#                 print(f"[/addUser] Storing VC\n{signed_vc}")
+
+#             if not signed_vc or not did:
+#                 missing = "signed_vc" if not signed_vc else "did"
+#                 raise Exception(f"[/addUser] Error: {missing} not provided")
+#             # Commit to blockchain and ipfs
+#             did, vcHash, vc_cid, vc_tx = storeVCOnBlockchain(did, signed_vc)
+#             if debug >= 1:
+#                 print(
+#                     f"[/addUser] VC Stored on Blockchain!:\n\tVC_CID: {vc_cid} \n\tVC_TX: {vc_tx}"
+#                 )
+
+#             # Get accVal, proof and prime for the user based on did and vc
+#             accVal, proof, prime = addUserToAccmulator(did, signed_vc)
+#         except Exception as e:
+#             print(f"[/addUser] W3Error: {e}")
+#             return JSONResponse(
+#                 content={"[/addUser] ERROR: ": str(e)},
+#                 status_code=500,
+#             )
+#         user = supabase.auth.sign_up(
+#             {
+#                 "email": email,
+#                 "password": password,
+#                 "options": {
+#                     "data": {
+#                         "firstName": firstName,
+#                         "lastName": lastName,
+#                         "phoneNumber": phoneNumber,
+#                     }
+#                 },
+#             }
+#         )
+#         if debug >= 2:
+#             print(f"[/addUser] User: {user}")
+
+#         # Map the user to their role
+#         user_id = user.user.id
+#         supabase.table("user_roles").insert(
+#             {"user_id": user_id, "role": role}
+#         ).execute()
+#         await log_user_action(
+#             user_id, f"Added user: {email}", settings, type="User Addition"
+#         )
+
+
+#         return JSONResponse(
+#             content={
+#                 "message": "User added successfully",
+#                 "did": did,
+#                 "did_CID": did_cid,
+#                 "did_TX": did_tx,
+#                 "vc": signed_vc,
+#                 "vc_HASH": vcHash,
+#                 "vc_CID": vc_cid,
+#                 "vc_TX": vc_tx,
+#                 "accVal": accVal,
+#                 "accProof": proof,
+#                 "accPrime": prime,
+#             },
+#             status_code=200,
+#         )
+#     except AuthApiError as e:
+#         print(f"Auth Error: {e}")
+#         return JSONResponse(content={"[/addUser] error": str(e)}, status_code=401)
+#     except Exception as e:
+#         print(f"General Error: {e}")
+#         return JSONResponse(content={"[/addUser] error": str(e)}, status_code=500)
+
+
 @router.post("/addUser")
-async def addUsers(
-    # request: Request, settings: settings_dependency, _: dict = Depends(verify_jwt)
-    request: Request,
-    settings: settings_dependency,
+async def addUsersEssential(
+    request: Request, settings: settings_dependency, _: dict = Depends(verify_jwt)
 ):
     # Get data
     data = await request.json()
-    firstName = data.get("firstName")
-    lastName = data.get("lastName")
     email = data.get("email")
-    phoneNumber = data.get("phoneNumber")
     password = data.get("password")
-    role = data.get("role")  # Get the role from the request body
-    autoConfirm = True if data.get("autoConfirm") == "true" else False
+    role = data.get("role")
+
+    # Add to merkle
+    try:
+        addUserToMerkle(email, password)
+    except Exception as e:
+        print(f"[/addUser] Merkle Error: {e}")
+        return JSONResponse(
+            content={"[/addUser] ERROR: ": str(e)},
+            status_code=500,
+        )
 
     # Print the data for debugging
     if debug >= 2:
-        print(f"[/addUser] User Data:")
-        print(
-            f"First Name: {firstName}\nLast Name: {lastName}\nEmail: {email}\nPhone: {phoneNumber}\nPassword: {password}\nRole: {role}\nAuto Confirm: {autoConfirm}"
-        )
+        print(f"[/addUserEssential] User Data:")
+        print(f"Email: {email}\nPassword: {password}\nRole: {role}")
 
     # Initialize the Supabase client
     supabase: Client = create_client(
@@ -281,7 +406,6 @@ async def addUsers(
     )
 
     try:
-        # user_id = "1"
         # Add users to Supabase
         user = supabase.auth.sign_up(
             {
@@ -289,155 +413,37 @@ async def addUsers(
                 "password": password,
                 "options": {
                     "data": {
-                        "firstName": firstName,
-                        "lastName": lastName,
-                        "phoneNumber": phoneNumber,
+                        "role": role,
                     }
                 },
             }
         )
         if debug >= 2:
-            print(f"[/addUser] User: {user}")
+            print(f"[/addUserEssential] User: {user}")
 
-        # Map the user to their role
-        user_id = user.user.id
-        supabase.table("user_roles").insert(
-            {"user_id": user_id, "role": role}
-        ).execute()
-        await log_user_action(
-            user_id, f"Added user: {email}", settings, type="User Addition"
-        )
-        try:
-            # Issue DID for the user
-            jwk, did = await issue_did()
-            jwkJSON = json.loads(jwk)
-            if debug >= 2:
-                print(f"[/addUser] Storing DID: {did}")
-            did, did_cid, did_tx = storeDIDonBlockchain(did, jwkJSON.get("x"))
-            # did = "fakeDIDUNCOMMENT THE BLCOKCAHIN"
-            # did_cid = "fakeDIDUNCOMMENT THE BLCOKCAHIN"
-            # did_tx = "fakeDIDUNCOMMENT THE BLCOKCAHIN"
-
-            # if debug >= 1:
-            #     print(
-            #         f"[/addUser] DID Stored on Blockchain!:\n\tDID_CID: {DID_CID} \n\tDID_TX: {DID_TX}"
-            #     )
-
-            # Issue VC for the user, sign it and commit to blockchain and then to ipfs
-            signed_vc = await issue_vc(did, jwk, user_id)
-            if debug >= 2:
-                print(f"[/addUser] Storing VC\n{signed_vc}")
-
-            if not signed_vc or not did:
-                missing = "signed_vc" if not signed_vc else "did"
-                raise Exception(f"[/addUser] Error: {missing} not provided")
-            # Commit to blockchain and ipfs
-            did, vcHash, vc_cid, vc_tx = storeVCOnBlockchain(did, signed_vc)
-            if debug >= 1:
-                print(
-                    f"[/addUser] VC Stored on Blockchain!:\n\tVC_CID: {vc_cid} \n\tVC_TX: {vc_tx}"
-                )
-
-            # Get accVal, proof and prime for the user based on did and vc
-            accVal, proof, prime = addUserToAccmulator(did, signed_vc)
-
-        except Exception as e:
-            print(f"[/addUser] Error: {e}")
-            return JSONResponse(
-                content={"[/addUser] ERROR: ": str(e)},
-                status_code=500,
-            )
+        # Map the user to their role (this should be set to something that isnt user or admin.)
+        # user_id = user.user.id
+        # supabase.table("user_roles").insert(
+        #     {"user_id": user_id, "role": role}
+        # ).execute()
+        # await log_user_action(
+        #     user_id, f"Added user: {email}", settings, type="User Addition[ESSENTIAL]"
+        # )
 
         return JSONResponse(
-            content={
-                "message": "User added successfully",
-                "did": did,
-                "did_CID": did_cid,
-                "did_TX": did_tx,
-                "vc": signed_vc,
-                "vc_HASH": vcHash,
-                "vc_CID": vc_cid,
-                "vc_TX": vc_tx,
-                "accVal": accVal,
-                "accProof": proof,
-                "accPrime": prime,
-            },
+            content={"message": "User added successfully"},
             status_code=200,
         )
     except AuthApiError as e:
         print(f"Auth Error: {e}")
-        return JSONResponse(content={"[/addUser] error": str(e)}, status_code=401)
+        return JSONResponse(
+            content={"[/addUserEssential] error": str(e)}, status_code=401
+        )
     except Exception as e:
         print(f"General Error: {e}")
-        return JSONResponse(content={"[/addUser] error": str(e)}, status_code=500)
-
-
-# @router.post("/addUserEssential")
-# async def addUsersEssential(
-#     request: Request, settings: settings_dependency, _: dict = Depends(verify_jwt)
-# ):
-#     # Get data
-#     data = await request.json()
-#     email = data.get("email")
-#     password = data.get("password")
-#     role = data.get("role")
-
-#     # Print the data for debugging
-#     if debug >= 2:
-#         print(f"[/addUserEssential] User Data:")
-#         print(f"Email: {email}\nPassword: {password}\nRole: {role}")
-
-#     # Initialize the Supabase client
-#     supabase: Client = create_client(
-#         supabase_url=settings.SUPABASE_URL, supabase_key=settings.SUPABASE_ANON_KEY
-#     )
-
-#     try:
-#         # Add users to Supabase
-#         user = supabase.auth.sign_up(
-#             {
-#                 "email": email,
-#                 "password": password,
-#             }
-#         )
-#         if debug >= 2:
-#             print(f"[/addUserEssential] User: {user}")
-
-#         # Map the user to their role (this should be set to something that isnt user or admin.)
-#         user_id = user.user.id
-#         supabase.table("user_roles").insert(
-#             {"user_id": user_id, "role": role}
-#         ).execute()
-#         await log_user_action(
-#             user_id, f"Added user: {email}", settings, type="User Addition[ESSENTIAL]"
-#         )
-
-#         return JSONResponse(
-#             content={"message": "User added successfully"},
-#             status_code=200,
-#         )
-#     except AuthApiError as e:
-#         print(f"Auth Error: {e}")
-#         return JSONResponse(content={"[/addUserEssential] error": str(e)}, status_code=401)
-#     except Exception as e:
-#         print(f"General Error: {e}")
-#         return JSONResponse(content={"[/addUserEssential] error": str(e)}, status_code=500)
-
-
-# @router.post("/addUserOnBoarding")
-# async def onboard(
-#     request: Request, settings: settings_dependency, _: dict = Depends(verify_jwt)
-# ):
-#     # Initialize the Supabase client
-#     supabase: Client = create_client(
-#         supabase_url=settings.SUPABASE_URL, supabase_key=settings.SUPABASE_ANON_KEY
-#     )
-#     body = await request.json()
-#     email = body.get("email")
-#     password = body.get("password")
-
-#     try:
-#         # Fetch user from supabase
+        return JSONResponse(
+            content={"[/addUserEssential] error": str(e)}, status_code=500
+        )
 
 
 @router.get("/tickets")
@@ -498,12 +504,15 @@ async def delete_user(
     try:
         await log_user_action(user_id, "Deleted user", settings, type="User Deletion")
         response = supabase.auth.admin.delete_user(user_id)
+        print(f"[DELETE USER] Response: {response}")
         return JSONResponse(
             content={"message": "User deleted successfully"}, status_code=200
         )
     except AuthApiError as e:
+        print(f"Error: {e}")
         return JSONResponse(content={"error": str(e)}, status_code=401)
     except Exception as e:
+        print(f"Error: {e}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
@@ -588,22 +597,22 @@ async def get_admin_profile(
         if debug >= 1:
             print(f"GOT USER: {user}")
 
-        # Fetch the role from the user_roles table
-        role_response = (
-            supabase.table("user_roles")
-            .select("role")
-            .eq("user_id", user.id)
-            .single()
-            .execute()
-        )
-        role = role_response.data["role"] if role_response.data else "admin"
+        # # Fetch the role from the user_roles table
+        # role_response = (
+        #     supabase.table("user_roles")
+        #     .select("role")
+        #     .eq("user_id", user.id)
+        #     .single()
+        #     .execute()
+        # )
+        # role = role_response.data["role"] if role_response.data else "admin"
 
         user_data = {
             "firstName": user.user_metadata.get("firstName", ""),
             "lastName": user.user_metadata.get("lastName", ""),
             "email": user.email,
             "phone": user.phone if user.phone else "N/A",
-            "role": role,
+            "role": user.user_metadata.get("role", "admin"),
         }
         await log_user_action(
             user.id, "Viewed admin profile", settings, type="Profile View"
@@ -663,5 +672,3 @@ async def get_dashboard_stats(
         )
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=500)
-
-
