@@ -13,6 +13,7 @@ from zksync2.module.module_builder import ZkSyncBuilder
 from zksync2.signer.eth_signer import PrivateKeyEthSigner
 
 from ..core.accumulator import accumulatorCore
+from ..core.merkle import merkleCore
 from ..core.config import Settings
 from ..utils.ipfs_utils import (
     add_file_to_ipfs,
@@ -58,7 +59,21 @@ else:
         f"BLOCKCHAIN_WALLET_ADDR not set in .env, please use a valid private key and address"
     )
 
+def addUserToMerkle(user:str, pw:str):
+    """
+    Add a user to the Merkle Tree
+    """
+    # Add the user to the Merkle Tree
+    dataEntries = merkleCore.add_user(user, pw)
+    return dataEntries
 
+def verifyUserOnMerkle(user:str, pw:str):
+    """
+    Verify a user on the Merkle Tree
+    """
+    # Verify the user on the Merkle Tree
+    valid = merkleCore.verify_proof(user, pw)
+    return valid
 async def issue_did():
     """
     Issue a DID
