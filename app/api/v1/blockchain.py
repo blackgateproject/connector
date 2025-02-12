@@ -6,16 +6,12 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
 from ...utils.core_utils import settings_dependency, verify_jwt
-from ...utils.ipfs_utils import add_file_to_ipfs, get_file_from_ipfs
-from ...utils.web3_utils import getContract  # recalcAccumulator,
 from ...utils.web3_utils import (
     getContractZKsync,
-    getCurrentAccumulatorMod,
     issue_did,
     issue_vc,
     storeDIDonBlockchain,
     storeVCOnBlockchain,
-    verifyUserOnAccumulator,
     w3,
 )
 
@@ -49,32 +45,9 @@ async def contract_test():
     """
     # Retrieve and concatenate contract information for multiple contracts
     contract = getContractZKsync("DIDRegistry")
-    contract += getContract("RSAAccumulatorVerifier")
     contract += getContractZKsync("VerifiableCredentialManager")
     return {"contract": contract}
 
-
-@router.get("/getAccumulatorMod")
-async def get_accumulator_mod():
-    """
-    Get the current accumulator mod
-    """
-    accumulator_mod = getCurrentAccumulatorMod()  # Removed await
-    return JSONResponse(content=accumulator_mod, status_code=200)
-
-
-@router.post("/verifyAccumulator")
-async def verify_accumulator(request: Request):
-    """
-    Verify the accumulator
-    """
-    body = await request.json()
-    accumulator = body["accVal"]
-    proof = body["proof"]
-    prime = body["prime"]
-    result = verifyUserOnAccumulator(accumulator, proof, prime)
-
-    return JSONResponse(content={"IsProven": result}, status_code=200)
 
 
 @router.get("/issueDID")

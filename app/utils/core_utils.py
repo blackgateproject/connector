@@ -11,8 +11,6 @@ from functools import lru_cache
 
 import jwt
 
-# from cryptography.hazmat.primitives import hashes, serialization
-# from cryptography.hazmat.primitives.asymmetric import padding, rsa
 from eth_keys import keys
 from eth_utils import decode_hex
 from fastapi import Depends, HTTPException, Request
@@ -28,11 +26,6 @@ from typing_extensions import Annotated
 from ..core.config import Settings
 from ..models.user import User
 
-# from .web3_utils import (
-#     get_did_from_registry,
-#     verify_identity_with_stateless_blockchain,
-#     verify_with_rsa_accumulator,
-# )
 
 
 @lru_cache

@@ -13,19 +13,6 @@ async def health_check():
     """
     return "Reached Onboarding Endpoint, Router Onboarding is Active"
 
-@router.get("/generateAccumulatorProofs/{user_id}")
-async def genAccProofs(user_id: str):
-    """
-    Generate Accumulator Proofs
-    """
-
-    # Ensure only onboard roles can access this endpoint
-    # If they are users that need to be onboarded 
-    #   - Frontend will handle wallet + keys creation, but the backend will handle the proofs
-    #   - The backend will then send the proofs for user to store
-
-    
-    return "Generate Accumulator Proofs"
 
 @router.get("/generateMerkleProofs/{user_id}")
 async def genMerkProofs(user_id: str):
