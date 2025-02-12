@@ -268,7 +268,7 @@ Contract init functions
 
 # Return a DIDRegistry instance
 def get_did_registry():
-    contract_address, contract_abi = getContractZKsync("DIDRegistry")
+    contract_address, contract_abi = getContractZKsync("EthereumDIDRegistry")
     return w3.eth.contract(address=contract_address, abi=contract_abi)
 
 
