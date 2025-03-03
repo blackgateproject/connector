@@ -15,11 +15,11 @@ from ...utils.core_utils import (
     settings_dependency,
     verify_jwt,
 )
-from ...utils.pki_utils import (
-    create_signing_challenge,
-    sign_challenge,
-    verify_signing_challenge,
-)
+# from ...utils.pki_utils import (
+#     create_signing_challenge,
+#     sign_challenge,
+#     verify_signing_challenge,
+# )
 from ...utils.web3_utils import verifyUserOnMerkle
 
 router = APIRouter()

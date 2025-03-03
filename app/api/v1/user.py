@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 from supabase import Client, create_client
 
 from ...utils.core_utils import log_user_action, settings_dependency, verify_jwt
-from ...utils.pki_utils import generate_private_key, generate_public_key
+# from ...utils.pki_utils import generate_private_key, generate_public_key
 
 # Initialize the API router
 router = APIRouter()
@@ -120,35 +120,35 @@ async def get_user_profile(
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
-# Endpoint to enable 2FA
-@router.post("/enable-2fa")
-async def enable_2fa(
-    request: Request, settings: settings_dependency, _: dict = Depends(verify_jwt)
-):
-    try:
-        data = await request.json()
-        user_id = data.get("user_id")
+# # Endpoint to enable 2FA
+# @router.post("/enable-2fa")
+# async def enable_2fa(
+#     request: Request, settings: settings_dependency, _: dict = Depends(verify_jwt)
+# ):
+#     try:
+#         data = await request.json()
+#         user_id = data.get("user_id")
 
-        # Generate a new public/private key pair
-        private_key = generate_private_key()
-        public_key = generate_public_key(private_key_hex=private_key)
+#         # Generate a new public/private key pair
+#         private_key = generate_private_key()
+#         public_key = generate_public_key(private_key_hex=private_key)
 
-        print(f"Generated Private Key: {private_key}")
-        print(f"Generated Public Key: {public_key}")
+#         print(f"Generated Private Key: {private_key}")
+#         print(f"Generated Public Key: {public_key}")
 
-        await log_user_action(
-            user_id,
-            "Enabled 2FA",
-            settings,
-            type="2FA Enable",
-        )
-        return JSONResponse(
-            content={"private_key": private_key, "public_key": public_key},
-            status_code=200,
-        )
-    except Exception as e:
-        print(f"Error enabling 2FA: {str(e)}")
-        return JSONResponse(content={"error": str(e)}, status_code=500)
+#         await log_user_action(
+#             user_id,
+#             "Enabled 2FA",
+#             settings,
+#             type="2FA Enable",
+#         )
+#         return JSONResponse(
+#             content={"private_key": private_key, "public_key": public_key},
+#             status_code=200,
+#         )
+#     except Exception as e:
+#         print(f"Error enabling 2FA: {str(e)}")
+#         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
 # Endpoint to save keys and enable 2FA

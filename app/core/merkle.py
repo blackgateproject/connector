@@ -5,6 +5,7 @@ class MerkleClass:
     def __init__(self):
         # Initialize Supabase client
         self.merkle_tree = merkleTreeUtils()
+        print(f"[CORE] Merkle Tree Initialized.")
 
     def add_user(self, user_id, credentials):
         """Add a user to the Merkle Tree and create a hash entry in the proofs table."""
@@ -100,13 +101,13 @@ class MerkleClass:
 merkleCore = MerkleClass()
 # users = [
 #     {"uuid": "1234567", "pw": "aqweqew"},
-#     # {"uuid": "1234123567", "pw": "aqw123eqew"},
-#     # {"uuid": "123452367", "pw": "22332"},
-#     # {"uuid": "231234123567", "pw": "aqw123eqe123w"},
-#     # {"uuid": "123452123367", "pw": "22331122"},
-#     # {"uuid": "123452123367", "pw": "22331122"},
-#     # {"uuid": "123452123367", "pw": "22331122"},
-#     # {"uuid": "123452123367", "pw": "22331122"},
+#     {"uuid": "1234123567", "pw": "aqw123eqew"},
+#     {"uuid": "123452367", "pw": "22332"},
+#     {"uuid": "231234123567", "pw": "aqw123eqe123w"},
+#     {"uuid": "123452123367", "pw": "22331122"},
+#     {"uuid": "123452123367", "pw": "22331122"},
+#     {"uuid": "123452123367", "pw": "22331122"},
+#     {"uuid": "123452123367", "pw": "22331122"},
 # ]
 # # Store the proofs for each user
 # dataEntries = []
@@ -125,4 +126,3 @@ merkleCore = MerkleClass()
 #         print(f"[MRK_TEST] Proof for User{i} is valid.")
 #     else:
 #         print(f"[MRK_TEST] Proof for User{i} is invalid.")
-
