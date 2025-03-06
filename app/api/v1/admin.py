@@ -319,22 +319,22 @@ async def addUsersEssential(
         )
 
 
-@router.get("/tickets")
-async def get_tickets(settings: settings_dependency, _: dict = Depends(verify_jwt)):
+@router.get("/requests")
+async def get_requests(settings: settings_dependency, _: dict = Depends(verify_jwt)):
     supabase: Client = create_client(
         supabase_url=settings.SUPABASE_URL,
         supabase_key=settings.SUPABASE_ANON_KEY,
     )
 
     try:
-        response = supabase.table("tickets").select("*").execute()
-        # print(f"Tickets: {response.data}")
+        response = supabase.table("requests").select("*").execute()
+        # print(f"requests: {response.data}")
         return JSONResponse(content=response.data, status_code=200)
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
-@router.post("/tickets/{ticket_id}/complete")
+@router.post("/requests/{ticket_id}/complete")
 async def complete_ticket(
     ticket_id: int, settings: settings_dependency, _: dict = Depends(verify_jwt)
 ):
@@ -346,7 +346,7 @@ async def complete_ticket(
 
     try:
         response = (
-            supabase.table("tickets")
+            supabase.table("requests")
             .update(
                 {
                     "status": "completed",
@@ -518,10 +518,10 @@ async def get_dashboard_stats(
             and user.last_sign_in_at > datetime.now(timezone.utc) - timedelta(minutes=5)
         )
 
-        # Fetch tickets
-        tickets_response = supabase.table("tickets").select("*").execute()
-        tickets = tickets_response.data
-        pending_tickets = sum(1 for ticket in tickets if ticket["status"] == "pending")
+        # Fetch requests
+        requests_response = supabase.table("requests").select("*").execute()
+        requests = requests_response.data
+        pending_requests = sum(1 for ticket in requests if ticket["status"] == "pending")
 
         # Fetch user activities
         activities_response = supabase.table("user_activity_logs").select("*").execute()
@@ -538,7 +538,7 @@ async def get_dashboard_stats(
             content={
                 "totalUsers": total_users,
                 "onlineUsers": online_users,
-                "pendingTickets": pending_tickets,
+                "pendingrequests": pending_requests,
                 "userActivities": user_activities_with_details,
             },
             status_code=200,
