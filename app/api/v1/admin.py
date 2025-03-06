@@ -11,9 +11,7 @@ from ...utils.core_utils import (
     settings_dependency,
     verify_jwt,
 )
-from ...utils.web3_utils import (
-    addUserToMerkle,
-)
+from ...utils.web3_utils import addUserToMerkle
 
 debug = settings_dependency().DEBUG
 router = APIRouter()
@@ -21,7 +19,8 @@ router = APIRouter()
 
 @router.get("/user-activity-logs")
 async def get_user_activity_logs(
-    settings: settings_dependency, _: dict = Depends(verify_jwt)
+    # settings: settings_dependency, _: dict = Depends(verify_jwt)
+    settings: settings_dependency,
 ):
     supabase: Client = create_client(
         supabase_url=settings.SUPABASE_URL,
@@ -37,7 +36,9 @@ async def get_user_activity_logs(
 
 @router.post("/log")
 async def log_action(
-    request: Request, settings: settings_dependency, _: dict = Depends(verify_jwt)
+    # request: Request, settings: settings_dependency, _: dict = Depends(verify_jwt)
+    request: Request,
+    settings: settings_dependency,
 ):
     data = await request.json()
     user_id = data.get("user_id")
@@ -69,11 +70,13 @@ async def log_action(
 
 @router.get("/")
 async def health_check(_: dict = Depends(verify_jwt)):
+    # async def health_check(_: dict = Depends(verify_jwt)):
     return "Reached Admin Endpoint, Router Admin is Active"
 
 
 @router.get("/getUsers")
-async def getUsers(settings: settings_dependency, _: dict = Depends(verify_jwt)):
+# async def getUsers(settings: settings_dependency, _: dict = Depends(verify_jwt)):
+async def getUsers(settings: settings_dependency):
     # Initialize the Supabase client
     supabase: Client = create_client(
         supabase_url=settings.SUPABASE_URL,
@@ -212,7 +215,8 @@ async def getUsers(settings: settings_dependency, _: dict = Depends(verify_jwt))
 
 
 @router.get("/getAllUsers")
-async def get_all_users(settings: settings_dependency, _: dict = Depends(verify_jwt)):
+async def get_all_users(settings: settings_dependency):
+    # async def get_all_users(settings: settings_dependency, _: dict = Depends(verify_jwt)):
     supabase: Client = create_client(
         supabase_url=settings.SUPABASE_URL,
         supabase_key=settings.SUPABASE_SERV_KEY,
@@ -248,9 +252,13 @@ async def get_all_users(settings: settings_dependency, _: dict = Depends(verify_
         print(f"Error: {e}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
+
 @router.post("/addUser")
 async def addUsersEssential(
-    request: Request, settings: settings_dependency, _: dict = Depends(verify_jwt)
+    request: Request,
+    settings: settings_dependency,
+    _: dict = Depends(verify_jwt),
+    # request: Request, settings: settings_dependency, _: dict = Depends(verify_jwt)
 ):
     # Get data
     data = await request.json()
@@ -320,7 +328,8 @@ async def addUsersEssential(
 
 
 @router.get("/requests")
-async def get_requests(settings: settings_dependency, _: dict = Depends(verify_jwt)):
+# async def get_requests(settings: settings_dependency, _: dict = Depends(verify_jwt)):
+async def get_requests(settings: settings_dependency):
     supabase: Client = create_client(
         supabase_url=settings.SUPABASE_URL,
         supabase_key=settings.SUPABASE_ANON_KEY,
@@ -336,7 +345,9 @@ async def get_requests(settings: settings_dependency, _: dict = Depends(verify_j
 
 @router.post("/requests/{ticket_id}/complete")
 async def complete_ticket(
-    ticket_id: int, settings: settings_dependency, _: dict = Depends(verify_jwt)
+    ticket_id: int,
+    settings: settings_dependency,
+    # ticket_id: int, settings: settings_dependency, _: dict = Depends(verify_jwt)
 ):
     supabase: Client = create_client(
         supabase_url=settings.SUPABASE_URL,
@@ -366,7 +377,9 @@ async def complete_ticket(
 
 @router.delete("/deleteUser/{user_id}")
 async def delete_user(
-    user_id: str, settings: settings_dependency, _: dict = Depends(verify_jwt)
+    user_id: str,
+    settings: settings_dependency,
+    # user_id: str, settings: settings_dependency, _: dict = Depends(verify_jwt)
 ):
     supabase: Client = create_client(
         supabase_url=settings.SUPABASE_URL,
@@ -391,7 +404,9 @@ async def delete_user(
 
 @router.put("/editUser")
 async def edit_user(
-    request: Request, settings: settings_dependency, _: dict = Depends(verify_jwt)
+    request: Request,
+    settings: settings_dependency,
+    # request: Request, settings: settings_dependency, _: dict = Depends(verify_jwt)
 ):
     data = await request.json()
     user_id = data.get("id")
@@ -454,7 +469,9 @@ async def edit_user(
 
 @router.get("/profile")
 async def get_admin_profile(
-    request: Request, settings: settings_dependency, _: dict = Depends(verify_jwt)
+    request: Request,
+    settings: settings_dependency,
+    # request: Request, settings: settings_dependency, _: dict = Depends(verify_jwt)
 ):
     access_token = request.headers.get("Authorization").split(" ")[1]
     if debug >= 1:
@@ -498,7 +515,8 @@ async def get_admin_profile(
 
 @router.get("/dashboard")
 async def get_dashboard_stats(
-    settings: settings_dependency, _: dict = Depends(verify_jwt)
+    settings: settings_dependency,
+    # settings: settings_dependency, _: dict = Depends(verify_jwt)
 ):
     supabase: Client = create_client(
         supabase_url=settings.SUPABASE_URL,
@@ -521,7 +539,9 @@ async def get_dashboard_stats(
         # Fetch requests
         requests_response = supabase.table("requests").select("*").execute()
         requests = requests_response.data
-        pending_requests = sum(1 for ticket in requests if ticket["status"] == "pending")
+        pending_requests = sum(
+            1 for ticket in requests if ticket["status"] == "pending"
+        )
 
         # Fetch user activities
         activities_response = supabase.table("user_activity_logs").select("*").execute()

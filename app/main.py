@@ -3,7 +3,7 @@ from fastapi.exceptions import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
 
-from .api.v1 import admin, auth, blockchain, onboarding, user
+from .api.v1 import admin, auth, blockchain, user
 from .utils.core_utils import settings_dependency, verify_jwt
 
 app = FastAPI()
@@ -42,7 +42,7 @@ app.include_router(admin.router, prefix=f"/admin/{API_VERSION}", tags=["Admin"])
 app.include_router(
     blockchain.router, prefix=f"/blockchain/{API_VERSION}", tags=["Blockchain"]
 )
-app.include_router(onboarding.router, prefix=f"/onboarding/{API_VERSION}", tags=["Onboarding"])
+# app.include_router(onboarding.router, prefix=f"/onboarding/{API_VERSION}", tags=["Onboarding"])
 
 
 # return env var

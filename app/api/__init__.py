@@ -1,1 +1,1 @@
-from .v1 import admin, auth, onboarding, user, blockchain
+from .v1 import admin, auth, user, blockchain
