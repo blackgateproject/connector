@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 from supabase import Client, create_client
 
 from ...utils.core_utils import log_user_action, settings_dependency, verify_jwt
+
 # from ...utils.pki_utils import generate_private_key, generate_public_key
 
 # Initialize the API router
@@ -18,7 +19,7 @@ async def health_check(_: dict = Depends(verify_jwt)):
 
 
 # Endpoint to create a new ticket
-@router.post("/tickets")
+@router.post("/requests")
 async def create_ticket(
     request: Request, settings: settings_dependency, _: dict = Depends(verify_jwt)
 ):
@@ -40,7 +41,7 @@ async def create_ticket(
 
         # Insert the ticket into the database
         response = (
-            supabase.table("tickets")
+            supabase.table("requests")
             .insert(
                 {
                     "title": title,
