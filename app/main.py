@@ -21,17 +21,17 @@ app.add_middleware(
 
 
 # Add a redirect middleware for invalid JWT, this will redirect to the login page at "/"
-@app.middleware("http")
-async def redirect_invalid_jwt(request: Request, call_next):
-    try:
-        # print(f"JWT_MIDDLEWARE: Verifying JWT")
-        if debug >= 6:
-            print(f"JWT_MIDDLEWARE: Request URL: {request.url}")
-        await verify_jwt(request)
-    except HTTPException as e:
-        if e.status_code == 401:
-            print(f"JWT_MIDDLEWARE: Caught a 401. Redirecting to /")
-    return await call_next(request)
+# @app.middleware("http")
+# async def redirect_invalid_jwt(request: Request, call_next):
+#     try:
+#         # print(f"JWT_MIDDLEWARE: Verifying JWT")
+#         if debug >= 6:
+#             print(f"JWT_MIDDLEWARE: Request URL: {request.url}")
+#         await verify_jwt(request)
+#     except HTTPException as e:
+#         if e.status_code == 401:
+#             print(f"JWT_MIDDLEWARE: Caught a 401. Redirecting to /")
+#     return await call_next(request)
 
 
 # Load routes
