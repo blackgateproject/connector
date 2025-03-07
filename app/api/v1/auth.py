@@ -64,7 +64,8 @@ async def register(request: Request, settings: settings_dependency):
                         "wallet_addr": wallet_address,
                         "did_str": didString,
                         "verifiable_cred": verifiableCredential,
-                        "usernetwork_info": usernetwork_info
+                        "usernetwork_info": usernetwork_info,
+                        "request_status": "pending",
                     }
                 ]
             ).execute()
