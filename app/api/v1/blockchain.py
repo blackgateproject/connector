@@ -8,10 +8,10 @@ from fastapi.responses import JSONResponse
 from ...utils.core_utils import settings_dependency, verify_jwt
 from ...utils.web3_utils import (
     getContractZKsync,
-    issue_did,
-    issue_vc,
-    storeDIDonBlockchain,
-    storeVCOnBlockchain,
+    # issue_did,
+    # issue_vc,
+    # storeDIDonBlockchain,
+    # storeVCOnBlockchain,
     w3,
 )
 
@@ -50,51 +50,51 @@ async def contract_test():
 
 
 
-@router.get("/issueDID")
-async def issueDid():
-    """
-    Issue a DID
-    """
-    jwk, did = await issue_did()
-    jwkJSON = json.loads(jwk)
-    cid, tx = await storeDIDonBlockchain(did, jwkJSON.get("x"))
-    print(f"[issueDid()] CID: {cid} \nTX: {tx}")
-    # Create a JSON object with the DID, cid and tx
-    response = {
-        "jwk": jwkJSON,
-        "did": did,
-        "cid": cid,
-        "tx": tx,
-    }
+# @router.get("/issueDID")
+# async def issueDid():
+#     """
+#     Issue a DID
+#     """
+#     jwk, did = await issue_did()
+#     jwkJSON = json.loads(jwk)
+#     cid, tx = await storeDIDonBlockchain(did, jwkJSON.get("x"))
+#     print(f"[issueDid()] CID: {cid} \nTX: {tx}")
+#     # Create a JSON object with the DID, cid and tx
+#     response = {
+#         "jwk": jwkJSON,
+#         "did": did,
+#         "cid": cid,
+#         "tx": tx,
+#     }
 
-    return JSONResponse(content=response, status_code=200)
+#     return JSONResponse(content=response, status_code=200)
 
 
-@router.post("/issueVC")
-async def issueVC(
-    request: Request,
-    settings: settings_dependency,
-):
-    """
-    Issue a VC and sign it based on the recieved DID
-    """
-    body = await request.json()
-    jwk = body["jwk"]
-    did = body["did"]
-    user_uuid = body["uuid"]
+# @router.post("/issueVC")
+# async def issueVC(
+#     request: Request,
+#     settings: settings_dependency,
+# ):
+#     """
+#     Issue a VC and sign it based on the recieved DID
+#     """
+#     body = await request.json()
+#     jwk = body["jwk"]
+#     did = body["did"]
+#     user_uuid = body["uuid"]
 
-    signed_vc = await issue_vc(did, jwk, user_uuid)
-    print(f"Signed VC: \n{signed_vc}")
+#     signed_vc = await issue_vc(did, jwk, user_uuid)
+#     print(f"Signed VC: \n{signed_vc}")
 
-    cid, tx = await storeVCOnBlockchain(did, signed_vc)
+#     cid, tx = await storeVCOnBlockchain(did, signed_vc)
 
-    response = {
-        "vc": signed_vc,
-        "cid": cid,
-        "tx": tx,
-    }
+#     response = {
+#         "vc": signed_vc,
+#         "cid": cid,
+#         "tx": tx,
+#     }
 
-    return JSONResponse(content=response, status_code=200)
+#     return JSONResponse(content=response, status_code=200)
 
 
 @router.get("/resolveDID/{did}")
