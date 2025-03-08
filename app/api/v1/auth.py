@@ -44,12 +44,11 @@ async def register(request: Request, settings: settings_dependency):
     didString = body.get("didStr")
     verifiableCredential = body.get("verifiableCredential")
     usernetwork_info = body.get("usernetwork_info")
+    # request_status = body.get("role_status")
+    requested_role = body.get("requested_role")
     # Print the request body
     if debug:
-        print(f"Wallet Address: {wallet_address}")
-        print(f"DID String: {didString}")
-        print(f"Verifiable Credential: {verifiableCredential}")
-        print(f"User Network Info: {usernetwork_info}")
+        print(f"Recieved Data: {body}")
 
     # Add details to supabase table "requests"
     supabase: Client = create_client(
@@ -66,6 +65,7 @@ async def register(request: Request, settings: settings_dependency):
                         "verifiable_cred": verifiableCredential,
                         "usernetwork_info": usernetwork_info,
                         "request_status": "pending",
+                        "requested_role": requested_role
                     }
                 ]
             ).execute()

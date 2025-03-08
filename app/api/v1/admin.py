@@ -343,11 +343,11 @@ async def get_requests(settings: settings_dependency):
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
-@router.post("/requests/{ticket_id}/approve")
+@router.post("/requests/{request_id}/approve")
 async def approve_request(
-    ticket_id: int,
+    request_id: int,
     settings: settings_dependency,
-    # ticket_id: int, settings: settings_dependency, _: dict = Depends(verify_jwt)
+    # request_id: int, settings: settings_dependency, _: dict = Depends(verify_jwt)
 ):
     supabase: Client = create_client(
         supabase_url=settings.SUPABASE_URL,
@@ -356,27 +356,31 @@ async def approve_request(
     )
 
     try:
-        # response = (
-        #     supabase.table("requests")
-        #     .update(
-        #         {
-        #             "status": "completed",
-        #             "updated_at": datetime.now(timezone.utc).isoformat(),
-        #         }
-        #     )
-        #     .eq("id", ticket_id)
-        #     .execute()
-        # )
-        # await log_user_action(
-        #     ticket_id, "Completed ticket", settings, type="Ticket Completion"
-        # )
-        # return JSONResponse(content=response.data, status_code=200)
-        print(f"Aproving request with id: {ticket_id}")
+        response = (
+            supabase.table("requests")
+            .update(
+                {
+                    "request_status": "approved",
+                    "updated_at": datetime.now(timezone.utc).time().isoformat(),
+                }
+            )
+            .eq("id", request_id)
+            .execute()
+        )
+        await log_user_action(
+            request_id, "Completed ticket", settings, type="Ticket Completion"
+        )
+        print(f"Aproving request with id: {request_id}")
+        return JSONResponse(
+            content={"message": f"Approved Request #{request_id} successfully"},
+            status_code=200,
+        )
     except Exception as e:
+        print(f"Error: {e}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
-@router.delete("/requests/{request_id}/reject")
+@router.post("/requests/{request_id}/reject")
 async def reject_request(
     request_id: int,
     settings: settings_dependency,
@@ -387,13 +391,24 @@ async def reject_request(
         supabase_key=settings.SUPABASE_ANON_KEY,
     )
     try:
-        response = supabase.table("requests").delete().eq("id", request_id).execute()
+        response = (
+            supabase.table("requests")
+            .update(
+                {
+                    "request_status": "rejected",
+                    "updated_at": datetime.now(timezone.utc).time().isoformat(),
+                }
+            )
+            .eq("id", request_id)
+            .execute()
+        )
+
         # Logging broken since no uuid is taken/passed, this func totally relies on the supabase
         # uuid scheme
         await log_user_action(
             request_id, "Rejected request", settings, type="Request Rejection"
         )
-        return JSONResponse(content=response.data, status_code=200)
+        return JSONResponse(content={"message": f"Rejected Request #{request_id} successfully"}, status_code=200)
     except Exception as e:
         print(f"Error: {e}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
