@@ -1,7 +1,20 @@
+import os
 from ..utils.merkle_utils import merkleTreeUtils
+import pickle
+from multiproof.standard import StandardMerkleTree, StandardMerkleTreeData, LeafValue
 
+class merkleClass:
+    """
+    Class based on multiproof, python port of openzeppelin's merkle tree
+    NOTE:: does not include methods to add or remove leaves, just to create one from data
+     """
+    def __init__(self):
+        # Initialize the Merkle tree
+        pass
+    def add_user():
+        pass
 
-class MerkleClass:
+class abdMerkleClass:
     def __init__(self):
         # Initialize Supabase client
         self.merkle_tree = merkleTreeUtils()
@@ -95,10 +108,30 @@ class MerkleClass:
     #         raise Exception(f"Error sending root to zkSync: {response.text}")
 
     #     print(f"zkSync Response: {response.json()}")
+    def save_tree_to_file(self, filename):
+        """Save the Merkle tree to a file."""
+        with open(filename, "wb") as file:
+            pickle.dump(self.merkle_tree, file)
+    
+    @staticmethod
+    def load_tree_from_file(filename):
+        """Load the Merkle tree from a file."""
+        if os.path.exists(filename):
+            with open(filename, "rb") as file:
+                merkle_tree = pickle.load(file)
+                print(f"[CORE] Merkle tree loaded from {filename}.")
+                return merkle_tree
+        else:
+            print(f"File {filename} does not exist.")
 
 
-# merkleCore = None
-merkleCore = MerkleClass()
+# Load merkle tree from file if it exists
+merkle_tree_file = "merkle_tree.pkl"
+if os.path.exists(merkle_tree_file):
+    merkleCore = abdMerkleClass.load_tree_from_file(merkle_tree_file)
+else:
+    merkleCore = abdMerkleClass()
+
 # users = [
 #     {"uuid": "1234567", "pw": "aqweqew"},
 #     {"uuid": "1234123567", "pw": "aqw123eqew"},
