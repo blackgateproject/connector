@@ -15,7 +15,7 @@ from ...utils.core_utils import (
     settings_dependency,
     verify_jwt,
 )
-from ...utils.web3_utils import verifyUserOnMerkle
+from ...utils.web3_utils import addUserToMerkle, verifyUserOnMerkle
 
 router = APIRouter()
 
@@ -127,15 +127,25 @@ async def pollRequestStatus(
             )
             # Print the request data
             if debug:
-                print(f"Request Status: {request.data[0]["request_status"]}")
+                print(f"Request Status: {request.data[0]}")
 
             if request.data:
                 # Check if the request is approved or rejected
                 if request.data[0]["request_status"] == "approved":
+
+                    # Add user to merkle tree and return the proof
+                    entry = addUserToMerkle(
+                        request.data[0]["did_str"],
+                        request.data[0]["verifiable_cred"],
+                    )
+                    print(f"Added user to merkle tree: {entry}")
+
                     print(f"Request Data: {request.data[0]["request_status"]}")
                     return JSONResponse(
                         content={
                             "request_status": "approved",
+                            "merkle_hash": entry["hash"],
+                            "merkle_proof": entry["proof"],
                             # "message": "Request approved",
                             # "requested_role": request.data[0]["requested_role"],
                         },
