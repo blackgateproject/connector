@@ -1,23 +1,52 @@
 import os
-from ..utils.merkle_utils import merkleTreeUtils
 import pickle
-from multiproof.standard import StandardMerkleTree, StandardMerkleTreeData, LeafValue
 
-class merkleClass:
-    """
-    Class based on multiproof, python port of openzeppelin's merkle tree
-    NOTE:: does not include methods to add or remove leaves, just to create one from data
-     """
-    def __init__(self):
-        # Initialize the Merkle tree
-        pass
-    def add_user():
-        pass
+from multiproof.standard import LeafValue, StandardMerkleTree, StandardMerkleTreeData
+
+from ..utils.merkle_utils import merkleTreeUtils
+
+
+# class merkleClass:
+#     """
+#     Class based on multiproof, python port of openzeppelin's merkle tree
+#     NOTE:: does not include methods to add or remove leaves, just to create one from data
+#     """
+
+    # def __init__(self):
+    #     # Initialize the Merkle tree
+    #     # Test code
+    #     values = [
+    #         [
+    #             "did:ethr:0xb46CAD0D8F7526695aA1aD3e94d1464860D0a7e6",
+    #             '{"@context":["https://www.w3.org/2018/credentials/v1","https://www.w3.org/ns/did/v1"],"type":["VerifiableCredential"],"credentialSubject":{"id":"did:example:123"},"issuer":"did:ethr:0xb46CAD0D8F7526695aA1aD3e94d1464860D0a7e6","issuanceDate":"2025-03-09T05:09:56.063Z","proof":{"type":"EcdsaSecp256k1Signature2019","proofPurpose":"assertionMethod","verificationMethod":"did:ethr:0xb46CAD0D8F7526695aA1aD3e94d1464860D0a7e6#controller","created":"2025-03-09T05:09:56.064Z","jws":"eyJhbGciOiJFUzI1NksiLCJjcml0IjpbImI2NCJdLCJiNjQiOmZhbHNlfQ..Vp-fE7vGIZ72x_dVkYkPhl_btsr4wwuIbhykP-Cm4gpjco3gf8BFqXZgJT0d2DVepVEuPZHCLCKi1zYPtqP3pg"}}',
+    #         ],
+    #         [
+    #             "did:ethr:0xb46CAD0D8F7526695aA1aD3e94d1464860D0a7e2",
+    #             '{"@context":["https://www.w3.org/2018/credentials/v1","https://www.w3.org/ns/did/v1"],"type":["VerifiableCredential"],"credentialSubject":{"id":"did:example:123"},"issuer":"did:ethr:0xb46CAD0D8F7526695aA1aD3e94d1464860D0a7e6","issuanceDate":"2025-03-09T05:09:56.063Z","proof":{"type":"EcdsaSecp256k1Signature2019","proofPurpose":"assertionMethod","verificationMethod":"did:ethr:0xb46CAD0D8F7526695aA1aD3e94d1464860D0a7e6#controller","created":"2025-03-09T05:09:56.064Z","jws":"eyJhbGciOiJFUzI1NksiLCJjcml0IjpbImI2NCJdLCJiNjQiOmZhbHNlfQ..Vp-fE7vGIZ72x_dVkYkPhl_btsr4wwuIbhykP-Cm4gpjco3gf8BFqXZgJT0d2DVepVEuPZHCLCKi1zYPtqP3pg"}}',
+    #         ],
+    #     ]
+
+    #     # Build the Merkle tree. Set the encoding to match the values.
+    #     tree = StandardMerkleTree.of(values, ["string", "string"])
+    #     print(f"[CORE] Merkle Tree Root: {tree.root}")
+    #     # Print the tree structure
+    #     print(f"[CORE] Merkle Tree Structure: \n{tree.to_json()}")
+
+    #     print(f"[CORE] Merkle Tree Initialized.")
+
+    #     # Generate proof for did:ethr:0xb46CAD0D8F7526695aA1aD3e94d1464860D0a7e6
+    #     for i, leaf in enumerate(tree.values):
+    #         if leaf.value[0] == "did:ethr:0xb46CAD0D8F7526695aA1aD3e94d1464860D0a7e6":
+    #             proof = tree.get_proof(i)
+    #             print(f"[CORE] Value: {leaf.value}")
+    #             print(f"[CORE] Proof: {proof}")
+
 
 class abdMerkleClass:
     def __init__(self):
         # Initialize Supabase client
         self.merkle_tree = merkleTreeUtils()
+        self.merkle_tree = None
         print(f"[CORE] Merkle Tree Initialized.")
 
     def add_user(self, user_id, credentials):
@@ -112,7 +141,7 @@ class abdMerkleClass:
         """Save the Merkle tree to a file."""
         with open(filename, "wb") as file:
             pickle.dump(self.merkle_tree, file)
-    
+
     @staticmethod
     def load_tree_from_file(filename):
         """Load the Merkle tree from a file."""
@@ -131,6 +160,8 @@ if os.path.exists(merkle_tree_file):
     merkleCore = abdMerkleClass.load_tree_from_file(merkle_tree_file)
 else:
     merkleCore = abdMerkleClass()
+
+# testClass = merkleClass()
 
 # users = [
 #     {"uuid": "1234567", "pw": "aqweqew"},
