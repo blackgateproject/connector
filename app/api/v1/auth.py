@@ -57,18 +57,22 @@ async def register(request: Request, settings: settings_dependency):
     if supabase:
         try:
             # Add the request to the supabase table
-            request = supabase.table("requests").insert(
-                [
-                    {
-                        "wallet_addr": wallet_address,
-                        "did_str": didString,
-                        "verifiable_cred": verifiableCredential,
-                        "usernetwork_info": usernetwork_info,
-                        "request_status": "pending",
-                        "requested_role": requested_role
-                    }
-                ]
-            ).execute()
+            request = (
+                supabase.table("requests")
+                .insert(
+                    [
+                        {
+                            "wallet_addr": wallet_address,
+                            "did_str": didString,
+                            "verifiable_cred": verifiableCredential,
+                            "usernetwork_info": usernetwork_info,
+                            "request_status": "pending",
+                            "requested_role": requested_role,
+                        }
+                    ]
+                )
+                .execute()
+            )
             # Print the request data
             if debug:
                 print(f"Request Data: {request.data}")
@@ -78,6 +82,90 @@ async def register(request: Request, settings: settings_dependency):
                 content={"authenticated": True, "message": "Request added to DB"},
                 status_code=200,
             )
+        except Exception as e:
+            print(f"Error: {e}")
+            return JSONResponse(
+                content={"authenticated": False, "error": str(e)}, status_code=500
+            )
+    else:
+        raise Exception("[ERROR]: Supabase client not created")
+
+
+@router.get("/poll/{wallet_address}")
+async def pollRequestStatus(
+    requst: Request, settings: settings_dependency, wallet_address: str
+):
+    """
+    Poll the request status from the supabase table "requests"
+    :param request:
+    :return:
+    """
+    # body = await request.json()
+    # wallet_address = body.get("wallet_address")
+    # didString = body.get("didStr")
+    # verifiableCredential = body.get("verifiableCredential")
+    # usernetwork_info = body.get("usernetwork_info")
+    # # request_status = body.get("role_status")
+    # requested_role = body.get("requested_role")
+
+    # Print the request body
+    if debug:
+        print(f"Recieved Data: {wallet_address}")
+
+    # Add details to supabase table "requests"
+    supabase: Client = create_client(
+        supabase_url=settings.SUPABASE_URL, supabase_key=settings.SUPABASE_ANON_KEY
+    )
+    if supabase:
+        try:
+            # Add the request to the supabase table
+            request = (
+                supabase.table("requests")
+                .select("*")
+                .eq("wallet_addr", wallet_address)
+                .execute()
+            )
+            # Print the request data
+            if debug:
+                print(f"Request Status: {request.data[0]["request_status"]}")
+
+            if request.data:
+                # Check if the request is approved or rejected
+                if request.data[0]["request_status"] == "approved":
+                    print(f"Request Data: {request.data[0]["request_status"]}")
+                    return JSONResponse(
+                        content={
+                            "request_status": "approved",
+                            # "message": "Request approved",
+                            # "requested_role": request.data[0]["requested_role"],
+                        },
+                        status_code=200,
+                    )
+                elif request.data[0]["request_status"] == "rejected":
+                    print(f"Request Data: {request.data[0]["request_status"]}")
+                    return JSONResponse(
+                        content={
+                            "request_status": "rejected",
+                            # "message": "Request rejected",
+                        },
+                        status_code=200,
+                    )
+                elif request.data[0]["request_status"] == "pending":
+                    print(f"Request Data: {request.data[0]["request_status"]}")
+                    return JSONResponse(
+                        content={
+                            "request_status": "pending",
+                            # "message": "Request pending",
+                        },
+                        status_code=200,
+                    )
+            else:
+                print(f"No request found for this wallet address")
+            # Return authenticated response
+            # return JSONResponse(
+            #     content={"authenticated": True, "message": "Request added to DB"},
+            #     status_code=200,
+            # )
         except Exception as e:
             print(f"Error: {e}")
             return JSONResponse(
