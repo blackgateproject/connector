@@ -3,7 +3,7 @@ from fastapi.exceptions import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
 
-from .api.v1 import admin, auth, blockchain, user
+from .api.v1 import admin, auth, blockchain, user, merkle
 from .utils.core_utils import settings_dependency, verify_jwt
 from .core.merkle import merkleCore
 import pickle
@@ -49,6 +49,7 @@ API_VERSION = "v1"
 app.include_router(auth.router, prefix=f"/auth/{API_VERSION}", tags=["Auth"])
 app.include_router(user.router, prefix=f"/user/{API_VERSION}", tags=["User"])
 app.include_router(admin.router, prefix=f"/admin/{API_VERSION}", tags=["Admin"])
+app.include_router(merkle.router, prefix=f"/merkle/{API_VERSION}", tags=["Merkle"])
 app.include_router(
     blockchain.router, prefix=f"/blockchain/{API_VERSION}", tags=["Blockchain"]
 )
