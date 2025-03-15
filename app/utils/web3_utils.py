@@ -6,12 +6,14 @@ from functools import lru_cache
 
 import didkit
 from eth_account import Account
+from eth_account.signers.local import LocalAccount
 from fastapi import Depends
 from typing_extensions import Annotated
 from web3 import Web3
 from zksync2.module.module_builder import ZkSyncBuilder
-from zksync2.signer.eth_signer import PrivateKeyEthSigner
-
+from zksync2.signer.eth_signer import PrivateKeyEthSigner,BaseAccount
+from zksync2.account.wallet import Wallet
+from zksync2.module.zksync_provider import ZkSyncProvider
 from ..core.config import Settings
 from ..core.merkle import merkleCore
 
@@ -24,17 +26,26 @@ def get_settings():
 settings_dependency = Annotated[Settings, Depends(get_settings)]
 
 # Hardhat testnet, Check .env for URL Errors if any
-w3 = Web3(Web3.HTTPProvider(settings_dependency().HARDHAT_URL))
+w3 = Web3(Web3.HTTPProvider(settings_dependency().BLOCKCHAIN_RPC_URL))
 
 debug = settings_dependency().DEBUG
 
 wallet_prv_key = ""
 wallet_addr = ""
+signer = None
+wallet = None
 if settings_dependency().BLOCKCHAIN_WALLET_ADDR:
     wallet_prv_key = settings_dependency().BLOCKCHAIN_WALLET_PRVT_KEY
     wallet_addr = settings_dependency().BLOCKCHAIN_WALLET_ADDR
 
     derived_addr = Account.from_key(wallet_prv_key).address
+
+    # # Setup a zkSync wallet
+    account: LocalAccount = Account.from_key(wallet_prv_key)
+    # wallet = Wallet(account)
+    
+
+
     if derived_addr != wallet_addr:
         print(
             f"Derived Address({derived_addr}) does not match the provided address({wallet_addr})"
@@ -57,17 +68,14 @@ def getContractZKsync(contract_name: str):
     # Basic error checks
     if not contract_name:
         raise ValueError("Contract name cannot be empty!")
-    elif contract_name not in [
-        "EthereumDIDRegistry",
-        "VerifiableCredentialManager",
-    ]:
+    elif contract_name not in ["Merkle"]:
         raise ValueError("Invalid contract name provided!")
 
     # Define the base directory (prefix path)
     base_dir = r"..\..\blockchain"
 
     # zksyncNodeType[dockerizedNode, anvilZKsync, zkSyncSepoliaTestnet, zkSyncSepoliaMainet]
-    zksyncNodeType = "anvilZKsync"
+    zksyncNodeType = "zkSyncSepoliaTestnet"
     deployments_json_path = os.path.join(
         base_dir,
         "deployments-zk",
@@ -113,169 +121,85 @@ def getContractZKsync(contract_name: str):
     return contract_address, contract_abi
 
 
-# # Create a new prime from hash
-# async def storeDIDonBlockchain(did: str, publicKey: str):
-#     """
-#     Store DID on IPFS and then on the blockchain
-#     """
+# Read the merkle root from the merkle_verifier contract
+async def getZKSyncMerkleRoot():
+    """
+    Get the merkle root from the contract
+    """
+    # Get the contract instance
+    contract = get_merkle_verifier()
 
-#     # try:
-#     #     # Store DID on IPFS
-#     #     # ipfs_did_hash = add_file_to_ipfs(did)
-#     #     # if debug >= 2:
-#     #         # print(f"[storeDIDonBlockchain()] IPFS DID Hash: {ipfs_did_hash}")
-#     # except Exception as e:
-#     #     print(f"[storeDIDonBlockchain()] Failed to store DID on IPFS: {e}")
-#     #     return {"Error": "[storeDIDonBlockchain()] Failed to store DID on IPFS"}
+    # Call the getRoot function from the contract
+    merkle_root = contract.functions.getMerkleRoot().call()
 
-#     # Create a contract instance and Call the registerDID function from the contract
-#     tx_hash = (
-#         get_did_registry()
-#         .functions.registerDID(
-#             did,
-#             # ipfs_did_hash,
-#             publicKey,
-#         )
-#         .transact()
-#     )
+    if debug >= 2:
+        print(f"[get_zkSync_merkle_root()] Merkle Root: {merkle_root}")
 
-#     # Print the transaction hash for debugging purposes
-#     if debug >= 1:
-#         print(f"[storeDIDonBlockchain()] Transaction Hash: {tx_hash.hex()}")
+    return merkle_root
 
-#     # Return the CID and the transaction hash
-#     return tx_hash.hex()
-
-
-# async def storeVCOnBlockchain(did: str, vc: str):
-#     """
-#     Store VC on IPFS and then on the blockchain
-#     """
-#     # json dump the vc
-#     vc = json.dumps(vc)
-
-#     # Store VC on IPFS
-#     # ifps_VC_CID = add_file_to_ipfs(vc)
-#     # if debug >= 2:
-#     #     print(f"[storeVCOnBlockchain()] IPFS VC CID: {ifps_VC_CID}")
-
-#     # Create a keccak256 hash of the VC
-#     vc_hash = w3.solidity_keccak(["string"], [vc]).hex()
-#     if debug >= 2:
-#         print(f"[storeVCOnBlockchain()] VC Hash: {vc_hash}")
-
-#     # Call the storeCredential function from the contract
-#     # tx_hash = get_vc_manager().functions.issueVC(did, vc_hash, ifps_VC_CID).transact()
-#     tx_hash = get_vc_manager().functions.issueVC(did, vc_hash).transact()
-
-#     # Print the transaction hash for debugging purposes
-#     if debug >= 1:
-#         print(f"[storeVCOnBlockchain()] Transaction Hash: \n{tx_hash.hex()}")
-
-#     # Return the CID and the transaction hash
-#     return tx_hash.hex()
-
-
+# Add user to the Merkle Tree Offchain and update the state Onchain
 def addUserToMerkle(user: str, pw: str):
     """
     Add a user to the Merkle Tree
     """
     # Add the user to the Merkle Tree
-    dataEntries = merkleCore.add_user(user, pw)
-    return dataEntries
+    print(f"[addUserToMerkle()] Old merkle root: {merkleCore.get_root()}")
+    userHashAndProof = merkleCore.add_user(user, pw)
+    print(f"[addUserToMerkle()] Data Entries: {userHashAndProof}")
+    print(f"[addUserToMerkle()] New merkle root: {merkleCore.get_root()}")
+
+    # Update the merkle root state onchain
+    root = str(merkleCore.get_root())
+    tx_hash = get_merkle_verifier().functions.storeMerkleRoot(root).build_transaction({
+        "from": wallet_addr,
+        "chainId": 300,
+        "gas": 2000000,
+        "gasPrice": w3.to_wei("1", "gwei"),
+        "nonce": w3.eth.get_transaction_count(wallet_addr),
+    })
+    signed_tx = w3.eth.account.sign_transaction(tx_hash, private_key=wallet_prv_key)
+    signed_tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
+    # logs = (
+    #     get_did_registry()
+    #     .events.DIDRegistered()
+    #     .get_logs(from_block=w3.eth.block_number - 1)
+    # )
+    # # for log in logs:
+    # #     print(
+    # #         f"[storeDIDonBlockchain()] Transaction Successful: \n\tDID: {log.args.did}\n\tIPFS_CID{log.args.ipfsCID}\n\tTX_HASH: {log.transactionHash.hex()}"
+    # #     )
+    # print(
+    #     f"[storeDIDonBlockchain()] Transaction Successful: \n\tDID: {logs[0].args.did}\n\tIPFS_CID{logs[0].args.ipfsCID}\n\tTX_HASH: {logs[0].transactionHash.hex()}"
+    # )
+
+    # Print the transaction hash for debugging purposes
+    if debug >= 1:
+        # print(f"[addUserToMerkle()] Transaction Hash: {signed_tx}")
+        print(f"[addUserToMerkle()] Transaction Hash: 0x{signed_tx_hash.hex()}")
+
+    # Prepare return values
+    data = {
+        "userHash": userHashAndProof["hash"],
+        "userProof": userHashAndProof["proof"],
+        "merkleRoot": merkleCore.get_root(),
+        "txHash": tx_hash,
+    }
+
+    return data
 
 
-def verifyUserOnMerkle(user: str, pw: str):
+def verifyUserOnMerkle(user: str, pw: str, hash: str, proof: list[str]):
     """
     Verify a user on the Merkle Tree
     """
     # Verify the user on the Merkle Tree
     valid = merkleCore.verify_proof(user, pw)
+
+
+    # [TEST] Verify the user on the blockchain by computing the proof
+    # This should be moved to the frontend
+
     return valid
-
-"""
-NOTE::
-Issue DID and Issue VC have been moved to the frontend, the user issues the DID and VC
-and is validated by the admin before being stored on the blockchain
-"""
-
-# async def issue_did():
-#     """
-#     Issue a DID
-#     """
-#     # Generate a new Ed25519 keypair
-#     jwk = didkit.generate_ed25519_key()
-#     did = didkit.key_to_did("key", jwk)
-
-#     if debug >= 2:
-#         print(f"[issue_did()] JWK: {jwk}")
-#         print(f"[issue_did()] DID: {did}")
-
-#     # print(
-#     #     f"\n\n\nDIDKIT DID RESOLVE:\n{await didkit.resolve_did(did, input_metadata=json.dumps({}))}\n\n\n"
-#     # )
-#     # if storeIPFS:
-#     #     # Store DID on IPFS
-#     #     ipfs_did_hash = add_file_to_ipfs(did)
-#     #     print(f"IPFS DID Hash: {ipfs_did_hash}")
-#     #     return jwk, did, ipfs_did_hash
-
-#     return jwk, did
-
-
-# async def issue_vc(did: str, jwk: str, user_uuid: str):
-#     """
-#     Issue a VC and sign it based on the received DID
-#     """
-#     server_did = settings_dependency().BACKEND_DID
-#     server_jwk = settings_dependency().BACKEND_JWK
-
-#     if debug >= 1:
-#         print(f"[issue_vc()] DID-Recv: {did}")
-#         print(f"[issue_vc()] JWK-Recv: \n{jwk}")
-#         print(f"[issue_vc()] UUID-Recv: {user_uuid}")
-#     if debug >= 2:
-#         print(f"[issue_vc()] Server-DID(env): {server_did}")
-#         print(f"[issue_vc()] Server-JWK(env): \n{server_jwk}")
-
-#     missing_params = [
-#         param
-#         for param, name in [(did, "DID"), (jwk, "JWK"), (user_uuid, "User-UUID")]
-#         if not param
-#     ]
-#     if missing_params:
-#         raise ValueError(
-#             f"[issue_vc()] Error: {', '.join(name for _, name in missing_params)} not provided"
-#         )
-
-#     user_did = didkit.key_to_did("key", didkit.generate_ed25519_key())
-
-#     credential = {
-#         "@context": "https://www.w3.org/2018/credentials/v1",
-#         "id": f"urn:uuid:{user_uuid}",
-#         "type": ["VerifiableCredential"],
-#         "issuer": server_did,
-#         "issuanceDate": datetime.now(timezone.utc).isoformat(),
-#         "credentialSubject": {
-#             "id": user_did,
-#         },
-#     }
-
-#     if debug >= 1:
-#         print(f"[issue_vc()] Generated VC: \n{credential}")
-
-#     signed_vc = await didkit.issue_credential(json.dumps(credential), "{}", server_jwk)
-
-#     # if storeIPFS:
-#     #     # Store VC on IPFS
-#     #     ipfs_vc_hash = add_file_to_ipfs(signed_vc)
-
-#     #     if debug >= 1:
-#     #         print(f"[issue_vc()] IPFS VC Hash: {ipfs_vc_hash}")
-#     #     return {"VC": json.loads(signed_vc), "IPFS": ipfs_vc_hash}
-#     # if debug >=2:
-#     # print(f"[issue_vc()] Signed VC: \n{json.loads(signed_vc)}")
-#     return json.loads(signed_vc)
 
 
 """
@@ -283,13 +207,7 @@ Contract init functions
 """
 
 
-# Return a DIDRegistry instance
-def get_did_registry():
-    contract_address, contract_abi = getContractZKsync("EthereumDIDRegistry")
-    return w3.eth.contract(address=contract_address, abi=contract_abi)
-
-
-# Return a VerifiableCredentialManager instance
-def get_vc_manager():
-    contract_address, contract_abi = getContractZKsync("VerifiableCredentialManager")
+# Returns the contract instance for the Merkle contract, used for verifying proofs
+def get_merkle_verifier():
+    contract_address, contract_abi = getContractZKsync("Merkle")
     return w3.eth.contract(address=contract_address, abi=contract_abi)

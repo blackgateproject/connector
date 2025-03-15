@@ -5,49 +5,48 @@ from multiproof.standard import LeafValue, StandardMerkleTree, StandardMerkleTre
 
 from ..utils.merkle_utils import merkleTreeUtils
 
-
 # class merkleClass:
 #     """
 #     Class based on multiproof, python port of openzeppelin's merkle tree
 #     NOTE:: does not include methods to add or remove leaves, just to create one from data
 #     """
 
-    # def __init__(self):
-    #     # Initialize the Merkle tree
-    #     # Test code
-    #     values = [
-    #         [
-    #             "did:ethr:0xb46CAD0D8F7526695aA1aD3e94d1464860D0a7e6",
-    #             '{"@context":["https://www.w3.org/2018/credentials/v1","https://www.w3.org/ns/did/v1"],"type":["VerifiableCredential"],"credentialSubject":{"id":"did:example:123"},"issuer":"did:ethr:0xb46CAD0D8F7526695aA1aD3e94d1464860D0a7e6","issuanceDate":"2025-03-09T05:09:56.063Z","proof":{"type":"EcdsaSecp256k1Signature2019","proofPurpose":"assertionMethod","verificationMethod":"did:ethr:0xb46CAD0D8F7526695aA1aD3e94d1464860D0a7e6#controller","created":"2025-03-09T05:09:56.064Z","jws":"eyJhbGciOiJFUzI1NksiLCJjcml0IjpbImI2NCJdLCJiNjQiOmZhbHNlfQ..Vp-fE7vGIZ72x_dVkYkPhl_btsr4wwuIbhykP-Cm4gpjco3gf8BFqXZgJT0d2DVepVEuPZHCLCKi1zYPtqP3pg"}}',
-    #         ],
-    #         [
-    #             "did:ethr:0xb46CAD0D8F7526695aA1aD3e94d1464860D0a7e2",
-    #             '{"@context":["https://www.w3.org/2018/credentials/v1","https://www.w3.org/ns/did/v1"],"type":["VerifiableCredential"],"credentialSubject":{"id":"did:example:123"},"issuer":"did:ethr:0xb46CAD0D8F7526695aA1aD3e94d1464860D0a7e6","issuanceDate":"2025-03-09T05:09:56.063Z","proof":{"type":"EcdsaSecp256k1Signature2019","proofPurpose":"assertionMethod","verificationMethod":"did:ethr:0xb46CAD0D8F7526695aA1aD3e94d1464860D0a7e6#controller","created":"2025-03-09T05:09:56.064Z","jws":"eyJhbGciOiJFUzI1NksiLCJjcml0IjpbImI2NCJdLCJiNjQiOmZhbHNlfQ..Vp-fE7vGIZ72x_dVkYkPhl_btsr4wwuIbhykP-Cm4gpjco3gf8BFqXZgJT0d2DVepVEuPZHCLCKi1zYPtqP3pg"}}',
-    #         ],
-    #     ]
+# def __init__(self):
+#     # Initialize the Merkle tree
+#     # Test code
+#     values = [
+#         [
+#             "did:ethr:0xb46CAD0D8F7526695aA1aD3e94d1464860D0a7e6",
+#             '{"@context":["https://www.w3.org/2018/credentials/v1","https://www.w3.org/ns/did/v1"],"type":["VerifiableCredential"],"credentialSubject":{"id":"did:example:123"},"issuer":"did:ethr:0xb46CAD0D8F7526695aA1aD3e94d1464860D0a7e6","issuanceDate":"2025-03-09T05:09:56.063Z","proof":{"type":"EcdsaSecp256k1Signature2019","proofPurpose":"assertionMethod","verificationMethod":"did:ethr:0xb46CAD0D8F7526695aA1aD3e94d1464860D0a7e6#controller","created":"2025-03-09T05:09:56.064Z","jws":"eyJhbGciOiJFUzI1NksiLCJjcml0IjpbImI2NCJdLCJiNjQiOmZhbHNlfQ..Vp-fE7vGIZ72x_dVkYkPhl_btsr4wwuIbhykP-Cm4gpjco3gf8BFqXZgJT0d2DVepVEuPZHCLCKi1zYPtqP3pg"}}',
+#         ],
+#         [
+#             "did:ethr:0xb46CAD0D8F7526695aA1aD3e94d1464860D0a7e2",
+#             '{"@context":["https://www.w3.org/2018/credentials/v1","https://www.w3.org/ns/did/v1"],"type":["VerifiableCredential"],"credentialSubject":{"id":"did:example:123"},"issuer":"did:ethr:0xb46CAD0D8F7526695aA1aD3e94d1464860D0a7e6","issuanceDate":"2025-03-09T05:09:56.063Z","proof":{"type":"EcdsaSecp256k1Signature2019","proofPurpose":"assertionMethod","verificationMethod":"did:ethr:0xb46CAD0D8F7526695aA1aD3e94d1464860D0a7e6#controller","created":"2025-03-09T05:09:56.064Z","jws":"eyJhbGciOiJFUzI1NksiLCJjcml0IjpbImI2NCJdLCJiNjQiOmZhbHNlfQ..Vp-fE7vGIZ72x_dVkYkPhl_btsr4wwuIbhykP-Cm4gpjco3gf8BFqXZgJT0d2DVepVEuPZHCLCKi1zYPtqP3pg"}}',
+#         ],
+#     ]
 
-    #     # Build the Merkle tree. Set the encoding to match the values.
-    #     tree = StandardMerkleTree.of(values, ["string", "string"])
-    #     print(f"[CORE] Merkle Tree Root: {tree.root}")
-    #     # Print the tree structure
-    #     print(f"[CORE] Merkle Tree Structure: \n{tree.to_json()}")
+#     # Build the Merkle tree. Set the encoding to match the values.
+#     tree = StandardMerkleTree.of(values, ["string", "string"])
+#     print(f"[CORE] Merkle Tree Root: {tree.root}")
+#     # Print the tree structure
+#     print(f"[CORE] Merkle Tree Structure: \n{tree.to_json()}")
 
-    #     print(f"[CORE] Merkle Tree Initialized.")
+#     print(f"[CORE] Merkle Tree Initialized.")
 
-    #     # Generate proof for did:ethr:0xb46CAD0D8F7526695aA1aD3e94d1464860D0a7e6
-    #     for i, leaf in enumerate(tree.values):
-    #         if leaf.value[0] == "did:ethr:0xb46CAD0D8F7526695aA1aD3e94d1464860D0a7e6":
-    #             proof = tree.get_proof(i)
-    #             print(f"[CORE] Value: {leaf.value}")
-    #             print(f"[CORE] Proof: {proof}")
+#     # Generate proof for did:ethr:0xb46CAD0D8F7526695aA1aD3e94d1464860D0a7e6
+#     for i, leaf in enumerate(tree.values):
+#         if leaf.value[0] == "did:ethr:0xb46CAD0D8F7526695aA1aD3e94d1464860D0a7e6":
+#             proof = tree.get_proof(i)
+#             print(f"[CORE] Value: {leaf.value}")
+#             print(f"[CORE] Proof: {proof}")
 
 
 class abdMerkleClass:
     def __init__(self):
         # Initialize Supabase client
         self.merkle_tree = merkleTreeUtils()
-        self.merkle_tree = None
-        print(f"[CORE] Merkle Tree Initialized.")
+        # self.merkle_tree = None
+        print(f"[CORE] Merkle Tree Initialized. \n{type(self.merkle_tree)}")
 
     def add_user(self, user_id, credentials):
         """Add a user to the Merkle Tree and create a hash entry in the proofs table."""
@@ -99,7 +98,7 @@ class abdMerkleClass:
         print(self.merkle_tree.print_tree())
         print(self.merkle_tree.tree)
 
-    def getroot(self):
+    def get_root(self):
         return self.merkle_tree.get_root()
 
     # def getproof(self, hash_value):
@@ -123,7 +122,7 @@ class abdMerkleClass:
         data = f"{id}|{creds}"
         hash_value = self.merkle_tree.hash(data)
         valid = self.merkle_tree.verify_proof(
-            hash_value, self.merkle_tree.get_proof(hash_value), self.getroot()
+            hash_value, self.merkle_tree.get_proof(hash_value), self.get_root()
         )
         return valid
 
@@ -162,7 +161,10 @@ else:
     merkleCore = abdMerkleClass()
 
 # testClass = merkleClass()
-
+# merkleCore.add_user(
+#     "did:ethr:0xb46CAD0D8F7526695aA1aD3e94d1464860D0a7e6",
+#     '{"@context":["https://www.w3.org/2018/credentials/v1","https://www.w3.org/ns/did/v1"],"type":["VerifiableCredential"],"credentialSubject":{"id":"did:example:123"},"issuer":"did:ethr:0xb46CAD0D8F7526695aA1aD3e94d1464860D0a7e6","issuanceDate":"2025-03-09T05:09:56.063Z","proof":{"type":"EcdsaSecp256k1Signature2019","proofPurpose":"assertionMethod","verificationMethod":"did:ethr:0xb46CAD0D8F7526695aA1aD3e94d1464860D0a7e6#controller","created":"2025-03-09T05:09:56.064Z","jws":"eyJhbGciOiJFUzI1NksiLCJjcml0IjpbImI2NCJdLCJiNjQiOmZhbHNlfQ..Vp-fE7vGIZ72x_dVkYkPhl_btsr4wwuIbhykP-Cm4gpjco3gf8BFqXZgJT0d2DVepVEuPZHCLCKi1zYPtqP3pg"}}',
+# )
 # users = [
 #     {"uuid": "1234567", "pw": "aqweqew"},
 #     {"uuid": "1234123567", "pw": "aqw123eqew"},
