@@ -44,8 +44,7 @@ async def contract_test():
     Test if contracts can be fetched from /blockchain
     """
     # Retrieve and concatenate contract information for multiple contracts
-    contract = getContractZKsync("DIDRegistry")
-    contract += getContractZKsync("VerifiableCredentialManager")
+    contract = getContractZKsync("Merkle")
     return {"contract": contract}
 
 
@@ -97,47 +96,47 @@ async def contract_test():
 #     return JSONResponse(content=response, status_code=200)
 
 
-@router.get("/resolveDID/{did}")
-async def resolve_did_endpoint(did: str):
-    """
-    Resolve a DID document and sign a VC
-    """
-    try:
-        # Generate didDoc
-        async def resolve_did(did):
-            return await didkit.resolve_did(did, "{}")
+# @router.get("/resolveDID/{did}")
+# async def resolve_did_endpoint(did: str):
+#     """
+#     Resolve a DID document and sign a VC
+#     """
+#     try:
+#         # Generate didDoc
+#         async def resolve_did(did):
+#             return await didkit.resolve_did(did, "{}")
 
-        did_doc = await resolve_did(did)
-        did_doc_json = json.loads(did_doc)
-        # print(f"Resolved DID Document: {did_doc_json}\n")
+#         did_doc = await resolve_did(did)
+#         did_doc_json = json.loads(did_doc)
+#         # print(f"Resolved DID Document: {did_doc_json}\n")
 
-        # Sign VC
-        credential = {
-            "@context": ["https://www.w3.org/2018/credentials/v1"],
-            "type": ["VerifiableCredential"],
-            "issuer": did,
-            "credentialSubject": {"id": "did:example:123"},
-            "issuanceDate": datetime.utcnow().isoformat() + "Z",
-        }
+#         # Sign VC
+#         credential = {
+#             "@context": ["https://www.w3.org/2018/credentials/v1"],
+#             "type": ["VerifiableCredential"],
+#             "issuer": did,
+#             "credentialSubject": {"id": "did:example:123"},
+#             "issuanceDate": datetime.utcnow().isoformat() + "Z",
+#         }
 
-        print(f"[/resolveDID/{did}] Credential: {credential}")
-        proof_options = json.dumps(
-            {
-                "proofPurpose": "assertionMethod",
-                "verificationMethod": f"{did}#controller",
-            }
-        )
+#         print(f"[/resolveDID/{did}] Credential: {credential}")
+#         proof_options = json.dumps(
+#             {
+#                 "proofPurpose": "assertionMethod",
+#                 "verificationMethod": f"{did}#controller",
+#             }
+#         )
 
-        print(f"[/resolveDID/{did}] Proof Options: {proof_options}")
-        response = {
-            "didDocument": did_doc_json,
-            "credential": credential,
-            "proof_options": json.loads(proof_options),
-        }
+#         print(f"[/resolveDID/{did}] Proof Options: {proof_options}")
+#         response = {
+#             "didDocument": did_doc_json,
+#             "credential": credential,
+#             "proof_options": json.loads(proof_options),
+#         }
 
-        print(f"[/resolveDID/{did}] Response: {response}")
+#         print(f"[/resolveDID/{did}] Response: {response}")
 
-        return JSONResponse(content=response, status_code=200)
-    except Exception as e:
-        print(f"[/resolveDID/{did}] Error: {e}")
-        return JSONResponse(content={"error": str(e)}, status_code=400)
+#         return JSONResponse(content=response, status_code=200)
+#     except Exception as e:
+#         print(f"[/resolveDID/{did}] Error: {e}")
+#         return JSONResponse(content={"error": str(e)}, status_code=400)
