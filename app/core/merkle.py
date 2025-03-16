@@ -117,12 +117,18 @@ class abdMerkleClass:
     #     print(f"No proof found for hash {hash_value}.")
     #     return None  # Return None if proof does not exist
 
-    def verify_proof(self, id, creds):
+    # def verify_proof(self, id, creds):
+    def verify_proof(self, leaf, proof):
         """Verify a Merkle proof for a specific leaf and root."""
-        data = f"{id}|{creds}"
-        hash_value = self.merkle_tree.hash(data)
+        # data = f"{id}|{creds}"
+        # hash_value = self.merkle_tree.hash(data)
+        # valid = self.merkle_tree.verify_proof(
+        #     hash_value, self.merkle_tree.get_proof(hash_value), self.get_root()
+        # )
+        # data = f"{id}|{creds}"
+        # hash_value = self.merkle_tree.hash(data)
         valid = self.merkle_tree.verify_proof(
-            hash_value, self.merkle_tree.get_proof(hash_value), self.get_root()
+            leaf_data=leaf, proof=proof, root=self.get_root()
         )
         return valid
 
