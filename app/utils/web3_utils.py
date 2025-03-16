@@ -143,21 +143,21 @@ def addUserToMerkle(user: str, pw: str):
     Add a user to the Merkle Tree
     """
     # Add the user to the Merkle Tree
-    print(f"[addUserToMerkle()] Old merkle root: {merkleCore.get_root()}")
+    # print(f"[addUserToMerkle()] Old merkle root: {merkleCore.get_root()}")
     userHashAndProof = merkleCore.add_user(user, pw)
-    print(f"[addUserToMerkle()] Data Entries: {userHashAndProof}")
-    print(f"[addUserToMerkle()] New merkle root: {merkleCore.get_root()}")
+    # print(f"[addUserToMerkle()] Data Entries: {userHashAndProof}")
+    # print(f"[addUserToMerkle()] New merkle root: {merkleCore.get_root()}")
 
     # Update the merkle root state onchain
     root = str(merkleCore.get_root())
-    tx_hash = get_merkle_verifier().functions.storeMerkleRoot(root).build_transaction({
+    built_tx = get_merkle_verifier().functions.storeMerkleRoot(root).build_transaction({
         "from": wallet_addr,
         "chainId": 300,
         "gas": 2000000,
         "gasPrice": w3.to_wei("1", "gwei"),
         "nonce": w3.eth.get_transaction_count(wallet_addr),
     })
-    signed_tx = w3.eth.account.sign_transaction(tx_hash, private_key=wallet_prv_key)
+    signed_tx = w3.eth.account.sign_transaction(built_tx, private_key=wallet_prv_key)
     signed_tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
     # logs = (
     #     get_did_registry()
@@ -182,7 +182,7 @@ def addUserToMerkle(user: str, pw: str):
         "userHash": userHashAndProof["hash"],
         "userProof": userHashAndProof["proof"],
         "merkleRoot": merkleCore.get_root(),
-        "txHash": tx_hash,
+        "txHash": signed_tx_hash.hex(),
     }
 
     return data

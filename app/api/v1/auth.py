@@ -68,6 +68,7 @@ async def register(request: Request, settings: settings_dependency):
                             "usernetwork_info": usernetwork_info,
                             "request_status": "pending",
                             "requested_role": requested_role,
+                            "isZKPSent": False,
                         }
                     ]
                 )
@@ -93,21 +94,13 @@ async def register(request: Request, settings: settings_dependency):
 
 @router.get("/poll/{wallet_address}")
 async def pollRequestStatus(
-    requst: Request, settings: settings_dependency, wallet_address: str
+    request: Request, settings: settings_dependency, wallet_address: str
 ):
     """
     Poll the request status from the supabase table "requests"
     :param request:
     :return:
     """
-    # body = await request.json()
-    # wallet_address = body.get("wallet_address")
-    # didString = body.get("didStr")
-    # verifiableCredential = body.get("verifiableCredential")
-    # usernetwork_info = body.get("usernetwork_info")
-    # # request_status = body.get("role_status")
-    # requested_role = body.get("requested_role")
-
     # Print the request body
     if debug:
         print(f"Recieved Data: {wallet_address}")
@@ -118,7 +111,7 @@ async def pollRequestStatus(
     )
     if supabase:
         try:
-            # Add the request to the supabase table
+            # Fetch requests table from supabase
             request = (
                 supabase.table("requests")
                 .select("*")
@@ -130,9 +123,11 @@ async def pollRequestStatus(
                 print(f"Request Status: {request.data[0]}")
 
             if request.data:
-                # Check if the request is approved or rejected
-                if request.data[0]["request_status"] == "approved":
-
+                # Check if the request is approved but no ZKP has been sent yet
+                if (
+                    request.data[0]["request_status"] == "approved"
+                    and request.data[0]["isZKPSent"] == False
+                ):
                     # Add user to merkle tree and return the proof
                     entry = addUserToMerkle(
                         request.data[0]["did_str"],
@@ -140,42 +135,62 @@ async def pollRequestStatus(
                     )
                     print(f"Added user to merkle tree: {entry}")
 
-                    print(f"Request Data: {request.data[0]["request_status"]}")
-                    return JSONResponse(
-                        content={
-                            "request_status": "approved",
-                            "merkle_hash": entry["hash"],
-                            "merkle_proof": entry["proof"],
-                            # "message": "Request approved",
-                            # "requested_role": request.data[0]["requested_role"],
-                        },
-                        status_code=200,
+                    print(
+                        f"Request Data after approve: \n{request.data[0]['request_status']}"
                     )
+                    # Update status to accepted
+                    response = (
+                        supabase.table("requests")
+                        .update({"isZKPSent": True, "verifiable_cred": None})
+                        .eq("wallet_addr", wallet_address)
+                        .execute()
+                    )
+                    print(
+                        f"Request Data after status update: \n{response.data[0]['isZKPSent']}"
+                    )
+                    returnResponse = {
+                        "message": f"approved request for role {request.data[0]['requested_role']}",
+                        "merkle_hash": entry["userHash"],
+                        "merkle_proof": entry["userProof"],
+                        "merkle_root": entry["merkleRoot"],
+                        "tx_hash": entry["txHash"],
+                        "request_status": f"{request.data[0]['request_status']}",
+                    }
+                elif (
+                    request.data[0]["request_status"] == "approved"
+                    and request.data[0]["isZKPSent"] == True
+                ):
+                    print(
+                        f"User already added to merkle tree: {request.data[0]['isZKPSent']}"
+                    )
+
+                    returnResponse = {
+                        "message": f"User already added to merkle tree",
+                        "request_status": f"{request.data[0]['request_status']}",
+                    }
                 elif request.data[0]["request_status"] == "rejected":
-                    print(f"Request Data: {request.data[0]["request_status"]}")
-                    return JSONResponse(
-                        content={
-                            "request_status": "rejected",
-                            # "message": "Request rejected",
-                        },
-                        status_code=200,
-                    )
+                    print(f"Request Data: {request.data[0]['request_status']}")
+                    returnResponse = {
+                        "message": f"Request rejected",
+                        "request_status": f"{request.data[0]['request_status']}",
+                    }
+
                 elif request.data[0]["request_status"] == "pending":
-                    print(f"Request Data: {request.data[0]["request_status"]}")
-                    return JSONResponse(
-                        content={
-                            "request_status": "pending",
-                            # "message": "Request pending",
-                        },
-                        status_code=200,
-                    )
+                    print(f"Request Data: {request.data[0]['request_status']}")
+                    returnResponse = {
+                        "message": f"Request pending",
+                        "request_status": f"{request.data[0]['request_status']}",
+                    }
             else:
                 print(f"No request found for this wallet address")
-            # Return authenticated response
-            # return JSONResponse(
-            #     content={"authenticated": True, "message": "Request added to DB"},
-            #     status_code=200,
-            # )
+                returnResponse = {
+                    "message": f"No request found for this wallet address",
+                    "request_status": "not_found",
+                }
+
+                return JSONResponse(content=returnResponse, status_code=404)
+            print(f"Return Response: {returnResponse}")
+            return JSONResponse(content=returnResponse, status_code=200)
         except Exception as e:
             print(f"Error: {e}")
             return JSONResponse(
@@ -187,14 +202,15 @@ async def pollRequestStatus(
 
 # Using request.json() to get the request body, forces async to be used. Need to
 # ensure this is optimized to be non-blocking
-# 
+#
+
 
 @router.post("/verify")
 async def verifyMerkle(request: Request, settings: settings_dependency):
     """
     Verify the user on the merkle tree
     NOTE:: This should just verify the tx output onchain
-           doing it offchain for now 
+           doing it offchain for now
     :param request:
     :return:
     """
@@ -210,7 +226,8 @@ async def verifyMerkle(request: Request, settings: settings_dependency):
 
     # Verify the user on the merkle tree
     entry = verifyUserOnMerkle(
-        didString, verifiableCredential
+        didString,
+        verifiableCredential,
         # didString, verifiableCredential, merkle_hash, merkle_proof
     )
     if entry:

@@ -7,11 +7,14 @@ from supabase import Client, create_client
 
 from ...utils.core_utils import setup_state, save_setup_state
 
-# Initialize the API router
 router = APIRouter()
 
+@router.get("/")
+async def health_check():
+    return "Reached Setup Endpoint, Router setup is Active"
+
 @router.post("/setup")
-async def setup(admin_did: str):
+async def set_setup_true(admin_did: str):
     if setup_state["is_setup_completed"]:
         raise HTTPException(status_code=400, detail="Setup has already been completed.")
 
