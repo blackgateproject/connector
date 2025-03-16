@@ -25,13 +25,14 @@ class MerkleInput(BaseModel):
     user_id: str
     credentials: dict
 
+
 class HashProof(BaseModel):
     """
     HashProof model for the request body.
     """
 
     merkleHash: str
-    merkleProof: list[str]
+    merkleProof: list[list[str]]
 
 
 # Health check endpoint
@@ -106,3 +107,29 @@ async def add_user(
 
 
 # Verify user on merkle tree
+@router.post("/verifyUser")
+async def verify_user(
+    # request: Request,
+    zkp: Annotated[HashProof, Form],
+    # settings: dict = Depends(settings_dependency),
+    # _: dict = Depends(verify_jwt),
+):
+    """
+    Verify user on the merkle tree.
+    """
+    merkleHash = zkp.merkleHash
+    merkleProof = zkp.merkleProof
+    print(f"[verify_user()] merkleHash: {merkleHash}")
+    print(f"[verify_user()] merkleProof: {merkleProof}")
+
+    # Verify user on the merkle tree
+    result = verifyUserOnMerkle(
+        merkleHash,
+        merkleProof,
+    )
+
+    print(f"[verify_user()] results: {result}")
+
+    return JSONResponse(
+        content={"message": "User verified on merkle tree", "results": result}
+    )
