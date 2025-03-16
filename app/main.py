@@ -1,12 +1,13 @@
-from fastapi import Depends, FastAPI, Request
+import pickle
+
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
 
-from .api.v1 import admin, auth, blockchain, user, merkle
-from .utils.core_utils import settings_dependency, verify_jwt
+from .api.v1 import admin, auth, blockchain, merkle, setup, user
 from .core.merkle import merkleCore
-import pickle
+from .utils.core_utils import settings_dependency, verify_jwt, setup_state
 
 app = FastAPI()
 debug = settings_dependency().DEBUG
@@ -21,6 +22,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Middleware to check if setup is completed
+@app.middleware("http")
+async def setup_mode_middleware(request: Request, call_next):
+    if not setup_state["is_setup_completed"] and request.url.path != "/setup":
+        return JSONResponse(
+            status_code=307,
+            content={"message": "Setup mode is active. Redirecting to /setup."},
+        )
+    response = await call_next(request)
+    return response
+
+
 # Add a shutdown event to dump the merkle tree
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -29,6 +42,7 @@ async def shutdown_event():
     with open("merkle_tree.pkl", "wb") as f:
         pickle.dump(merkleCore, f)
     print(f"[CORE] Merkle tree saved to merkle_tree.pkl.")
+
 
 # Add a redirect middleware for invalid JWT, this will redirect to the login page at "/"
 # @app.middleware("http")
@@ -53,6 +67,7 @@ app.include_router(merkle.router, prefix=f"/merkle/{API_VERSION}", tags=["Merkle
 app.include_router(
     blockchain.router, prefix=f"/blockchain/{API_VERSION}", tags=["Blockchain"]
 )
+app.include_router(setup.router, prefix=f"/setup/{API_VERSION}", tags=["Setup"])
 # app.include_router(onboarding.router, prefix=f"/onboarding/{API_VERSION}", tags=["Onboarding"])
 
 

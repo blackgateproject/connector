@@ -10,7 +10,6 @@ from datetime import datetime, timedelta, timezone, tzinfo
 from functools import lru_cache
 
 import jwt
-
 from eth_keys import keys
 from eth_utils import decode_hex
 from fastapi import Depends, HTTPException, Request
@@ -25,7 +24,6 @@ from typing_extensions import Annotated
 
 from ..core.config import Settings
 from ..models.user import User
-
 
 
 @lru_cache
@@ -241,3 +239,21 @@ async def log_user_action(
         print(f"Log created: {response}")
     except Exception as e:
         print(f"Error logging action: {str(e)}")
+
+
+
+
+def load_setup_state():
+    with open("state.json", "r") as file:
+        return json.load(file)
+
+
+def save_setup_state(state):
+    with open("state.json", "w") as file:
+        json.dump(state, file, indent=4)
+
+
+setup_state = load_setup_state()
+
+if not setup_state["is_setup_completed"]:
+    print("Setup mode is active. Redirecting all requests to /setup endpoint.")
