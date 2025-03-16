@@ -188,18 +188,26 @@ def addUserToMerkle(user: str, pw: str):
     return data
 
 
-def verifyUserOnMerkle(user: str, pw: str, hash: str, proof: list[str]):
+def verifyUserOnMerkle(hash: str, proof: list[str]):
     """
     Verify a user on the Merkle Tree
     """
     # Verify the user on the Merkle Tree
-    valid = merkleCore.verify_proof(user, pw)
+    validOffchain = merkleCore.verify_proof(hash, proof)
 
 
     # [TEST] Verify the user on the blockchain by computing the proof
     # This should be moved to the frontend
+    contract = get_merkle_verifier()
+    # Call the verifyProof function from the contract
+    validOnchain = contract.functions.verifyProof(hash, proof).call()
 
-    return valid
+    results = {
+        "valid-Offchain": validOffchain,
+        "valid-Onchain": validOnchain,
+    }
+
+    return results
 
 
 """
