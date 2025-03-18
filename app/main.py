@@ -7,10 +7,11 @@ from fastapi.responses import JSONResponse, RedirectResponse
 
 from .api.v1 import admin, auth, blockchain, merkle, setup, user
 from .core.merkle import merkleCore
-from .utils.core_utils import settings_dependency, verify_jwt, setup_state
+from .utils.core_utils import settings_dependency, setup_state, verify_jwt
 
 app = FastAPI()
 debug = settings_dependency().DEBUG
+API_VERSION = "v1"
 
 # CORS Middleware
 origins = ["*"]
@@ -22,16 +23,32 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 # Middleware to check if setup is completed
-@app.middleware("http")
-async def setup_mode_middleware(request: Request, call_next):
-    if not setup_state["is_setup_completed"] and request.url.path != "/setup":
-        return JSONResponse(
-            status_code=307,
-            content={"message": "Setup mode is active. Redirecting to /setup."},
-        )
-    response = await call_next(request)
-    return response
+# @app.middleware("http")
+# async def setup_mode_middleware(request: Request, call_next):
+#     try:
+#         # If setup is completed, let the request pass through
+#         if setup_state["is_setup_completed"] == True:
+#             response = await call_next(request)
+#         else:
+#             # Only let setup requests pass through during setup mode or the docs
+#             if (
+#                 request.url.path.startswith("/setup/")
+#                 and setup_state["is_setup_completed"] == False
+#                 or request.url.path.startswith("/docs")
+#                 or request.url.path.startswith("/openapi.json")
+#             ):
+#                 response = await call_next(request)
+
+#             else:
+#                 # Redirect the rest to the setup page
+#                 response = RedirectResponse(url=f"/setup/{API_VERSION}/")
+#     except HTTPException as e:
+#         print(f"Error in setup_mode_middleware: {e}")
+#         response = {"message": f"Error in setup_mode_middleware: {e}"}
+
+#     return response
 
 
 # Add a shutdown event to dump the merkle tree
@@ -59,7 +76,6 @@ async def shutdown_event():
 
 
 # Load routes
-API_VERSION = "v1"
 app.include_router(auth.router, prefix=f"/auth/{API_VERSION}", tags=["Auth"])
 app.include_router(user.router, prefix=f"/user/{API_VERSION}", tags=["User"])
 app.include_router(admin.router, prefix=f"/admin/{API_VERSION}", tags=["Admin"])
