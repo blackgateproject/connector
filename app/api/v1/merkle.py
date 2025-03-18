@@ -10,6 +10,7 @@ from ...core.merkle import merkleCore
 from ...utils.core_utils import log_user_action, settings_dependency, verify_jwt
 from ...utils.web3_utils import addUserToMerkle, getZKSyncMerkleRoot, verifyUserOnMerkle
 
+from ...models.requests import HashProof, MerkleInput
 # from ...utils.pki_utils import generate_private_key, generate_public_key
 
 # Initialize the API router
@@ -17,22 +18,6 @@ router = APIRouter()
 
 
 # Split this into core/models.py when there are more models
-class MerkleInput(BaseModel):
-    """
-    MerkleInput model for the request body.
-    """
-
-    user_id: str
-    credentials: dict
-
-
-class HashProof(BaseModel):
-    """
-    HashProof model for the request body.
-    """
-
-    merkleHash: str
-    merkleProof: list[list[str]]
 
 
 # Health check endpoint

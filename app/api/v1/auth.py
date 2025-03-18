@@ -1,13 +1,14 @@
+from typing import Annotated
 from uuid import UUID
 
 import didkit
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Form
 from fastapi.requests import Request
 from fastapi.responses import JSONResponse
 from supabase import AuthApiError
 from supabase.client import Client, create_client
 
-from ...models.user import User
+from ...models.requests import HashProof
 from ...utils.core_utils import (
     extract_user_details_for_passwordless,
     extractUserInfo,
@@ -206,43 +207,41 @@ async def pollRequestStatus(
 
 
 @router.post("/verify")
-async def verifyMerkle(request: Request, settings: settings_dependency):
+async def verify_user(
+    # request: Request,
+    zkp: HashProof,
+    # settings: dict = Depends(settings_dependency),
+    # _: dict = Depends(verify_jwt),
+):
     """
-    Verify the user on the merkle tree
-    NOTE:: This should just verify the tx output onchain
-           doing it offchain for now
-    :param request:
-    :return:
+    Verify user on the merkle tree.
     """
-    body = await request.json()
-    didString = body.get("didStr")
-    verifiableCredential = body.get("verifiableCredential")
-    merkle_hash = body.get("merkle_hash")
-    merkle_proof = body.get("merkle_proof")
+    did = zkp.did
+    merkleHash = zkp.merkleHash
+    merkleProof = zkp.merkleProof
+    print(f"[verify_user()] DID: {did}")
+    print(f"[verify_user()] merkleHash: {merkleHash}")
+    print(f"[verify_user()] merkleProof: {merkleProof}")
 
-    # Print the request body
-    if debug:
-        print(f"Recieved Data: {body}")
-
-    # Verify the user on the merkle tree
-    entry = verifyUserOnMerkle(
-        didString,
-        verifiableCredential,
-        # didString, verifiableCredential, merkle_hash, merkle_proof
+    # Verify user on the merkle tree
+    result = verifyUserOnMerkle(
+        merkleHash,
+        merkleProof,
     )
-    if entry:
-        return JSONResponse(
-            content={
-                "verified": True,
-                "message": "User verified",
-                "entry": entry,
-            },
-            status_code=200,
-        )
+
+    print(f"[verify_user()] results: {result}")
+    if result["valid_Offchain"] == False or result["valid_Onchain"] == False:
+        message = "Problem with verification: "
+        if result["valid_Offchain"] == False:
+            message += "Offchain verification failed. "
+        if result["valid_Onchain"] == False:
+            message += "Onchain verification failed."
     else:
-        return JSONResponse(
-            content={"verified": False, "message": "User not verified"}, status_code=400
-        )
+        message = "User verified on merkle tree"
+
+    return JSONResponse(
+        content={"message": message, "results": result}
+    )
 
 
 @router.post("/logout")

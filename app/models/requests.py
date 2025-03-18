@@ -6,40 +6,20 @@ from pydantic import BaseModel, EmailStr, Field
 from sqlmodel import Field, SQLModel
 
 
-class LoginRequest(BaseModel):
-    username: str
-    password: str  # This field is still required for password-based users
+class HashProof(BaseModel):
+    """
+    HashProof model for the request body.
+    """
+
+    did: str
+    merkleHash: str
+    merkleProof: list[list[str]]
 
 
+class MerkleInput(BaseModel):
+    """
+    MerkleInput model for the request body.
+    """
 
-
-class ChallengeRequest(BaseModel):
-    address: str  # Ethereum address for the challenge
-
-
-# SignRequest schema
-class SignRequest(BaseModel):
-    address: str
-    message: str
-    signature: str
-
-
-class VerifyRequest(BaseModel):
-    address: str  # Ethereum address
-    message: str  # Message to be verified
-    signature: str  # Signed message
-
-
-class RegisterDID(BaseModel):
-    user: str
-    public_key: str
-
-
-class IssueVC(BaseModel):
-    holder: str
-    credential_hash: str
-
-
-class RevokeVC(BaseModel):
-    holder: str
-    credential_hash: str
+    user_id: str
+    credentials: dict

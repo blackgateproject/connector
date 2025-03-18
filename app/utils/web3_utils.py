@@ -203,8 +203,8 @@ def verifyUserOnMerkle(hash: str, proof: list[str]):
     validOnchain = contract.functions.verifyProof(hash, proof).call()
 
     results = {
-        "valid-Offchain": validOffchain,
-        "valid-Onchain": validOnchain,
+        "valid_Offchain": validOffchain,
+        "valid_Onchain": validOnchain,
     }
 
     return results
