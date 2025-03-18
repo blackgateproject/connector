@@ -210,7 +210,7 @@ async def pollRequestStatus(
 async def verify_user(
     # request: Request,
     zkp: HashProof,
-    # settings: dict = Depends(settings_dependency),
+    settings: settings_dependency,
     # _: dict = Depends(verify_jwt),
 ):
     """
@@ -239,8 +239,51 @@ async def verify_user(
     else:
         message = "User verified on merkle tree"
 
+    # If the user is vaid on both chains, return an anon user with the did in options
+    # print(f"about to entry valid verify")
+    if result["valid_Offchain"] and result["valid_Onchain"]:
+        # print(f"In valid verify")
+        # Create a supabase client
+        supabase: Client = create_client(
+            supabase_url=settings.SUPABASE_URL, supabase_key=settings.SUPABASE_ANON_KEY
+        )
+
+        # Once created, attempt to fetch an anon user
+        if supabase:
+            try:
+                # Add the request to the supabase table
+                response = supabase.auth.sign_in_anonymously(
+                    {
+                        "options": {"data": {"did": did}},
+                    }
+                )
+                # print(f"Response[Parse for access TOken + refresh]: \n{response}")
+                # print(f"\nSession: \n{response.session}")
+                print(f"Session.provider_token: {response.session.provider_token}")
+                print(f"Session.access_token: {response.session.access_token}")
+                print(f"Session.refresh_token: {response.session.refresh_token}")
+                print(f"Session.expires_in: {response.session.expires_in}")
+                print(f"Session.expires_at: {response.session.expires_at}")
+                print(f"Session.token_type: {response.session.token_type}")
+
+                if response.session:
+                    access_token = response.session.access_token
+                    refresh_token = response.session.refresh_token
+                else:
+                    access_token = None
+                    refresh_token = None
+            except Exception as e:
+                print(f"Error: {e}")
+        else:
+            raise Exception("[ERROR]: Supabase client not created")
+
     return JSONResponse(
-        content={"message": message, "results": result}
+        content={
+            "message": message,
+            "results": result,
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+        }
     )
 
 
@@ -255,7 +298,7 @@ async def logout(
     """
     body = await request.json()
     access_token = body.get("access_token")
-    uuid = body.get("uuid")
+    # did = body.get("did")
 
     supabase: Client = create_client(
         supabase_url=settings.SUPABASE_URL, supabase_key=settings.SUPABASE_SERV_KEY
@@ -265,15 +308,15 @@ async def logout(
         # Call the logout API for supabase as well
         supabase.auth.admin.sign_out(access_token)
 
-        # Remove the user from the logged_in_users list
-        for user in logged_in_users:
-            if user.uuid == uuid:
-                logged_in_users.remove(user)
-                await log_user_action(uuid, "User logged out", settings, type="Logout")
-                return JSONResponse(
-                    content={"authenticated": False, "message": "User logged out"},
-                    status_code=200,
-                )
+        # # Remove the user from the logged_in_users list
+        # for user in logged_in_users:
+        #     if user.uuid == did:
+        #         logged_in_users.remove(user)
+        #         await log_user_action(did, "User logged out", settings, type="Logout")
+        #         return JSONResponse(
+        #             content={"authenticated": False, "message": "User logged out"},
+        #             status_code=200,
+        #         )
         return JSONResponse(
             content={"authenticated": False, "message": "User not found"},
             status_code=404,
