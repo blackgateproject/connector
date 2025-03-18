@@ -103,13 +103,13 @@ def getContractZKsync(contract_name: str):
         txHash = entry.get("txHash")
         constructorArgs = entry.get("constructorArgs")
 
-        if debug >= 4:
+        # if debug >= 4:
 
-            print(f"Contract Address: {contract_address}")
-            print(f"Contract ABI: {contract_abi}")
-            print(f"Transaction Hash: {txHash}")
-            print(f"Constructor Args: {constructorArgs}")
-            print("\n")
+        #     print(f"Contract Address: {contract_address}")
+        #     print(f"Contract ABI: {contract_abi}")
+        #     print(f"Transaction Hash: {txHash}")
+        #     print(f"Constructor Args: {constructorArgs}")
+        #     print("\n")
 
     # # Return both the contract address and ABI for further use
 
