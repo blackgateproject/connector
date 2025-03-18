@@ -82,27 +82,27 @@ async def get_user_profile(
         user_response = supabase.auth.get_user(access_token)
         user = user_response.user
 
-        # Fetch the role from the user_roles table
-        role_response = (
-            supabase.table("user_roles")
-            .select("role")
-            .eq("user_id", user.id)
-            .single()
-            .execute()
-        )
-        role = role_response.data["role"] if role_response.data else "user"
+        # #Fetch the role from the user_roles table
+        # role_response = (
+        #     supabase.table("user_roles")
+        #     .select("role")
+        #     .eq("user_id", user.id)
+        #     .single()
+        #     .execute()
+        # )
+        # role = role_response.data["role"] if role_response.data else "user"
 
-        # Fetch the twoFactorAuth value from the user_keys table
-        keys_response = (
-            supabase.table("user_keys")
-            .select("two_factor_auth")
-            .eq("user_id", user.id)
-            .single()
-            .execute()
-        )
-        two_factor_auth = (
-            keys_response.data["two_factor_auth"] if keys_response.data else False
-        )
+        # # Fetch the twoFactorAuth value from the user_keys table
+        # keys_response = (
+        #     supabase.table("user_keys")
+        #     .select("two_factor_auth")
+        #     .eq("user_id", user.id)
+        #     .single()
+        #     .execute()
+        # )
+        # two_factor_auth = (
+        #     keys_response.data["two_factor_auth"] if keys_response.data else False
+        # )
 
         # Prepare user data to return
         user_data = {
@@ -110,9 +110,9 @@ async def get_user_profile(
             "lastName": user.user_metadata.get("lastName", ""),
             "email": user.email,
             "phone": user.user_metadata.get("phoneNumber", "N/A"),
-            "role": role,
-            "passwordSet": True,
-            "twoFactorAuth": two_factor_auth,
+            # "role": role,
+            # "passwordSet": True,
+            # "twoFactorAuth": two_factor_auth,
         }
         await log_user_action(user.id, "Viewed profile", settings, type="Profile View")
         return JSONResponse(content=user_data, status_code=200)
