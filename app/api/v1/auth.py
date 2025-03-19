@@ -17,6 +17,7 @@ from ...utils.core_utils import (
     verify_jwt,
 )
 from ...utils.web3_utils import addUserToMerkle, verifyUserOnMerkle
+import time
 
 router = APIRouter()
 
@@ -205,17 +206,16 @@ async def pollRequestStatus(
 # ensure this is optimized to be non-blocking
 #
 
-
 @router.post("/verify")
 async def verify_user(
-    # request: Request,
     zkp: HashProof,
     settings: settings_dependency,
-    # _: dict = Depends(verify_jwt),
 ):
     """
     Verify user on the merkle tree.
     """
+    start_time = time.time()
+    
     did = zkp.did
     merkleHash = zkp.merkleHash
     merkleProof = zkp.merkleProof
@@ -239,10 +239,8 @@ async def verify_user(
     else:
         message = "User verified on merkle tree"
 
-    # If the user is vaid on both chains, return an anon user with the did in options
-    # print(f"about to entry valid verify")
+    # If the user is valid on both chains, return an anon user with the did in options
     if result["valid_Offchain"] and result["valid_Onchain"]:
-        # print(f"In valid verify")
         # Create a supabase client
         supabase: Client = create_client(
             supabase_url=settings.SUPABASE_URL, supabase_key=settings.SUPABASE_ANON_KEY
@@ -257,21 +255,22 @@ async def verify_user(
                         "options": {"data": {"did": did}},
                     }
                 )
-                # print(f"Response[Parse for access TOken + refresh]: \n{response}")
-                # print(f"\nSession: \n{response.session}")
-                print(f"Session.provider_token: {response.session.provider_token}")
-                print(f"Session.access_token: {response.session.access_token}")
-                print(f"Session.refresh_token: {response.session.refresh_token}")
-                print(f"Session.expires_in: {response.session.expires_in}")
-                print(f"Session.expires_at: {response.session.expires_at}")
-                print(f"Session.token_type: {response.session.token_type}")
+                print(f"Response[Parse for access TOken + refresh]: \n{response}")
 
                 if response.session:
                     access_token = response.session.access_token
                     refresh_token = response.session.refresh_token
                 else:
-                    access_token = None
-                    refresh_token = None
+                    access_token = ""
+                    refresh_token = ""
+
+                end_time = time.time()
+                duration = end_time - start_time
+
+                # Placeholder for supabase code to store the duration
+                # supabase.table("request_durations").insert({"did": did, "duration": duration}).execute()
+                response = supabase.table("login_events").insert({"did_str": did, "auth_duration": duration}).execute()
+                print(f"Added login event to supabase: \n{response}")
             except Exception as e:
                 print(f"Error: {e}")
         else:
@@ -283,6 +282,7 @@ async def verify_user(
             "results": result,
             "access_token": access_token,
             "refresh_token": refresh_token,
+            "duration": duration,
         }
     )
 
