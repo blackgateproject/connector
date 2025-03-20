@@ -2,7 +2,9 @@ import os
 import pickle
 
 from multiproof.standard import LeafValue, StandardMerkleTree, StandardMerkleTreeData
+from supabase import Client, create_client
 
+# from ..utils.core_utils import get_settings
 from ..utils.merkle_utils import merkleTreeUtils
 
 # class merkleClass:
@@ -39,7 +41,11 @@ from ..utils.merkle_utils import merkleTreeUtils
 #             proof = tree.get_proof(i)
 #             print(f"[CORE] Value: {leaf.value}")
 #             print(f"[CORE] Proof: {proof}")
+# SUPABASE_URL = "https://jbrisailzbvycvbacikm.supabase.co"
+# SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpicmlzYWlsemJ2eWN2YmFjaWttIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDIyNzYwMzAsImV4cCI6MjA1Nzg1MjAzMH0.YHJC1W6c-cgVEOlokOqi5JkgrXziYPH6NAsX2Z6_-QU"
 
+SUPABASE_URL = "http://localhost:54321"
+SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.fYamB_Z6e4CCy5uYZU_LS5It2yKp1wAAG3-oAoSKAiQ"
 
 class abdMerkleClass:
     def __init__(self):
@@ -47,6 +53,10 @@ class abdMerkleClass:
         self.merkle_tree = merkleTreeUtils()
         # self.merkle_tree = None
         print(f"[CORE] Merkle Tree Initialized. \n{type(self.merkle_tree)}")
+        self.supabase: Client = create_client(
+            supabase_url=SUPABASE_URL,
+            supabase_key=SUPABASE_ANON_KEY,
+        )
 
     def add_user(self, user_id, credentials):
         """Add a user to the Merkle Tree and create a hash entry in the proofs table."""
@@ -59,40 +69,84 @@ class abdMerkleClass:
             "hash": hash_value,
             "proof": proof,  # Empty proof initially, will be updated in `_update_proofs`
         }
-        # response = self.supabase.table("proofs").upsert(data_entry).execute()
-        # if response.status_code != 200:
-        #     raise Exception(
-        #         f"Error creating hash entry for user {user_id}: {response.error}"
-        #     )
+
         print(f"Hash entry created for user {user_id} with hash {hash_value}.")
 
-        self._update_proofs()
+        # Should run in a loop and update everyone's proofs
+        print(
+            f"[add_user()] Adding proof to supabase: \n\tDID: {user_id} \n\tHash: {hash_value} \n\tProof: {proof}"
+        )
+        try:
+            response = (
+                self.supabase.table("merkle")
+                .upsert(
+                    {
+                        "hash": hash_value,
+                        "proofs": proof,
+                        "did": user_id,
+                    }
+                )
+                .execute()
+            )
+        except Exception as e:
+            print(f"[add_user()] Error adding proof to supabase: {e}")
+
+            # maybe move it back
+        self._update_proofs(user_id)
 
         return data_entry
 
-    def update_user(self, old_credentials, new_credentials):
-        """Update a user's credentials in the Merkle Tree."""
-        self.merkle_tree.delete_leaf(old_credentials)
-        self.merkle_tree.add_leaf(new_credentials)
-        self._update_proofs()
+    # def update_user(self, old_credentials, new_credentials):
+    #     """Update a user's credentials in the Merkle Tree."""
+    #     self.merkle_tree.delete_leaf(old_credentials)
+    #     self.merkle_tree.add_leaf(new_credentials)
+    #     self._update_proofs()
 
-    def delete_user(self, credentials):
-        """Delete a user from the Merkle Tree."""
-        self.merkle_tree.delete_leaf(credentials)
-        self._update_proofs()
+    # def delete_user(self, credentials):
+    #     """Delete a user from the Merkle Tree."""
+    #     self.merkle_tree.delete_leaf(credentials)
+    #     self._update_proofs()
 
-    def _update_proofs(self):
+    def _update_proofs(self, did):
         """Recalculate and store proofs for all leaves in the Merkle tree."""
+        newDid = did
+        # self.merkle_tree._build_tree()
         for leaf in self.merkle_tree.leaves:
+            try:
+                response = (
+                    self.supabase.table("merkle").select("*").eq("hash", leaf).execute()
+                )
+                if response.data:
+                    print(f"[update_proofs()] Proof already exists for {leaf}.")
+                    print(f"[update_proofs()] Response: {response.data}")
+                    newDid = response.data[0]["did"]
+                    continue
+            except Exception as e:
+                print(f"[update_proofs()] Error checking proof: {e}")
+                continue
             proof = self.merkle_tree.get_proof(leaf)
-            self._store_proof(leaf, proof)
+            self._store_proof(leaf, proof, newDid)
         print("All proofs updated and stored in Supabase.")
 
-    def _store_proof(self, hash_value, proof):
+    def _store_proof(self, hash_value, proof, did):
         """Store or update a proof in the Supabase `proofs` table."""
-        data = {"hash": hash_value, "proof": proof}
-        # response = self.supabase.table("proofs").upsert(data).execute()
+        print(
+            f"[store_proof()] Storing proof for did{did} with hash {hash_value} with proof {proof}."
+        )
+        # data = {"hash": hash_value, "proofs": proof, "did": did}
+        response = (
+            self.supabase.table("merkle")
+            .upsert(
+                {
+                    "hash": hash_value,
+                    "proofs": proof,
+                    "did": did,
+                }
+            )
+            .execute()
+        )
         print(f"Proof stored successfully for hash {hash_value}.")
+        print(f"[store_proof()] Out of store_proof()")
 
     def print_tree(self):
         print(self.merkle_tree.print_tree())
