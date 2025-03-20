@@ -68,7 +68,9 @@ async def register(request: Request, settings: settings_dependency):
                             "did_str": didString,
                             "verifiable_cred": verifiableCredential,
                             "usernetwork_info": usernetwork_info,
-                            "request_status": "approved" if requested_role == "device" else "pending",
+                            "request_status": (
+                                "approved" if requested_role == "device" else "pending"
+                            ),
                             "requested_role": requested_role,
                             "isZKPSent": False,
                         }
@@ -215,7 +217,7 @@ async def verify_user(
     """
     Verify user on the merkle tree.
     """
-    start_time = time.time()
+    total_start_time = time.time()
 
     did = zkp.did
     merkleHash = zkp.merkleHash
@@ -265,13 +267,20 @@ async def verify_user(
                     refresh_token = ""
 
                 end_time = time.time()
-                duration = end_time - start_time
+                duration = end_time - total_start_time
 
                 # Placeholder for supabase code to store the duration
                 # supabase.table("request_durations").insert({"did": did, "duration": duration}).execute()
                 response = (
                     supabase.table("login_events")
-                    .insert({"did_str": did, "auth_duration": duration})
+                    .insert(
+                        {
+                            "did_str": did,
+                            "total_auth_duration": duration,
+                            "local_auth_duration": result["auth_Offchain_duration"],
+                            "onchain_auth_duration": result["auth_Onchain_duration"],
+                        }
+                    )
                     .execute()
                 )
                 print(f"Added login event to supabase: \n{response}")

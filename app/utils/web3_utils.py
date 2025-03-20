@@ -3,6 +3,7 @@ import json
 import os
 from datetime import datetime, timezone
 from functools import lru_cache
+import time
 
 import didkit
 from eth_account import Account
@@ -199,20 +200,28 @@ def verifyUserOnMerkle(hash: str):
     Verify a user on the Merkle Tree
     """
     # Verify the user on the Merkle Tree
+    before_local_verify = time.time()
     proof = merkleCore.merkle_tree.get_proof(hash)
     validOffchain = merkleCore.verify_proof(hash, proof)
+    local_verify_duration = time.time() - before_local_verify
+    print(f"[verifyUserOnMerkle()] Local verification duration: {local_verify_duration:.4f} seconds")
     # validOffchain = merkleCore.verify_proof(hash, proof)
 
 
     # [TEST] Verify the user on the blockchain by computing the proof
     # This should be moved to the frontend
     contract = get_merkle_verifier()
+    before_onchain_verify = time.time()
     # Call the verifyProof function from the contract
     validOnchain = contract.functions.verifyProof(hash, proof).call()
-
+    onchain_verify_duration = time.time() - before_onchain_verify
+    print(f"[verifyUserOnMerkle()] Onchain verification duration: {onchain_verify_duration:.4f} seconds")
+    
     results = {
         "valid_Offchain": validOffchain,
         "valid_Onchain": validOnchain,
+        "auth_Offchain_duration": local_verify_duration,
+        "auth_Onchain_duration": onchain_verify_duration,
     }
 
     return results
