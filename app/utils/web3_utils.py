@@ -29,7 +29,8 @@ settings_dependency = Annotated[Settings, Depends(get_settings)]
 w3 = Web3(Web3.HTTPProvider(settings_dependency().BLOCKCHAIN_RPC_URL))
 
 debug = settings_dependency().DEBUG
-
+zksyncNodeType = settings_dependency().ZKSYNC_NODE_TYPE
+chain_id = settings_dependency().ZKSYNC_CHAIN_ID
 wallet_prv_key = ""
 wallet_addr = ""
 signer = None
@@ -43,7 +44,7 @@ if settings_dependency().BLOCKCHAIN_WALLET_ADDR:
     # # Setup a zkSync wallet
     account: LocalAccount = Account.from_key(wallet_prv_key)
     # wallet = Wallet(account)
-    
+
 
 
     if derived_addr != wallet_addr:
@@ -53,7 +54,6 @@ if settings_dependency().BLOCKCHAIN_WALLET_ADDR:
 
     if debug >= 2:
         print("Using Wallet Address from .env")
-
 else:
     print(
         f"BLOCKCHAIN_WALLET_ADDR not set in .env, please use a valid private key and address"
@@ -75,7 +75,6 @@ def getContractZKsync(contract_name: str):
     base_dir = r"..\..\blockchain"
 
     # zksyncNodeType[dockerizedNode, anvilZKsync, zkSyncSepoliaTestnet, zkSyncSepoliaMainet]
-    zksyncNodeType = "zkSyncSepoliaTestnet"
     deployments_json_path = os.path.join(
         base_dir,
         "deployments-zk",
@@ -144,21 +143,27 @@ def addUserToMerkle(user: str, pw: str):
     """
     # Add the user to the Merkle Tree
     # print(f"[addUserToMerkle()] Old merkle root: {merkleCore.get_root()}")
+    # print(f"[addUserToMerkle()] Adding to local merkle tree")
     userHashAndProof = merkleCore.add_user(user, pw)
+    # print(f"[addUserToMerkle()] User Added to local merkle tree")
     # print(f"[addUserToMerkle()] Data Entries: {userHashAndProof}")
     # print(f"[addUserToMerkle()] New merkle root: {merkleCore.get_root()}")
 
+
     # Update the merkle root state onchain
+    print(f"[addUserToMerkle()] Updating root onchain")
     root = str(merkleCore.get_root())
     built_tx = get_merkle_verifier().functions.storeMerkleRoot(root).build_transaction({
         "from": wallet_addr,
-        "chainId": 300,
+        "chainId": chain_id,
         "gas": 2000000,
         "gasPrice": w3.to_wei("1", "gwei"),
         "nonce": w3.eth.get_transaction_count(wallet_addr),
     })
+    print(f"[addUserToMerkle()] Built transaction: {built_tx}")
     signed_tx = w3.eth.account.sign_transaction(built_tx, private_key=wallet_prv_key)
     signed_tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
+    print(f"[addUserToMerkle()] Updated root onchain")
     # logs = (
     #     get_did_registry()
     #     .events.DIDRegistered()
@@ -188,12 +193,15 @@ def addUserToMerkle(user: str, pw: str):
     return data
 
 
-def verifyUserOnMerkle(hash: str, proof: list[str]):
+# def verifyUserOnMerkle(hash: str, proof: list[str]):
+def verifyUserOnMerkle(hash: str):
     """
     Verify a user on the Merkle Tree
     """
     # Verify the user on the Merkle Tree
+    proof = merkleCore.merkle_tree.get_proof(hash)
     validOffchain = merkleCore.verify_proof(hash, proof)
+    # validOffchain = merkleCore.verify_proof(hash, proof)
 
 
     # [TEST] Verify the user on the blockchain by computing the proof

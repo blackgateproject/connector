@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str
     JWT_EXPIRES: int
     DEBUG: int
+    ZKSYNC_NODE_TYPE: str
+    ZKSYNC_CHAIN_ID: int
     # BACKEND_DID: str
     # BACKEND_JWK: str
     # BACKEND_ACC: int

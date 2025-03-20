@@ -121,8 +121,8 @@ async def pollRequestStatus(
                 .execute()
             )
             # Print the request data
-            if debug:
-                print(f"Request Status: {request.data[0]}")
+            # if debug:
+            #     print(f"Request Status: {request.data[0]}")
 
             if request.data:
                 # Check if the request is approved but no ZKP has been sent yet
@@ -149,7 +149,7 @@ async def pollRequestStatus(
                         .execute()
                     )
                     print(
-                        f"Request Data after status update: \n{response.data[0]['isZKPSent']}"
+                        f"Request Data after status update to accepted: \n{response.data[0]['isZKPSent']}"
                     )
                     returnResponse = {
                         "message": f"approved request for role {request.data[0]['requested_role']}",

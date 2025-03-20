@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from .api.v1 import admin, auth, blockchain, merkle, setup, user
 from .core.merkle import merkleCore
 from .utils.core_utils import settings_dependency, setup_state, verify_jwt
+from .core.merkle import merkleCore
 
 app = FastAPI()
 debug = settings_dependency().DEBUG
@@ -56,9 +57,7 @@ app.add_middleware(
 async def shutdown_event():
     print(f"[CORE] Shutting down merkle tree.")
     # Save the merkle tree to a file
-    with open("merkle_tree.pkl", "wb") as f:
-        pickle.dump(merkleCore, f)
-    print(f"[CORE] Merkle tree saved to merkle_tree.pkl.")
+    merkleCore.save_tree_to_file("merkle_tree.pkl")
 
 
 # Add a redirect middleware for invalid JWT, this will redirect to the login page at "/"

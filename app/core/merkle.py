@@ -47,6 +47,7 @@ from ..utils.merkle_utils import merkleTreeUtils
 SUPABASE_URL = "http://localhost:54321"
 SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.fYamB_Z6e4CCy5uYZU_LS5It2yKp1wAAG3-oAoSKAiQ"
 
+
 class abdMerkleClass:
     def __init__(self):
         # Initialize Supabase client
@@ -111,20 +112,28 @@ class abdMerkleClass:
         """Recalculate and store proofs for all leaves in the Merkle tree."""
         newDid = did
         # self.merkle_tree._build_tree()
+        print(
+            f"[update_proofs()] Merkle Tree has {len(self.merkle_tree.leaves)} leaves."
+        )
         for leaf in self.merkle_tree.leaves:
             try:
+                print(f"[update_proofs()] Leaf: {leaf}")
                 response = (
                     self.supabase.table("merkle").select("*").eq("hash", leaf).execute()
                 )
                 if response.data:
-                    print(f"[update_proofs()] Proof already exists for {leaf}.")
-                    print(f"[update_proofs()] Response: {response.data}")
+                    # print(f"[update_proofs()] Proof already exists for {leaf}.")
+                    # print(f"[update_proofs()] Response: {response.data}")
                     newDid = response.data[0]["did"]
-                    continue
+                    print(f"[update_proofs()] New DID: {newDid}")
+                    # continue
             except Exception as e:
                 print(f"[update_proofs()] Error checking proof: {e}")
                 continue
             proof = self.merkle_tree.get_proof(leaf)
+            print(
+                f"[update_proofs()] Adding proof to supabase: \n\tDID: {newDid} \n\tHash: {leaf} \n\tProof: {proof}"
+            )
             self._store_proof(leaf, proof, newDid)
         print("All proofs updated and stored in Supabase.")
 
@@ -181,8 +190,11 @@ class abdMerkleClass:
         # )
         # data = f"{id}|{creds}"
         # hash_value = self.merkle_tree.hash(data)
+
+        # Fetch proof from Supabase for the given hash
         valid = self.merkle_tree.verify_proof(
             leaf_data=leaf, proof=proof, root=self.get_root()
+            # leaf_data=leaf, proof=self.merkle_tree.get_proof(leaf), root=self.get_root()
         )
         return valid
 
@@ -198,6 +210,8 @@ class abdMerkleClass:
     #     print(f"zkSync Response: {response.json()}")
     def save_tree_to_file(self, filename):
         """Save the Merkle tree to a file."""
+        print(f"[CORE] Merkle Tree Print.")
+        self.merkle_tree.print_tree()
         with open(filename, "wb") as file:
             pickle.dump(self.merkle_tree, file)
 
@@ -205,12 +219,33 @@ class abdMerkleClass:
     def load_tree_from_file(filename):
         """Load the Merkle tree from a file."""
         if os.path.exists(filename):
-            with open(filename, "rb") as file:
-                merkle_tree = pickle.load(file)
-                print(f"[CORE] Merkle tree loaded from {filename}.")
-                return merkle_tree
+            if os.path.getsize(filename) > 0:  # Ensure the file is not empty
+                try:
+                    with open(filename, "rb") as file:
+                        merkle_tree = pickle.load(file)
+                        if isinstance(
+                            merkle_tree, merkleTreeUtils
+                        ):  # Check if it's the tree utils only
+                            new_instance = abdMerkleClass()
+                            new_instance.merkle_tree = (
+                                merkle_tree  # Assign the loaded tree
+                            )
+                            return new_instance
+                        elif isinstance(
+                            merkle_tree, abdMerkleClass
+                        ):  # If already the correct type
+                            return merkle_tree
+                except (EOFError, pickle.UnpicklingError):
+                    print(
+                        f"[ERROR] Corrupted or unreadable file: {filename}. Please regenerate it."
+                    )
+                    return abdMerkleClass()
+            else:
+                print(f"[ERROR] File {filename} is empty.")
+                return abdMerkleClass()
         else:
-            print(f"File {filename} does not exist.")
+            print(f"[ERROR] File {filename} does not exist.")
+            return abdMerkleClass()
 
 
 # Load merkle tree from file if it exists

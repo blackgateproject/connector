@@ -7,10 +7,10 @@ from pydantic import BaseModel
 from supabase import Client, create_client
 
 from ...core.merkle import merkleCore
+from ...models.requests import HashProof, MerkleInput
 from ...utils.core_utils import log_user_action, settings_dependency, verify_jwt
 from ...utils.web3_utils import addUserToMerkle, getZKSyncMerkleRoot, verifyUserOnMerkle
 
-from ...models.requests import HashProof, MerkleInput
 # from ...utils.pki_utils import generate_private_key, generate_public_key
 
 # Initialize the API router
@@ -103,14 +103,14 @@ async def verify_user(
     Verify user on the merkle tree.
     """
     merkleHash = zkp.merkleHash
-    merkleProof = zkp.merkleProof
+    # merkleProof = zkp.merkleProof
     print(f"[verify_user()] merkleHash: {merkleHash}")
-    print(f"[verify_user()] merkleProof: {merkleProof}")
+    # print(f"[verify_user()] merkleProof: {merkleProof}")
 
     # Verify user on the merkle tree
     result = verifyUserOnMerkle(
         merkleHash,
-        merkleProof,
+        # merkleProof,
     )
 
     print(f"[verify_user()] results: {result}")

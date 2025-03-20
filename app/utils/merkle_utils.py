@@ -94,7 +94,7 @@ class merkleTreeUtils:
 
     def print_tree(self):
         """Print the Merkle Tree in a readable format."""
-        print("\nMerkle Tree Structure:")
+        print("Merkle Tree Structure:")
         for level, nodes in enumerate(self.tree):
             print(f"Level {len(self.tree) - level - 1}: {nodes}")
 
