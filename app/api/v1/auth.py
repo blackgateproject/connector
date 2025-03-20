@@ -134,6 +134,7 @@ async def pollRequestStatus(
                     entry = addUserToMerkle(
                         request.data[0]["did_str"],
                         request.data[0]["verifiable_cred"],
+                        
                     )
                     print(f"Added user to merkle tree: {entry}")
 
@@ -219,6 +220,38 @@ async def verify_user(
     did = zkp.did
     merkleHash = zkp.merkleHash
     merkleProof = zkp.merkleProof
+
+    # Fetch merkleProof from supabase on the merkleHash
+    supabase: Client = create_client(
+        supabase_url=settings.SUPABASE_URL, supabase_key=settings.SUPABASE_ANON_KEY
+    )
+    if supabase:
+        try:
+            # Fetch the merkle proof from the supabase table
+            response = (
+                supabase.table("merkle")
+                .select("proofs").eq("hash", merkleHash).execute()
+            )
+            # Print the request data
+            if debug:
+                print(f"Merkle Proof: {response.data[0]}")
+            if response.data:
+                merkleProof = response.data[0]["proofs"]
+            else:
+                print(f"No merkle proof found for this hash")
+                return JSONResponse(
+                    content={"message": "No merkle proof found for this hash"},
+                    status_code=404,
+                )
+        except Exception as e:
+            print(f"Error: {e}")
+            return JSONResponse(
+                content={"authenticated": False, "error": str(e)}, status_code=500
+            )
+    else:
+        raise Exception("[ERROR]: Supabase client not created")
+    
+
     print(f"[verify_user()] DID: {did}")
     print(f"[verify_user()] merkleHash: {merkleHash}")
     print(f"[verify_user()] merkleProof: {merkleProof}")
