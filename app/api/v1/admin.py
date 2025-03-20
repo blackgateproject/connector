@@ -361,7 +361,7 @@ async def approve_request(
             .update(
                 {
                     "request_status": "approved",
-                    "updated_at": datetime.now(timezone.utc).time().isoformat(),
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
                 }
             )
             .eq("id", request_id)
