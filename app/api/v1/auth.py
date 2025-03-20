@@ -1,3 +1,4 @@
+import time
 from typing import Annotated
 from uuid import UUID
 
@@ -17,7 +18,6 @@ from ...utils.core_utils import (
     verify_jwt,
 )
 from ...utils.web3_utils import addUserToMerkle, verifyUserOnMerkle
-import time
 
 router = APIRouter()
 
@@ -68,7 +68,7 @@ async def register(request: Request, settings: settings_dependency):
                             "did_str": didString,
                             "verifiable_cred": verifiableCredential,
                             "usernetwork_info": usernetwork_info,
-                            "request_status": "pending",
+                            "request_status": "approved" if requested_role == "device" else "pending",
                             "requested_role": requested_role,
                             "isZKPSent": False,
                         }
@@ -134,7 +134,6 @@ async def pollRequestStatus(
                     entry = addUserToMerkle(
                         request.data[0]["did_str"],
                         request.data[0]["verifiable_cred"],
-                        
                     )
                     print(f"Added user to merkle tree: {entry}")
 
@@ -207,6 +206,7 @@ async def pollRequestStatus(
 # ensure this is optimized to be non-blocking
 #
 
+
 @router.post("/verify")
 async def verify_user(
     zkp: HashProof,
@@ -216,50 +216,17 @@ async def verify_user(
     Verify user on the merkle tree.
     """
     start_time = time.time()
-    
+
     did = zkp.did
     merkleHash = zkp.merkleHash
-    merkleProof = zkp.merkleProof
-
-    # Fetch merkleProof from supabase on the merkleHash
-    supabase: Client = create_client(
-        supabase_url=settings.SUPABASE_URL, supabase_key=settings.SUPABASE_ANON_KEY
-    )
-    if supabase:
-        try:
-            # Fetch the merkle proof from the supabase table
-            response = (
-                supabase.table("merkle")
-                .select("proofs").eq("hash", merkleHash).execute()
-            )
-            # Print the request data
-            if debug:
-                print(f"Merkle Proof: {response.data[0]}")
-            if response.data:
-                merkleProof = response.data[0]["proofs"]
-            else:
-                print(f"No merkle proof found for this hash")
-                return JSONResponse(
-                    content={"message": "No merkle proof found for this hash"},
-                    status_code=404,
-                )
-        except Exception as e:
-            print(f"Error: {e}")
-            return JSONResponse(
-                content={"authenticated": False, "error": str(e)}, status_code=500
-            )
-    else:
-        raise Exception("[ERROR]: Supabase client not created")
-    
+    # merkleProof = zkp.merkleProof
 
     print(f"[verify_user()] DID: {did}")
     print(f"[verify_user()] merkleHash: {merkleHash}")
-    print(f"[verify_user()] merkleProof: {merkleProof}")
 
     # Verify user on the merkle tree
     result = verifyUserOnMerkle(
         merkleHash,
-        merkleProof,
     )
 
     print(f"[verify_user()] results: {result}")
@@ -302,7 +269,11 @@ async def verify_user(
 
                 # Placeholder for supabase code to store the duration
                 # supabase.table("request_durations").insert({"did": did, "duration": duration}).execute()
-                response = supabase.table("login_events").insert({"did_str": did, "auth_duration": duration}).execute()
+                response = (
+                    supabase.table("login_events")
+                    .insert({"did_str": did, "auth_duration": duration})
+                    .execute()
+                )
                 print(f"Added login event to supabase: \n{response}")
             except Exception as e:
                 print(f"Error: {e}")
