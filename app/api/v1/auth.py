@@ -1,3 +1,5 @@
+import json
+import random
 import time
 from typing import Annotated
 from uuid import UUID
@@ -59,6 +61,18 @@ async def register(request: Request, settings: settings_dependency):
     if supabase:
         try:
             # Add the request to the supabase table
+            # Parse verifiableCredential to check testMode
+            vc_data = (
+                json.loads(verifiableCredential)
+                if isinstance(verifiableCredential, str)
+                else verifiableCredential
+            )
+            test_mode = vc_data.get("credentialSubject", {}).get("testMode", False)
+
+            # For device role, approve automatically only if not in test mode
+            random_status = "approved" if requested_role == "device" and not test_mode else "pending"
+
+
             request = (
                 supabase.table("requests")
                 .insert(
@@ -68,9 +82,7 @@ async def register(request: Request, settings: settings_dependency):
                             "did_str": didString,
                             "verifiable_cred": verifiableCredential,
                             "usernetwork_info": usernetwork_info,
-                            "request_status": (
-                                "approved" if requested_role == "device" else "pending"
-                            ),
+                            "request_status": random_status,
                             "requested_role": requested_role,
                             "isZKPSent": False,
                         }
@@ -94,6 +106,186 @@ async def register(request: Request, settings: settings_dependency):
             )
     else:
         raise Exception("[ERROR]: Supabase client not created")
+
+
+@router.get("/pollTest/{wallet_address}")
+async def testAutoApproveReq(
+    request: Request, settings: settings_dependency, wallet_address: str
+):
+    """
+    TESTING ONLY, DISABLE WHEN DONE, will approve any request with the wallet address
+    uses approval code from pollRequestStatus, will return the same response as pollRequestStatus
+
+    """
+    # Print the request body
+    if debug:
+        print(f"Recieved Data: {wallet_address}")
+
+    # Add details to supabase table "requests"
+    supabase: Client = create_client(
+        supabase_url=settings.SUPABASE_URL, supabase_key=settings.SUPABASE_ANON_KEY
+    )
+    if supabase:
+        try:
+            # Fetch requests table from supabase
+            request = (
+                supabase.table("requests")
+                .select("*")
+                .eq("wallet_addr", wallet_address)
+                .execute()
+            )
+            # Print the request data
+            # if debug:
+            #     print(f"Request Status: {request.data[0]}")
+            returnResponse = {
+                "authenticated": False,
+                "message": "No pending request found",
+            }
+            entry = None
+            if request.data and request.data[0]["request_status"] != "approved":
+                # Existing code to add user to merkle tree and update status
+                # Update status to accepted
+                response = (
+                    supabase.table("requests")
+                    .update(
+                        {
+                            "isZKPSent": True,
+                            "verifiable_cred": None,
+                            "request_status": "approved",
+                        }
+                    )
+                    .eq("wallet_addr", wallet_address)
+                    .execute()
+                )
+                entry = addUserToMerkle(
+                    request.data[0]["did_str"],
+                    request.data[0]["verifiable_cred"],
+                )
+                print(f"Added user to merkle tree: {entry}")
+                print(
+                    f"Request Data after status update to accepted: \n{response.data[0]['isZKPSent']}"
+                )
+
+                returnResponse = {
+                    "message": f"test approved request for role {request.data[0]['requested_role']}",
+                    "merkle_hash": entry["userHash"],
+                    "merkle_proof": entry["userProof"],
+                    "merkle_root": entry["merkleRoot"],
+                    "tx_hash": entry["txHash"],
+                    "request_status": f"{response.data[0]['request_status']}",
+                }
+            elif request.data and request.data[0]["request_status"] == "approved":
+                # Handle already approved case
+
+                # Fetch existing proof for did from merkle table
+                entry = supabase.table("merkle").select("*").eq("did", request.data[0]["did_str"]).execute()
+                print(f"Entry: {entry.data}")
+                if entry.data:
+                    entry = entry.data[0]
+                    returnResponse = {
+                        "message": f"User already added to merkle tree",
+                        "did": request.data[0]["did"],
+                        "merkle_hash": entry["userHash"],
+                        "merkle_proof": entry["userProof"],
+                        # "merkle_root": entry["merkleRoot"],
+                        # "tx_hash": entry["txHash"],
+                        "request_status": f"{request.data[0]['request_status']}",
+                    }
+
+                returnResponse = {
+                    "authenticated": True,
+                    "message": "Request already approved",
+                    "request_status": "approved",
+                }
+
+
+
+            return JSONResponse(
+                content=returnResponse,
+                status_code=200,
+            )
+        except Exception as e:
+            print(f"Error: {e}")
+            return JSONResponse(
+                content={"authenticated": False, "error": str(e)}, status_code=500
+            )
+
+    #         if request.data:
+    #             # Check if the request is approved but no ZKP has been sent yet
+    #             if (
+    #                 request.data[0]["request_status"] == "approved"
+    #                 and request.data[0]["isZKPSent"] == False
+    #             ):
+    #                 # Add user to merkle tree and return the proof
+    #                 entry = addUserToMerkle(
+    #                     request.data[0]["did_str"],
+    #                     request.data[0]["verifiable_cred"],
+    #                 )
+    #                 print(f"Added user to merkle tree: {entry}")
+
+    #                 print(
+    #                     f"Request Data after approve: \n{request.data[0]['request_status']}"
+    #                 )
+    #                 # Update status to accepted
+    #                 response = (
+    #                     supabase.table("requests")
+    #                     .update({"isZKPSent": True, "verifiable_cred": None})
+    #                     .eq("wallet_addr", wallet_address)
+    #                     .execute()
+    #                 )
+    #                 print(
+    #                     f"Request Data after status update to accepted: \n{response.data[0]['isZKPSent']}"
+    #                 )
+    #                 returnResponse = {
+    #                     "message": f"approved request for role {request.data[0]['requested_role']}",
+    #                     "merkle_hash": entry["userHash"],
+    #                     "merkle_proof": entry["userProof"],
+    #                     "merkle_root": entry["merkleRoot"],
+    #                     "tx_hash": entry["txHash"],
+    #                     "request_status": f"{request.data[0]['request_status']}",
+    #                 }
+    #             elif (
+    #                 request.data[0]["request_status"] == "approved"
+    #                 and request.data[0]["isZKPSent"] == True
+    #             ):
+    #                 print(
+    #                     f"User already added to merkle tree: {request.data[0]['isZKPSent']}"
+    #                 )
+
+    #                 returnResponse = {
+    #                     "message": f"User already added to merkle tree",
+    #                     "request_status": f"{request.data[0]['request_status']}",
+    #                 }
+    #             elif request.data[0]["request_status"] == "rejected":
+    #                 print(f"Request Data: {request.data[0]['request_status']}")
+    #                 returnResponse = {
+    #                     "message": f"Request rejected",
+    #                     "request_status": f"{request.data[0]['request_status']}",
+    #                 }
+
+    #             elif request.data[0]["request_status"] == "pending":
+    #                 print(f"Request Data: {request.data[0]['request_status']}")
+    #                 returnResponse = {
+    #                     "message": f"Request pending",
+    #                     "request_status": f"{request.data[0]['request_status']}",
+    #                 }
+    #         else:
+    #             print(f"No request found for this wallet address")
+    #             returnResponse = {
+    #                 "message": f"No request found for this wallet address",
+    #                 "request_status": "not_found",
+    #             }
+
+    #             return JSONResponse(content=returnResponse, status_code=404)
+    #         print(f"Return Response: {returnResponse}")
+    #         return JSONResponse(content=returnResponse, status_code=200)
+    #     except Exception as e:
+    #         print(f"Error: {e}")
+    #         return JSONResponse(
+    #             content={"authenticated": False, "error": str(e)}, status_code=500
+    #         )
+    # else:
+    #     raise Exception("[ERROR]: Supabase client not created")
 
 
 @router.get("/poll/{wallet_address}")
