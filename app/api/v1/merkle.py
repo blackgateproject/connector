@@ -57,7 +57,7 @@ async def get_merkle_root(
 @router.post("/addUser")
 async def add_user(
     # request: Request,
-    data: Annotated[MerkleInput, Form],
+    data: MerkleInput,
     # settings: dict = Depends(settings_dependency),
     # _: dict = Depends(verify_jwt),
 ):
@@ -83,7 +83,7 @@ async def add_user(
         #     datetime.now(timezone.utc),
         # )
     except Exception as e:
-        print(f"[add_user()] Error: {e}")
+        print(f"[/addUser] Error: {e}")
         return JSONResponse(
             status_code=500,
             content={"message": "Error adding user to merkle tree", "error": str(e)},
@@ -95,7 +95,7 @@ async def add_user(
 @router.post("/verifyUser")
 async def verify_user(
     # request: Request,
-    zkp: Annotated[HashProof, Form],
+    zkp: HashProof,
     # settings: dict = Depends(settings_dependency),
     # _: dict = Depends(verify_jwt),
 ):
