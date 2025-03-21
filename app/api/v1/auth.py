@@ -145,13 +145,15 @@ async def testAutoApproveReq(
             if request.data and request.data[0]["request_status"] != "approved":
                 # Existing code to add user to merkle tree and update status
                 # Update status to accepted
+                # 1 in 10 chance to randomly reject the request
+                status = "rejected" if random.randint(1, 10) == 1 else "approved"
                 response = (
                     supabase.table("requests")
                     .update(
                         {
                             "isZKPSent": True,
                             "verifiable_cred": None,
-                            "request_status": "approved",
+                            "request_status": status,
                         }
                     )
                     .eq("wallet_addr", wallet_address)

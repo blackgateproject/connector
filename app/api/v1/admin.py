@@ -396,12 +396,14 @@ async def reject_request(
             .update(
                 {
                     "request_status": "rejected",
-                    "updated_at": datetime.now(timezone.utc).time().isoformat(),
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
                 }
             )
             .eq("id", request_id)
             .execute()
         )
+
+        print(f"Reject Response: {response}")
 
         # Logging broken since no uuid is taken/passed, this func totally relies on the supabase
         # uuid scheme
