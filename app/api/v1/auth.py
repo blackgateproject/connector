@@ -4,7 +4,6 @@ import time
 from typing import Annotated
 from uuid import UUID
 
-import didkit
 from fastapi import APIRouter, Depends, Form
 from fastapi.requests import Request
 from fastapi.responses import JSONResponse
@@ -70,8 +69,11 @@ async def register(request: Request, settings: settings_dependency):
             test_mode = vc_data.get("credentialSubject", {}).get("testMode", False)
 
             # For device role, approve automatically only if not in test mode
-            random_status = "approved" if requested_role == "device" and not test_mode else "pending"
-
+            random_status = (
+                "approved"
+                if requested_role == "device" and not test_mode
+                else "pending"
+            )
 
             request = (
                 supabase.table("requests")
@@ -180,7 +182,12 @@ async def testAutoApproveReq(
                 # Handle already approved case
 
                 # Fetch existing proof for did from merkle table
-                entry = supabase.table("merkle").select("*").eq("did", request.data[0]["did_str"]).execute()
+                entry = (
+                    supabase.table("merkle")
+                    .select("*")
+                    .eq("did", request.data[0]["did_str"])
+                    .execute()
+                )
                 print(f"Entry: {entry.data}")
                 if entry.data:
                     entry = entry.data[0]
@@ -199,8 +206,6 @@ async def testAutoApproveReq(
                     "message": "Request already approved",
                     "request_status": "approved",
                 }
-
-
 
             return JSONResponse(
                 content=returnResponse,

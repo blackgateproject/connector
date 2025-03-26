@@ -1,20 +1,20 @@
 import hashlib
 import json
 import os
+import time
 from datetime import datetime, timezone
 from functools import lru_cache
-import time
 
-import didkit
 from eth_account import Account
 from eth_account.signers.local import LocalAccount
 from fastapi import Depends
 from typing_extensions import Annotated
 from web3 import Web3
-from zksync2.module.module_builder import ZkSyncBuilder
-from zksync2.signer.eth_signer import PrivateKeyEthSigner,BaseAccount
 from zksync2.account.wallet import Wallet
+from zksync2.module.module_builder import ZkSyncBuilder
 from zksync2.module.zksync_provider import ZkSyncProvider
+from zksync2.signer.eth_signer import BaseAccount, PrivateKeyEthSigner
+
 from ..core.config import Settings
 from ..core.merkle import merkleCore
 
@@ -46,8 +46,6 @@ if settings_dependency().BLOCKCHAIN_WALLET_ADDR:
     account: LocalAccount = Account.from_key(wallet_prv_key)
     # wallet = Wallet(account)
 
-
-
     if derived_addr != wallet_addr:
         print(
             f"Derived Address({derived_addr}) does not match the provided address({wallet_addr})"
@@ -73,14 +71,17 @@ def getContractZKsync(contract_name: str):
         raise ValueError("Invalid contract name provided!")
 
     # Define the base directory (prefix path)
-    base_dir = r"..\..\blockchain"
+    print(f"Current Directory: {os.getcwd()}")
+    # base_dir = "utils"
 
     # zksyncNodeType[dockerizedNode, anvilZKsync, zkSyncSepoliaTestnet, zkSyncSepoliaMainet]
     deployments_json_path = os.path.join(
-        base_dir,
+        "",
+        "utils",
         "deployments-zk",
         zksyncNodeType,
-        f"contracts/{contract_name}.sol",
+        "contracts",
+        f"{contract_name}.sol",
         f"{contract_name}.json",
     )
 
@@ -137,6 +138,7 @@ async def getZKSyncMerkleRoot():
 
     return merkle_root
 
+
 # Add user to the Merkle Tree Offchain and update the state Onchain
 def addUserToMerkle(user: str, pw: str):
     """
@@ -150,17 +152,22 @@ def addUserToMerkle(user: str, pw: str):
     # print(f"[addUserToMerkle()] Data Entries: {userHashAndProof}")
     # print(f"[addUserToMerkle()] New merkle root: {merkleCore.get_root()}")
 
-
     # Update the merkle root state onchain
     print(f"[addUserToMerkle()] Updating root onchain")
     root = str(merkleCore.get_root())
-    built_tx = get_merkle_verifier().functions.storeMerkleRoot(root).build_transaction({
-        "from": wallet_addr,
-        "chainId": chain_id,
-        "gas": 2000000,
-        "gasPrice": w3.to_wei("1", "gwei"),
-        "nonce": w3.eth.get_transaction_count(wallet_addr),
-    })
+    built_tx = (
+        get_merkle_verifier()
+        .functions.storeMerkleRoot(root)
+        .build_transaction(
+            {
+                "from": wallet_addr,
+                "chainId": chain_id,
+                "gas": 2000000,
+                "gasPrice": w3.to_wei("1", "gwei"),
+                "nonce": w3.eth.get_transaction_count(wallet_addr),
+            }
+        )
+    )
     print(f"[addUserToMerkle()] Built transaction: {built_tx}")
     signed_tx = w3.eth.account.sign_transaction(built_tx, private_key=wallet_prv_key)
     signed_tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
@@ -204,9 +211,10 @@ def verifyUserOnMerkle(hash: str):
     proof = merkleCore.merkle_tree.get_proof(hash)
     validOffchain = merkleCore.verify_proof(hash, proof)
     local_verify_duration = time.time() - before_local_verify
-    print(f"[verifyUserOnMerkle()] Local verification duration: {local_verify_duration:.4f} seconds")
+    print(
+        f"[verifyUserOnMerkle()] Local verification duration: {local_verify_duration:.4f} seconds"
+    )
     # validOffchain = merkleCore.verify_proof(hash, proof)
-
 
     # [TEST] Verify the user on the blockchain by computing the proof
     # This should be moved to the frontend
@@ -215,8 +223,10 @@ def verifyUserOnMerkle(hash: str):
     # Call the verifyProof function from the contract
     validOnchain = contract.functions.verifyProof(hash, proof).call()
     onchain_verify_duration = time.time() - before_onchain_verify
-    print(f"[verifyUserOnMerkle()] Onchain verification duration: {onchain_verify_duration:.4f} seconds")
-    
+    print(
+        f"[verifyUserOnMerkle()] Onchain verification duration: {onchain_verify_duration:.4f} seconds"
+    )
+
     results = {
         "valid_Offchain": validOffchain,
         "valid_Onchain": validOnchain,

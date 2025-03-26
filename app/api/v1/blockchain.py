@@ -1,17 +1,12 @@
 import json
 from datetime import datetime, timedelta, timezone, tzinfo
 
-import didkit
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
 from ...utils.core_utils import settings_dependency, verify_jwt
-from ...utils.web3_utils import (
+from ...utils.web3_utils import (  # issue_did,; issue_vc,; storeDIDonBlockchain,; storeVCOnBlockchain,
     getContractZKsync,
-    # issue_did,
-    # issue_vc,
-    # storeDIDonBlockchain,
-    # storeVCOnBlockchain,
     w3,
 )
 
@@ -46,7 +41,6 @@ async def contract_test():
     # Retrieve and concatenate contract information for multiple contracts
     contract = getContractZKsync("Merkle")
     return {"contract": contract}
-
 
 
 # @router.get("/issueDID")

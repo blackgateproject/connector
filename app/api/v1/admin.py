@@ -410,7 +410,10 @@ async def reject_request(
         await log_user_action(
             request_id, "Rejected request", settings, type="Request Rejection"
         )
-        return JSONResponse(content={"message": f"Rejected Request #{request_id} successfully"}, status_code=200)
+        return JSONResponse(
+            content={"message": f"Rejected Request #{request_id} successfully"},
+            status_code=200,
+        )
     except Exception as e:
         print(f"Error: {e}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
