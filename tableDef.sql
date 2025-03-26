@@ -39,8 +39,10 @@ create table public.requests (
 --- Login events
 create table public.login_events (
   did_str text not null,
-  auth_duration double precision not null,
+  total_auth_duration double precision not null,
   id uuid not null default gen_random_uuid (),
+  local_auth_duration double precision null,
+  onchain_auth_duration double precision null,
   constraint login_events_pkey primary key (id),
   constraint login_events_did_str_check check ((did_str <> ''::text))
 ) TABLESPACE pg_default;
