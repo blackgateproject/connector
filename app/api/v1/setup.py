@@ -5,6 +5,7 @@ from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse
 from supabase import Client, create_client
 
+from ...credential_service.credservice import health_check
 from ...utils.core_utils import save_setup_state, setup_state
 
 router = APIRouter()
@@ -33,3 +34,21 @@ async def set_setup_true(admin_did: str):
     # update_supabase_setup_state(admin_did, True)
 
     return {"message": "Setup completed successfully."}
+
+
+@router.get("/credential-service-healthcheck")
+async def credential_service_healthcheck():
+    """
+    Check the health of the credential service.
+    """
+    try:
+        result = await health_check()
+        if not result:
+            raise ConnectionError
+    except ConnectionError as e:
+        print(f"Cannot Connect to Credential Server")
+    except Exception as e:
+        print(f"[credential_service_healthcheck()] Exception: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Error connecting to credential service: {str(e)}"
+        )

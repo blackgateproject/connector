@@ -19,7 +19,11 @@ from ...utils.core_utils import (
     verify_jwt,
 )
 from ...utils.web3_utils import addUserToMerkle, verifyUserOnMerkle
-
+from ...credential_service.credservice import (
+    issue_credential,
+    resolve_did,
+    verify_credential,
+)
 router = APIRouter()
 
 debug = settings_dependency().DEBUG
@@ -43,71 +47,85 @@ async def register(request: Request, settings: settings_dependency):
     :return:
     """
     body = await request.json()
-    wallet_address = body.get("wallet_address")
-    didString = body.get("didStr")
-    verifiableCredential = body.get("verifiableCredential")
-    usernetwork_info = body.get("usernetwork_info")
-    # request_status = body.get("role_status")
-    requested_role = body.get("requested_role")
+    formData = body.get("formData")
+    networkInfo = body.get("networkInfo")
     # Print the request body
     if debug:
-        print(f"Recieved Data: {body}")
+        # print(f"Recieved Data: {body}")
+        print(f"Recieved Data: {formData}")
+        print(f"Recieved Data: {networkInfo}")
+
+    # Resolve the DID
+    didString = formData["did"]
+    try:
+        didDoc = await resolve_did(didString)
+        # if debug:
+            # print(f"Resolved DID: {didDoc}")
+    except Exception as e:
+        # print(f"[/register] Step #1 ERR: {e}")
+        return JSONResponse(content={"ERROR": str(e)}, status_code=500)
+
+    # Issue a credential
+    
+
+
+    # Verify the credential
 
     # Add details to supabase table "requests"
-    supabase: Client = create_client(
-        supabase_url=settings.SUPABASE_URL, supabase_key=settings.SUPABASE_ANON_KEY
-    )
-    if supabase:
-        try:
-            # Add the request to the supabase table
-            # Parse verifiableCredential to check testMode
-            vc_data = (
-                json.loads(verifiableCredential)
-                if isinstance(verifiableCredential, str)
-                else verifiableCredential
-            )
-            test_mode = vc_data.get("credentialSubject", {}).get("testMode", False)
+    # supabase: Client = create_client(
+    #     supabase_url=settings.SUPABASE_URL, supabase_key=settings.SUPABASE_ANON_KEY
+    # )
+    # if supabase:
+    #     try:
+    #         # Add the request to the supabase table
+    #         # Parse verifiableCredential to check testMode
+    #         vc_data = (
+    #             json.loads(verifiableCredential)
+    #             if isinstance(verifiableCredential, str)
+    #             else verifiableCredential
+    #         )
+    #         test_mode = vc_data.get("credentialSubject", {}).get("testMode", False)
 
-            # For device role, approve automatically only if not in test mode
-            random_status = (
-                "approved"
-                if requested_role == "device" and not test_mode
-                else "pending"
-            )
+    #         # For device role, approve automatically only if not in test mode
+    #         random_status = (
+    #             "approved"
+    #             if requested_role == "device" and not test_mode
+    #             else "pending"
+    #         )
 
-            request = (
-                supabase.table("requests")
-                .insert(
-                    [
-                        {
-                            "wallet_addr": wallet_address,
-                            "did_str": didString,
-                            "verifiable_cred": verifiableCredential,
-                            "usernetwork_info": usernetwork_info,
-                            "request_status": random_status,
-                            "requested_role": requested_role,
-                            "isZKPSent": False,
-                        }
-                    ]
-                )
-                .execute()
-            )
-            # Print the request data
-            if debug:
-                print(f"Request Data: {request.data}")
+    #         request = (
+    #             supabase.table("requests")
+    #             .insert(
+    #                 [
+    #                     {
+    #                         "wallet_addr": wallet_address,
+    #                         "did_str": didString,
+    #                         "verifiable_cred": verifiableCredential,
+    #                         "usernetwork_info": usernetwork_info,
+    #                         "request_status": random_status,
+    #                         "requested_role": requested_role,
+    #                         "isZKPSent": False,
+    #                     }
+    #                 ]
+    #             )
+    #             .execute()
+    #         )
+    #         # Print the request data
+    #         if debug:
+    #             print(f"Request Data: {request.data}")
 
-            # Return authenticated response
-            return JSONResponse(
-                content={"authenticated": True, "message": "Request added to DB"},
-                status_code=200,
-            )
-        except Exception as e:
-            print(f"Error: {e}")
-            return JSONResponse(
-                content={"authenticated": False, "error": str(e)}, status_code=500
-            )
-    else:
-        raise Exception("[ERROR]: Supabase client not created")
+    #         # Return authenticated response
+    #         return JSONResponse(
+    #             content={"authenticated": True, "message": "Request added to DB"},
+    #             status_code=200,
+    #         )
+    #     except Exception as e:
+    #         print(f"Error: {e}")
+    #         return JSONResponse(
+    #             content={"authenticated": False, "error": str(e)}, status_code=500
+    #         )
+    # else:
+    #     raise Exception("[ERROR]: Supabase client not created")
 
 
 @router.get("/pollTest/{wallet_address}")

@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     DEBUG: int
     ZKSYNC_NODE_TYPE: str
     ZKSYNC_CHAIN_ID: int
+    CRED_SERVER_URL: str
     # BACKEND_DID: str
     # BACKEND_JWK: str
     # BACKEND_ACC: int
