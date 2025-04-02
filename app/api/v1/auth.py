@@ -67,7 +67,7 @@ async def register(request: Request, settings: settings_dependency):
     #     return JSONResponse(content={"ERROR": str(e)}, status_code=500)
 
     # Add data to merkle tree and add ZKP as a seperate field to data
-    merkle = addUserToMerkle(user=formData["did"], pw=networkInfo)
+    merkle = addUserToMerkle(user=formData, pw=networkInfo)
 
     # Remove merkleRoot and merkleProof from merkle
     merkle.pop("merkleRoot", None)
