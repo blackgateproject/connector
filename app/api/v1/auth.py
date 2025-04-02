@@ -10,6 +10,11 @@ from fastapi.responses import JSONResponse
 from supabase import AuthApiError
 from supabase.client import Client, create_client
 
+from ...credential_service.credservice import (
+    issue_credential,
+    resolve_did,
+    verify_credential,
+)
 from ...models.requests import HashProof
 from ...utils.core_utils import (
     extract_user_details_for_passwordless,
@@ -19,11 +24,7 @@ from ...utils.core_utils import (
     verify_jwt,
 )
 from ...utils.web3_utils import addUserToMerkle, verifyUserOnMerkle
-from ...credential_service.credservice import (
-    issue_credential,
-    resolve_did,
-    verify_credential,
-)
+
 router = APIRouter()
 
 debug = settings_dependency().DEBUG
@@ -56,20 +57,36 @@ async def register(request: Request, settings: settings_dependency):
         print(f"Recieved Data: {networkInfo}")
 
     # Resolve the DID
-    didString = formData["did"]
-    try:
-        didDoc = await resolve_did(didString)
-        # if debug:
-            # print(f"Resolved DID: {didDoc}")
-    except Exception as e:
-        # print(f"[/register] Step #1 ERR: {e}")
-        return JSONResponse(content={"ERROR": str(e)}, status_code=500)
+    # didString = formData["did"]
+    # try:
+    #     didDoc = await resolve_did(didString)
+    #     # if debug:
+    #     # print(f"Resolved DID: {didDoc}")
+    # except Exception as e:
+    #     # print(f"[/register] Step #1 ERR: {e}")
+    #     return JSONResponse(content={"ERROR": str(e)}, status_code=500)
 
-    # Issue a credential
-    
+    # Add data to merkle tree and add ZKP as a seperate field to data
+    merkle = addUserToMerkle(user=formData["did"], pw=networkInfo)
 
+    # Remove merkleRoot and merkleProof from merkle
+    merkle.pop("merkleRoot", None)
+    merkle.pop("userProof", None)
+
+    # Issue a credential based on didDoc
+    data = {"formData": formData, "networkInfo": networkInfo, "ZKP": merkle}
+
+    credential = await issue_credential(data)
+    if debug:
+        print(f"Got Creds:\n{credential}")
 
     # Verify the credential
+    try:
+        result = await verify_credential(credential)
+        if debug and result:
+            print(f"Verifyied: {result}")
+    except Exception as e:
+        print(f"ERR while verifying creds:\n{e}")
 
     # Add details to supabase table "requests"
     # supabase: Client = create_client(
@@ -126,6 +143,7 @@ async def register(request: Request, settings: settings_dependency):
     #         )
     # else:
     #     raise Exception("[ERROR]: Supabase client not created")
+    return JSONResponse(content=credential, status_code=200)
 
 
 @router.get("/pollTest/{wallet_address}")

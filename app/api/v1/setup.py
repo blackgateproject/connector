@@ -36,6 +36,8 @@ async def set_setup_true(admin_did: str):
     return {"message": "Setup completed successfully."}
 
 
+# WARNN:: BAD coding practice used here, move result to func and JSONResponse hereinstead
+# REASON:: Travelling, on  a bus atm
 @router.get("/credential-service-healthcheck")
 async def credential_service_healthcheck():
     """
@@ -52,3 +54,4 @@ async def credential_service_healthcheck():
         raise HTTPException(
             status_code=500, detail=f"Error connecting to credential service: {str(e)}"
         )
+    return result

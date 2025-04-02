@@ -2,6 +2,7 @@ from typing import AsyncGenerator
 
 import aiohttp
 from fastapi import Depends
+from fastapi.responses import JSONResponse
 
 from ..utils.core_utils import settings_dependency
 
@@ -24,7 +25,7 @@ credential_service_url = settings_dependency().CRED_SERVER_URL
 #         yield session
 #     finally:
 #         await session.close()
-async def health_check() -> bool:
+async def health_check():
     """
     Ping the credential server to check if it is active
     """
@@ -33,7 +34,10 @@ async def health_check() -> bool:
         async with aiohttp.ClientSession() as session:
             async with session.get(f"{credential_service_url}") as response:
                 if response.status == 200:
-                    return True
+                    return JSONResponse(
+                        status_code=200,
+                        content={"result": True, "response": await response.json()},
+                    )
                 else:
                     print(f"[health_check()] Response ERR: {await response.json()}")
                     raise Exception("Credential service is not healthy.")
@@ -82,9 +86,10 @@ async def issue_credential(credential: dict):
     Issue a credential using the credential service.
     """
     try:
+        print(f"\n\nSending DATA FOR ISSUANCE\n\n{credential}")
         async with aiohttp.ClientSession() as session:
             async with session.post(
-                f"{credential_service_url}/issue", json=credential
+                f"{credential_service_url}/issue-vc", json=credential
             ) as response:
                 if response.status == 200:
                     return await response.json()
@@ -103,7 +108,7 @@ async def verify_credential(credential: dict):
     try:
         async with aiohttp.ClientSession() as session:
             async with session.post(
-                f"{credential_service_url}/verify", json=credential
+                f"{credential_service_url}/verify-vc", json=credential
             ) as response:
                 if response.status == 200:
                     return await response.json()

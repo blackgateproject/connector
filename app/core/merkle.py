@@ -40,11 +40,11 @@ from ..utils.merkle_utils import merkleTreeUtils
 #             proof = tree.get_proof(i)
 #             print(f"[CORE] Value: {leaf.value}")
 #             print(f"[CORE] Proof: {proof}")
-# SUPABASE_URL = "https://jbrisailzbvycvbacikm.supabase.co"
-# SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpicmlzYWlsemJ2eWN2YmFjaWttIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDIyNzYwMzAsImV4cCI6MjA1Nzg1MjAzMH0.YHJC1W6c-cgVEOlokOqi5JkgrXziYPH6NAsX2Z6_-QU"
+SUPABASE_URL = "https://jbrisailzbvycvbacikm.supabase.co"
+SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpicmlzYWlsemJ2eWN2YmFjaWttIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDIyNzYwMzAsImV4cCI6MjA1Nzg1MjAzMH0.YHJC1W6c-cgVEOlokOqi5JkgrXziYPH6NAsX2Z6_-QU"
 
-SUPABASE_URL = "http://localhost:54321"
-SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.fYamB_Z6e4CCy5uYZU_LS5It2yKp1wAAG3-oAoSKAiQ"
+# SUPABASE_URL = "http://localhost:54321"
+# SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.fYamB_Z6e4CCy5uYZU_LS5It2yKp1wAAG3-oAoSKAiQ"
 
 
 class abdMerkleClass:
