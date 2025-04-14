@@ -17,7 +17,7 @@ WORKDIR /app
 
 # Install dependencies
 # RUN pip install --no-cache-dir -r requirements.txt
-RUN pip install fastapi[all] supabase sqlmodel pyjwt web3 zksync2 eth_keys eth_utils eth_account
+RUN pip install fastapi[all] supabase sqlmodel pyjwt web3 zksync2 eth_keys eth_utils eth_account apscheduler
 # Copy the entire application
 COPY . .
 
