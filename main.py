@@ -9,6 +9,7 @@ from .api.v1 import admin, auth, blockchain, merkle, setup, user
 from .core.merkle import merkleCore
 from .utils.core_utils import settings_dependency, setup_state, verify_jwt
 from .core.merkle import merkleCore
+from .core.tasks.credserver_keepalive import start_health_check_scheduler, shutdown_scheduler
 
 app = FastAPI()
 debug = settings_dependency().DEBUG
@@ -51,6 +52,11 @@ app.add_middleware(
 
 #     return response
 
+# Add startup events
+@app.on_event("startup")
+async def startup_event():
+    print(f"[CORE] Starting up health service check for credserver")
+    start_health_check_scheduler()
 
 # Add a shutdown event to dump the merkle tree
 @app.on_event("shutdown")
@@ -58,6 +64,7 @@ async def shutdown_event():
     print(f"[CORE] Shutting down merkle tree.")
     # Save the merkle tree to a file
     merkleCore.save_tree_to_file("merkle_tree.pkl")
+    shutdown_scheduler()
 
 
 # Add a redirect middleware for invalid JWT, this will redirect to the login page at "/"
