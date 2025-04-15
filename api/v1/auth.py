@@ -61,61 +61,13 @@ async def register(request: Request, settings: settings_dependency):
         print(f"Recieved Data: {formData}")
         print(f"Recieved Data: {networkInfo}")
 
-    # Resolve the DID
-    # didString = formData["did"]
-    # try:
-    #     didDoc = await resolve_did(didString)
-    #     # if debug:
-    #     # print(f"Resolved DID: {didDoc}")
-    # except Exception as e:
-    #     # print(f"[/register] Step #1 ERR: {e}")
-    #     return JSONResponse(content={"ERROR": str(e)}, status_code=500)
-
-    # # Add data to merkle tree and add ZKP as a seperate field to data
-    # merkle = addUserToMerkle(user=formData, pw=networkInfo)
-
-    # # Remove merkleRoot and merkleProof from merkle
-    # merkle.pop("merkleRoot", None)
-    # # merkle.pop("userProof", None)
-    # # Issue a credential based on didDoc
-    # data = {"formData": formData, "networkInfo": networkInfo, "ZKP": merkle}
-
-    # verifiableCredential = await issue_credential(data)
-    # if debug:
-    #     print(f"Got Creds:\n{verifiableCredential}")
-
-    # # Verify the credential
-    # try:
-    #     result = await verify_credential(verifiableCredential)
-    #     if debug and result:
-    #         print(f"Verifyied: {result}")
-    # except Exception as e:
-    #     print(f"ERR while verifying creds:\n{e}")
-
     # Add details to supabase table "requests"
     supabase: Client = create_client(
         supabase_url=settings.SUPABASE_URL, supabase_key=settings.SUPABASE_ANON_KEY
     )
     if supabase:
         try:
-            # # Add the request to the supabase table
-            # # Parse verifiableCredential to check testMode
-            # vc_data = (
-            #     json.loads(verifiableCredential)
-            #     if isinstance(verifiableCredential, str)
-            #     else verifiableCredential
-            # )
 
-            # # print(f"\n\nVerifiable Credential: {vc_data}")
-
-            # didString = (
-            #     vc_data.get("credential", {}).get("credentialSubject", {}).get("did")
-            # )
-            # selected_role = (
-            #     vc_data.get("credential", {})
-            #     .get("credentialSubject", {})
-            #     .get("selected_role")
-            # )
             test_mode = (
                 formData.get("testMode")
                 if formData.get("testMode") is not None
@@ -123,38 +75,11 @@ async def register(request: Request, settings: settings_dependency):
             )
 
             # # For device role, approve automatically only if not in test mode
-            random_status = (
+            request_status = (
                 "approved"
                 if formData["selected_role"] == "device" and not test_mode
                 else "pending"
             )
-
-            # # Print everything before it gets inserted into the table
-            # print(f"Requested Role: {selected_role}")
-            # print(f"Test Mode: {test_mode}")
-            # print(f"Random Status: {random_status}")
-            # print(f"Verifiable Credential: {verifiableCredential}")
-            # print(f"Network Info: {networkInfo}")
-
-            # request = (
-            #     supabase.table("requests")
-            #     .insert(
-            #         [
-            #             {
-            #                 "did_str": didString,
-            #                 "verifiable_cred": verifiableCredential,
-            #                 "usernetwork_info": networkInfo,
-            #                 "request_status": random_status,
-            #                 "selected_role": selected_role,
-            #                 "isVCSent": False,
-            #             }
-            #         ]
-            #     )
-            #     .execute()
-            # )
-            # # Print the request data
-            # if debug:
-            #     print(f"Request Data: {request.data}")
 
             request = (
                 supabase.table("requests")
@@ -164,7 +89,7 @@ async def register(request: Request, settings: settings_dependency):
                             "did_str": formData["did"],
                             "form_data": formData,
                             "network_info": networkInfo,
-                            "request_status": random_status,
+                            "request_status": request_status,
                             "isVCSent": False,
                         }
                     ]
@@ -245,6 +170,7 @@ async def pollRequestStatus(
                     }
 
                     verifiableCredential = await issue_credential(data)
+                    
 
                     # Update status to accepted, store VC, return the VC to the user
                     response = (
@@ -318,16 +244,25 @@ async def pollRequestStatus(
 
 @router.post("/verify")
 async def verify_user(
-    zkp: HashProof,
+    request: Request,
     settings: settings_dependency,
 ):
     """
     Verify user on the merkle tree.
     """
     total_start_time = time.time()
+    # Get the request body
+    body = await request.json()
 
-    did = zkp.did
-    merkleHash = zkp.merkleHash
+    # print(f"[verify_user()] Body: {body}")
+
+    # Check if body is a string and parse it if needed
+    if isinstance(body, str):
+        body = json.loads(body)
+
+    vc_data = body.get("credential")
+    did = vc_data.get("credentialSubject").get("did")
+    merkleHash = vc_data.get("credentialSubject").get("ZKP").get("userHash")
     # merkleProof = zkp.merkleProof
 
     print(f"[verify_user()] DID: {did}")
