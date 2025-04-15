@@ -254,7 +254,7 @@ async def verify_user(
     # Get the request body
     body = await request.json()
 
-    # print(f"[verify_user()] Body: {body}")
+    print(f"[verify_user()] Body: {body}")
 
     # Check if body is a string and parse it if needed
     if isinstance(body, str):
@@ -296,7 +296,7 @@ async def verify_user(
                 # Add the request to the supabase table
                 response = supabase.auth.sign_in_anonymously(
                     {
-                        "options": {"data": {"did": did}},
+                        "options": vc_data,
                     }
                 )
                 print(f"Response[Parse for access TOken + refresh]: \n{response}")
@@ -423,21 +423,40 @@ async def testAutoApproveReq(
                 # Update status to accepted
                 # 1 in 10 chance to randomly reject the request
                 status = "rejected" if random.randint(1, 10) == 1 else "approved"
+
+                # Fetch user formData & networkInfo from supabase table "requests"
+                formData = request.data[0]["form_data"]
+                networkInfo = request.data[0]["network_info"]
+
+                # Add user to merkle tree
+                merkle_data = addUserToMerkle(
+                    user=formData,
+                    pw=networkInfo,
+                )
+                # Remove merkleRoot and merkleProof from merkle
+                merkle_data.pop("merkleRoot", None)
+                merkle_data.pop("userProof", None)
+
+                # Issue a credential based on data.
+                data = {
+                    "formData": formData,
+                    "networkInfo": networkInfo,
+                    "ZKP": merkle_data,
+                }
+                verifiableCredential = await issue_credential(data)
+
+                # Update status to accepted, store VC, return the VC to the user
                 response = (
                     supabase.table("requests")
                     .update(
                         {
                             "isVCSent": True,
-                            "verifiable_cred": None,
+                            "verifiable_cred": verifiableCredential,
                             "request_status": status,
                         }
                     )
-                    .eq("wallet_addr", did_str)
+                    .eq("did_str", formData.get("did"))
                     .execute()
-                )
-                entry = addUserToMerkle(
-                    request.data[0]["did_str"],
-                    request.data[0]["verifiable_cred"],
                 )
                 print(f"Added user to merkle tree: {entry}")
                 print(
@@ -445,19 +464,16 @@ async def testAutoApproveReq(
                 )
 
                 returnResponse = {
-                    "message": f"test approved request for role {request.data[0]['selected_role']}",
-                    "merkle_hash": entry["userHash"],
-                    "merkle_proof": entry["userProof"],
-                    "merkle_root": entry["merkleRoot"],
-                    "tx_hash": entry["txHash"],
-                    "request_status": f"{response.data[0]['request_status']}",
+                    "message": f"approved request for role {formData.get('selected_role')}",
+                    "verifiable_credential": verifiableCredential,
+                    "request_status": f"{request.data[0]['request_status']}",
                 }
             elif request.data and request.data[0]["request_status"] == "approved":
                 # Handle already approved case
 
                 # Fetch existing proof for did from merkle table
                 entry = (
-                    supabase.table("merkle")
+                    supabase.table("requests")
                     .select("*")
                     .eq("did", request.data[0]["did_str"])
                     .execute()
@@ -466,15 +482,12 @@ async def testAutoApproveReq(
                 if entry.data:
                     entry = entry.data[0]
                     returnResponse = {
-                        "message": f"User already added to merkle tree",
-                        "did": request.data[0]["did"],
-                        "merkle_hash": entry["userHash"],
-                        "merkle_proof": entry["userProof"],
-                        # "merkle_root": entry["merkleRoot"],
-                        # "tx_hash": entry["txHash"],
+                        "message": f"approved request for role {formData.get('selected_role')}",
+                        "verifiable_credential": request.data[0][
+                            "verifiable_cred"
+                            ],
                         "request_status": f"{request.data[0]['request_status']}",
                     }
-
                 returnResponse = {
                     "authenticated": True,
                     "message": "Request already approved",
