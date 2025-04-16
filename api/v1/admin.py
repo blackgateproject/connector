@@ -518,18 +518,18 @@ async def get_dashboard_stats(
         activities = activities_response.data
 
         # Map user IDs to emails
-        user_map = {user.id: user.email for user in users}
-        user_activities_with_details = [
-            {**activity, "name": user_map.get(activity["user_id"], "Unknown User")}
-            for activity in activities
-        ]
+        # user_map = {user.id: user.email for user in users}
+        # user_activities_with_details = [
+        #     {**activity, "name": user_map.get(activity["user_id"], "Unknown User")}
+        #     for activity in activities
+        # ]
 
         return JSONResponse(
             content={
                 "totalUsers": total_users,
                 "onlineUsers": online_users,
                 "pendingrequests": pending_requests,
-                "userActivities": user_activities_with_details,
+                # "userActivities": user_activities_with_details,
             },
             status_code=200,
         )

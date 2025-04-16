@@ -170,7 +170,6 @@ async def pollRequestStatus(
                     }
 
                     verifiableCredential = await issue_credential(data)
-                    
 
                     # Update status to accepted, store VC, return the VC to the user
                     response = (
@@ -289,24 +288,34 @@ async def verify_user(
         supabase: Client = create_client(
             supabase_url=settings.SUPABASE_URL, supabase_key=settings.SUPABASE_ANON_KEY
         )
-
+        testMode = (
+            vc_data.get("credentialSubject").get("testMode")
+            if vc_data.get("credentialSubject")
+            else False
+        )
         # Once created, attempt to fetch an anon user
         if supabase:
             try:
-                # Add the request to the supabase table
-                response = supabase.auth.sign_in_anonymously(
-                    {
-                        "options": vc_data,
-                    }
-                )
-                print(f"Response[Parse for access TOken + refresh]: \n{response}")
+                # DO not return a session if in testmode
+                if not testMode:
+                    # Add the request to the supabase table
+                    response = supabase.auth.sign_in_anonymously(
+                        {
+                            "options": vc_data,
+                        }
+                    )
+                    print(f"Response[Parse for access TOken + refresh]: \n{response}")
 
-                if response.session:
-                    access_token = response.session.access_token
-                    refresh_token = response.session.refresh_token
+                    if response.session:
+                        access_token = response.session.access_token
+                        refresh_token = response.session.refresh_token
+                    else:
+                        access_token = ""
+                        refresh_token = ""
                 else:
                     access_token = ""
                     refresh_token = ""
+                    print(f"Test Mode: No access token returned")
 
                 end_time = time.time()
                 duration = end_time - total_start_time
@@ -327,9 +336,9 @@ async def verify_user(
                 )
                 print(f"Added login event to supabase: \n{response}")
             except Exception as e:
-                print(f"Error: {e}")
+                print(f"[ERROR-Supabase]: {e}")
         else:
-            raise Exception("[ERROR]: Supabase client not created")
+            raise Exception("[ERROR-Supabase]: Supabase client not created")
 
     return JSONResponse(
         content={
@@ -483,9 +492,7 @@ async def testAutoApproveReq(
                     entry = entry.data[0]
                     returnResponse = {
                         "message": f"approved request for role {formData.get('selected_role')}",
-                        "verifiable_credential": request.data[0][
-                            "verifiable_cred"
-                            ],
+                        "verifiable_credential": request.data[0]["verifiable_cred"],
                         "request_status": f"{request.data[0]['request_status']}",
                     }
                 returnResponse = {
