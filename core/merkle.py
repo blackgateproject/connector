@@ -111,12 +111,12 @@ class abdMerkleClass:
         """Recalculate and store proofs for all leaves in the Merkle tree."""
         newDid = did
         # self.merkle_tree._build_tree()
-        print(
-            f"[update_proofs()] Merkle Tree has {len(self.merkle_tree.leaves)} leaves."
-        )
+        # print(
+        #     f"[update_proofs()] Merkle Tree has {len(self.merkle_tree.leaves)} leaves."
+        # )
         for leaf in self.merkle_tree.leaves:
             try:
-                print(f"[update_proofs()] Leaf: {leaf}")
+                # print(f"[update_proofs()] Leaf: {leaf}")
                 response = (
                     self.supabase.table("merkle").select("*").eq("hash", leaf).execute()
                 )
@@ -124,23 +124,23 @@ class abdMerkleClass:
                     # print(f"[update_proofs()] Proof already exists for {leaf}.")
                     # print(f"[update_proofs()] Response: {response.data}")
                     newDid = response.data[0]["did"]
-                    print(f"[update_proofs()] New DID: {newDid}")
+                    # print(f"[update_proofs()] New DID: {newDid}")
                     # continue
             except Exception as e:
                 print(f"[update_proofs()] Error checking proof: {e}")
                 continue
             proof = self.merkle_tree.get_proof(leaf)
-            print(
-                f"[update_proofs()] Adding proof to supabase: \n\tDID: {newDid} \n\tHash: {leaf} \n\tProof: {proof}"
-            )
+            # print(
+            #     f"[update_proofs()] Adding proof to supabase: \n\tDID: {newDid} \n\tHash: {leaf} \n\tProof: {proof}"
+            # )
             self._store_proof(leaf, proof, newDid)
         print("All proofs updated and stored in Supabase.")
 
     def _store_proof(self, hash_value, proof, did):
         """Store or update a proof in the Supabase `proofs` table."""
-        print(
-            f"[store_proof()] Storing proof for did{did} with hash {hash_value} with proof {proof}."
-        )
+        # print(
+        #     f"[store_proof()] Storing proof for did{did} with hash {hash_value} with proof {proof}."
+        # )
         # data = {"hash": hash_value, "proofs": proof, "did": did}
         response = (
             self.supabase.table("merkle")
@@ -153,8 +153,8 @@ class abdMerkleClass:
             )
             .execute()
         )
-        print(f"Proof stored successfully for hash {hash_value}.")
-        print(f"[store_proof()] Out of store_proof()")
+        # print(f"Proof stored successfully for hash {hash_value}.")
+        # print(f"[store_proof()] Out of store_proof()")
 
     def print_tree(self):
         print(self.merkle_tree.print_tree())
