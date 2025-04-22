@@ -93,6 +93,14 @@ app.include_router(setup.router, prefix=f"/setup/{API_VERSION}", tags=["Setup"])
 # app.include_router(onboarding.router, prefix=f"/onboarding/{API_VERSION}", tags=["Onboarding"])
 
 
+# root endpoint
+@app.get("/")
+def root():
+    return JSONResponse(
+        content={
+            "message": "Connector running! Visit /docs for API documentation.",
+        }
+    )
 # return env var
 @app.get("/env")
 def get_env(settings: settings_dependency):

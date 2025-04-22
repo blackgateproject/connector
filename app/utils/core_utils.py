@@ -61,8 +61,8 @@ async def verify_jwt(request: Request):
 
 
 # HIGHLY POSSIBLE THAT THE FUNCTION WAS NOT BEING CALLED CORRECTLY
-# ERROR COMING FROM THE FACT THAT SUPABASE_KEY IS CALLED NOT SUPABASE_ANON_KEY OR
-# SUPABASE_SERV_KEY
+# ERROR COMING FROM THE FACT THAT SUPABASE_KEY IS CALLED NOT SUPABASE_AUTH_ANON_KEY OR
+# SUPABASE_AUTH_SERV_KEY
 
 # # def supaClient(settings: settings_dependency, useAdmin: bool = False) -> Client:
 # async def supaClient(settings: settings_dependency, useAdmin: bool = False):
@@ -79,14 +79,14 @@ async def verify_jwt(request: Request):
 #             )
 #             supabase: Client = await create_async_client(
 #                 supabase_url=settings.SUPABASE_URL,
-#                 supabase_serv_key=settings.SUPABASE_SERV_KEY,
+#                 SUPABASE_AUTH_SERV_KEY=settings.SUPABASE_AUTH_SERV_KEY,
 #             )
 #             print(f"[UTILS]: Supabase client created \n{supabase}")
 #         else:
 #             print(f"[UTILS]: Creating Supabase client with anon key")
 #             supabase: Client = await create_async_client(
 #                 supabase_url=settings.SUPABASE_URL,
-#                 supabase_anon_key=settings.SUPABASE_ANON_KEY,
+#                 SUPABASE_AUTH_ANON_KEY=settings.SUPABASE_AUTH_ANON_KEY,
 #             )
 #             print(f"[UTILS]: Supabase client created \n{supabase}")
 #         if not supabase.auth.session:
@@ -221,7 +221,7 @@ async def log_user_action(
     """
     supabase: Client = create_client(
         supabase_url=settings.SUPABASE_URL,
-        supabase_key=settings.SUPABASE_SERV_KEY,
+        supabase_key=settings.SUPABASE_AUTH_SERV_KEY,
     )
 
     try:
