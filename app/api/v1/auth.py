@@ -62,7 +62,7 @@ async def register(request: Request, settings: settings_dependency):
 
     # Add details to supabase table "requests"
     supabase: Client = create_client(
-        supabase_url=settings.SUPABASE_URL, supabase_key=settings.SUPABASE_ANON_KEY
+        supabase_url=settings.SUPABASE_URL, supabase_key=settings.SUPABASE_AUTH_ANON_KEY
     )
     if supabase:
         try:
@@ -129,7 +129,7 @@ async def pollRequestStatus(
 
     # Add details to supabase table "requests"
     supabase: Client = create_client(
-        supabase_url=settings.SUPABASE_URL, supabase_key=settings.SUPABASE_ANON_KEY
+        supabase_url=settings.SUPABASE_URL, supabase_key=settings.SUPABASE_AUTH_ANON_KEY
     )
     if supabase:
         try:
@@ -285,7 +285,7 @@ async def verify_user(
     if result["valid_Offchain"] and result["valid_Onchain"]:
         # Create a supabase client
         supabase: Client = create_client(
-            supabase_url=settings.SUPABASE_URL, supabase_key=settings.SUPABASE_ANON_KEY
+            supabase_url=settings.SUPABASE_URL, supabase_key=settings.SUPABASE_AUTH_ANON_KEY
         )
         testMode = (
             vc_data.get("credentialSubject").get("testMode")
@@ -364,7 +364,7 @@ async def logout(
     # did = body.get("did")
 
     supabase: Client = create_client(
-        supabase_url=settings.SUPABASE_URL, supabase_key=settings.SUPABASE_SERV_KEY
+        supabase_url=settings.SUPABASE_URL, supabase_key=settings.SUPABASE_AUTH_SERV_KEY
     )
 
     try:
@@ -410,7 +410,7 @@ async def testAutoApproveReq(
 
     # Add details to supabase table "requests"
     supabase: Client = create_client(
-        supabase_url=settings.SUPABASE_URL, supabase_key=settings.SUPABASE_ANON_KEY
+        supabase_url=settings.SUPABASE_URL, supabase_key=settings.SUPABASE_AUTH_ANON_KEY
     )
     if supabase:
         try:

@@ -31,7 +31,7 @@ async def create_ticket(
     # Initialize Supabase client
     supabase: Client = create_client(
         supabase_url=settings.SUPABASE_URL,
-        supabase_key=settings.SUPABASE_ANON_KEY,
+        supabase_key=settings.SUPABASE_AUTH_ANON_KEY,
     )
 
     try:
@@ -74,7 +74,7 @@ async def get_user_profile(
     # Initialize Supabase client
     supabase: Client = create_client(
         supabase_url=settings.SUPABASE_URL,
-        supabase_key=settings.SUPABASE_ANON_KEY,
+        supabase_key=settings.SUPABASE_AUTH_ANON_KEY,
     )
 
     try:
@@ -165,7 +165,7 @@ async def save_keys(
     # Initialize Supabase client
     supabase: Client = create_client(
         supabase_url=settings.SUPABASE_URL,
-        supabase_key=settings.SUPABASE_ANON_KEY,
+        supabase_key=settings.SUPABASE_AUTH_ANON_KEY,
     )
 
     try:

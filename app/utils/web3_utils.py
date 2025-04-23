@@ -31,7 +31,7 @@ w3 = Web3(Web3.HTTPProvider(settings_dependency().BLOCKCHAIN_RPC_URL))
 
 debug = settings_dependency().DEBUG
 zksyncNodeType = settings_dependency().ZKSYNC_NODE_TYPE
-chain_id = settings_dependency().ZKSYNC_CHAIN_ID
+chain_id = settings_dependency().BLOCKCHAIN_CHAIN_ID
 wallet_prv_key = ""
 wallet_addr = ""
 signer = None

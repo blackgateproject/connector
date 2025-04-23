@@ -24,7 +24,7 @@ async def get_user_activity_logs(
 ):
     supabase: Client = create_client(
         supabase_url=settings.SUPABASE_URL,
-        supabase_key=settings.SUPABASE_SERV_KEY,
+        supabase_key=settings.SUPABASE_AUTH_SERV_KEY,
     )
 
     try:
@@ -46,7 +46,7 @@ async def log_action(
 
     supabase: Client = create_client(
         supabase_url=settings.SUPABASE_URL,
-        supabase_key=settings.SUPABASE_SERV_KEY,
+        supabase_key=settings.SUPABASE_AUTH_SERV_KEY,
     )
 
     try:
@@ -80,7 +80,7 @@ async def getUsers(settings: settings_dependency):
     # Initialize the Supabase client
     supabase: Client = create_client(
         supabase_url=settings.SUPABASE_URL,
-        supabase_key=settings.SUPABASE_SERV_KEY,
+        supabase_key=settings.SUPABASE_AUTH_SERV_KEY,
         options=ClientOptions(auto_refresh_token=False, persist_session=False),
     )
 
@@ -219,7 +219,7 @@ async def get_all_users(settings: settings_dependency):
     # async def get_all_users(settings: settings_dependency, _: dict = Depends(verify_jwt)):
     supabase: Client = create_client(
         supabase_url=settings.SUPABASE_URL,
-        supabase_key=settings.SUPABASE_SERV_KEY,
+        supabase_key=settings.SUPABASE_AUTH_SERV_KEY,
     )
 
     try:
@@ -258,7 +258,7 @@ async def get_all_users(settings: settings_dependency):
 async def get_requests(settings: settings_dependency):
     supabase: Client = create_client(
         supabase_url=settings.SUPABASE_URL,
-        supabase_key=settings.SUPABASE_ANON_KEY,
+        supabase_key=settings.SUPABASE_AUTH_ANON_KEY,
     )
 
     try:
@@ -277,7 +277,7 @@ async def approve_request(
 ):
     supabase: Client = create_client(
         supabase_url=settings.SUPABASE_URL,
-        supabase_key=settings.SUPABASE_SERV_KEY,
+        supabase_key=settings.SUPABASE_AUTH_SERV_KEY,
         options=ClientOptions(auto_refresh_token=False, persist_session=False),
     )
 
@@ -314,7 +314,7 @@ async def reject_request(
 ):
     supabase: Client = create_client(
         supabase_url=settings.SUPABASE_URL,
-        supabase_key=settings.SUPABASE_ANON_KEY,
+        supabase_key=settings.SUPABASE_AUTH_ANON_KEY,
     )
     try:
         response = (
@@ -353,7 +353,7 @@ async def delete_user(
 ):
     supabase: Client = create_client(
         supabase_url=settings.SUPABASE_URL,
-        supabase_key=settings.SUPABASE_SERV_KEY,
+        supabase_key=settings.SUPABASE_AUTH_SERV_KEY,
         options=ClientOptions(auto_refresh_token=False, persist_session=False),
     )
 
@@ -392,7 +392,7 @@ async def delete_user(
 
 #     supabase: Client = create_client(
 #         supabase_url=settings.SUPABASE_URL,
-#         supabase_key=settings.SUPABASE_SERV_KEY,
+#         supabase_key=settings.SUPABASE_AUTH_SERV_KEY,
 #         options=ClientOptions(auto_refresh_token=False, persist_session=False),
 #     )
 
@@ -448,7 +448,7 @@ async def get_admin_profile(
         print(f"Access Token: {access_token}")
     supabase: Client = create_client(
         supabase_url=settings.SUPABASE_URL,
-        supabase_key=settings.SUPABASE_ANON_KEY,
+        supabase_key=settings.SUPABASE_AUTH_ANON_KEY,
     )
 
     try:
@@ -490,7 +490,7 @@ async def get_dashboard_stats(
 ):
     supabase: Client = create_client(
         supabase_url=settings.SUPABASE_URL,
-        supabase_key=settings.SUPABASE_SERV_KEY,
+        supabase_key=settings.SUPABASE_AUTH_SERV_KEY,
     )
 
     try:
