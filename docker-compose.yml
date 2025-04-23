@@ -5,7 +5,7 @@ services:
     build: .
     container_name: connector
     ports:
-      - "8000:8000"
+      - "10000:10000"
     env_file:
       - .env
     environment:
