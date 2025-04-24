@@ -29,3 +29,4 @@ EXPOSE 11000
 
 # Start the FastAPI application
 CMD ["fastapi", "run", "--port", "11000"]
+
