@@ -25,7 +25,8 @@ COPY . .
 ENV PYTHONUNBUFFERED=1
 
 # Expose the FastAPI port
-EXPOSE 10000
+EXPOSE 11000
 
 # Start the FastAPI application
-CMD ["fastapi", "run", "--host", "0.0.0.0", "--port", "10000"]
+CMD ["fastapi", "run", "--port", "11000"]
+
