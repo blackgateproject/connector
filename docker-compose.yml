@@ -3,7 +3,7 @@ services:
     build: .
     container_name: connector
     ports:
-      - "10000:11000"
+      - "10001:10001"
     env_file:
       - .env
     environment:
@@ -22,3 +22,5 @@ services:
       - DEBUG=${DEBUG}
     volumes:
       - .:/connector
+    extra_hosts:
+    - "host.docker.internal:host-gateway"
