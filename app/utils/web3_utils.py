@@ -72,11 +72,12 @@ def getContractZKsync(contract_name: str):
 
     # Define the base directory (prefix path)
     print(f"Current Directory: {os.getcwd()}")
+    print(f"Directory List: {os.listdir('./')}")
     # base_dir = "utils"
 
     # zksyncNodeType[dockerizedNode, anvilZKsync, zkSyncSepoliaTestnet, zkSyncSepoliaMainet]
     deployments_json_path = os.path.join(
-        "",
+        "app",
         "utils",
         "deployments-zk",
         zksyncNodeType,

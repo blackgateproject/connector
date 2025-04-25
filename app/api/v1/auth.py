@@ -105,7 +105,7 @@ async def register(request: Request, settings: settings_dependency):
                 status_code=200,
             )
         except Exception as e:
-            print(f"Error: {e}")
+            print(f"[ERROR] Supabase client encountered: {e}")
             return JSONResponse(
                 content={"authenticated": False, "error": str(e)}, status_code=500
             )
@@ -227,7 +227,7 @@ async def pollRequestStatus(
             print(f"Return Response: {returnResponse}")
             return JSONResponse(content=returnResponse, status_code=200)
         except Exception as e:
-            print(f"Error: {e}")
+            print(f"[ERR_SUPABASE] Error: {e}")
             return JSONResponse(
                 content={"authenticated": False, "error": str(e)}, status_code=500
             )
@@ -376,15 +376,16 @@ async def logout(
         #     if user.uuid == did:
         #         logged_in_users.remove(user)
         #         await log_user_action(did, "User logged out", settings, type="Logout")
-        #         return JSONResponse(
-        #             content={"authenticated": False, "message": "User logged out"},
-        #             status_code=200,
-        #         )
         return JSONResponse(
-            content={"authenticated": False, "message": "User not found"},
-            status_code=404,
+            content={"authenticated": False, "message": "User logged out"},
+            status_code=200,
         )
+        # return JSONResponse(
+        #     content={"authenticated": False, "message": "User not found"},
+        #     status_code=404,
+        # )
     except Exception as e:
+        print(f"[ERR_SUPABASE] Error: {e}")
         return JSONResponse(
             content={"authenticated": False, "error": str(e)}, status_code=500
         )
@@ -505,7 +506,7 @@ async def testAutoApproveReq(
                 status_code=200,
             )
         except Exception as e:
-            print(f"Error: {e}")
+            print(f"[ERR_SUPABASE] Error: {e}")
             return JSONResponse(
                 content={"authenticated": False, "error": str(e)}, status_code=500
             )

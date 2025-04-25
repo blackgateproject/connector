@@ -60,7 +60,7 @@ async def create_ticket(
         )
         return JSONResponse(content=response.data, status_code=200)
     except Exception as e:
-        print(f"Error creating ticket: {str(e)}")  # Add error logging
+        print(f"[ERR_SUPABASE] Error creating ticket: {str(e)}")  # Add error logging
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
@@ -117,7 +117,7 @@ async def get_user_profile(
         await log_user_action(user.id, "Viewed profile", settings, type="Profile View")
         return JSONResponse(content=user_data, status_code=200)
     except Exception as e:
-        print(f"Error fetching user profile: {str(e)}")
+        print(f"[ERR_SUPABASE] Error fetching user profile: {str(e)}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
@@ -194,5 +194,5 @@ async def save_keys(
             content={"message": "Keys saved and 2FA enabled"}, status_code=200
         )
     except Exception as e:
-        print(f"Error saving keys: {str(e)}")
+        print(f"[ERR_SUPABASE] Error saving keys: {str(e)}")
         return JSONResponse(content={"error": str(e)}, status_code=500)

@@ -249,7 +249,7 @@ async def get_all_users(settings: settings_dependency):
 
         return JSONResponse(content=user_data_list, status_code=200)
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"[ERR_SUPABASE] Error: {e}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
@@ -302,7 +302,7 @@ async def approve_request(
             status_code=200,
         )
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"[ERR_SUPABASE] : {e}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
@@ -341,7 +341,7 @@ async def reject_request(
             status_code=200,
         )
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"[ERR_SUPABASE] Error: {e}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
@@ -365,10 +365,10 @@ async def delete_user(
             content={"message": "User deleted successfully"}, status_code=200
         )
     except AuthApiError as e:
-        print(f"Error: {e}")
+        print(f"[ERR_SUPABASE] Error: {e}")
         return JSONResponse(content={"error": str(e)}, status_code=401)
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"[ERR_SUPABASE] Error: {e}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
@@ -479,7 +479,7 @@ async def get_admin_profile(
         )
         return JSONResponse(content=user_data, status_code=200)
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"[ERR_SUPABASE] Error: {e}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
