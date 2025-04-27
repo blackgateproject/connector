@@ -1,10 +1,28 @@
+from functools import lru_cache
 import os
 import pickle
+from typing import Annotated
 
+from fastapi import Depends
 from supabase import Client, create_client
+
+from app.core.config import Settings
 
 # from ..utils.core_utils import get_settings
 from ..utils.merkle_utils import merkleTreeUtils
+
+
+@lru_cache
+def get_settings():
+    return Settings()
+
+
+settings_dependency = Annotated[Settings, Depends(get_settings)]
+
+
+SUPABASE_URL = settings_dependency().SUPABASE_URL
+SUPABASE_AUTH_ANON_KEY = settings_dependency().SUPABASE_AUTH_ANON_KEY
+
 
 # class merkleClass:
 #     """
@@ -40,11 +58,6 @@ from ..utils.merkle_utils import merkleTreeUtils
 #             proof = tree.get_proof(i)
 #             print(f"[CORE] Value: {leaf.value}")
 #             print(f"[CORE] Proof: {proof}")
-SUPABASE_URL = "https://jbrisailzbvycvbacikm.supabase.co"
-SUPABASE_AUTH_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpicmlzYWlsemJ2eWN2YmFjaWttIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDIyNzYwMzAsImV4cCI6MjA1Nzg1MjAzMH0.YHJC1W6c-cgVEOlokOqi5JkgrXziYPH6NAsX2Z6_-QU"
-
-# SUPABASE_URL = "http://localhost:54321"
-# SUPABASE_AUTH_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.fYamB_Z6e4CCy5uYZU_LS5It2yKp1wAAG3-oAoSKAiQ"
 
 
 class abdMerkleClass:

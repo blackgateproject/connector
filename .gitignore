@@ -8,6 +8,7 @@ node_modules
 app\.env
 
 merkle_tree.pkl
+smt.pkl
 
 # app\state.json
 # app/state.json

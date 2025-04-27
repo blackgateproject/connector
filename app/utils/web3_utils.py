@@ -17,6 +17,7 @@ from zksync2.signer.eth_signer import BaseAccount, PrivateKeyEthSigner
 
 from ..core.config import Settings
 from ..core.merkle import merkleCore
+from ..core.sparseMerkleTree import smtCore
 
 
 @lru_cache
@@ -233,6 +234,108 @@ def verifyUserOnMerkle(hash: str):
         "valid_Onchain": validOnchain,
         "auth_Offchain_duration": local_verify_duration,
         "auth_Onchain_duration": onchain_verify_duration,
+    }
+
+    return results
+
+
+"""
+SMT Merkle functions
+"""
+
+
+# Add user to the Merkle Tree Offchain and update the state Onchain
+def addUserToSMT(user: str, pw: str):
+    """
+    Add a user to the SMT Tree
+    """
+    # Add the user to the SMT Tree
+    # print(f"[addUserToSMT()] Old SMT root: {SMTCore.get_root()}")
+    # print(f"[addUserToSMT()] Adding to local SMT tree")
+    userHashAndProof = smtCore.add_user(user, pw)
+    # print(f"[addUserToSMT()] User Added to local SMT tree")
+    # print(f"[addUserToSMT()] Data Entries: {userHashAndProof}")
+    # print(f"[addUserToSMT()] New SMT root: {SMTCore.get_root()}")
+
+    # Update the SMT root state onchain
+    print(f"[addUserToSMT()] Updating root onchain disabled for now, need to uncomment")
+    # root = str(smtCore.get_root())
+    # built_tx = (
+    #     get_merkle_verifier()
+    #     .functions.storeMerkleRoot(root)
+    #     .build_transaction(
+    #         {
+    #             "from": wallet_addr,
+    #             "chainId": chain_id,
+    #             "gas": 2000000,
+    #             "gasPrice": w3.to_wei("1", "gwei"),
+    #             "nonce": w3.eth.get_transaction_count(wallet_addr),
+    #         }
+    #     )
+    # )
+    # print(f"[addUserToSMT()] Built transaction: {built_tx}")
+    # signed_tx = w3.eth.account.sign_transaction(built_tx, private_key=wallet_prv_key)
+    # signed_tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
+    # print(f"[addUserToSMT()] Updated root onchain")
+    # logs = (
+    #     get_did_registry()
+    #     .events.DIDRegistered()
+    #     .get_logs(from_block=w3.eth.block_number - 1)
+    # )
+    # # for log in logs:
+    # #     print(
+    # #         f"[storeDIDonBlockchain()] Transaction Successful: \n\tDID: {log.args.did}\n\tIPFS_CID{log.args.ipfsCID}\n\tTX_HASH: {log.transactionHash.hex()}"
+    # #     )
+    # print(
+    #     f"[storeDIDonBlockchain()] Transaction Successful: \n\tDID: {logs[0].args.did}\n\tIPFS_CID{logs[0].args.ipfsCID}\n\tTX_HASH: {logs[0].transactionHash.hex()}"
+    # )
+
+    # Print the transaction hash for debugging purposes
+    # if debug >= 1:
+    #     # print(f"[addUserToMerkle()] Transaction Hash: {signed_tx}")
+    #     print(f"[addUserToMerkle()] Transaction Hash: 0x{signed_tx_hash.hex()}")
+
+    # Prepare return values
+    # data = {
+    #     "user_id": user,
+    #     "merkleRoot": smtCore.get_root(),
+    #     "stored_data": userHashAndProof,
+    # }
+
+    return userHashAndProof
+
+
+# def verifyUserOnMerkle(hash: str, proof: list[str]):
+def verifyUserOnSMT(user_id, key, credentials):
+    """
+    Verify a user on the SMT Tree
+    """
+    # Verify the user on the SMT Tree
+    before_local_verify = time.time()
+    # Commented this out, neeed a way to get proof
+    validOffchain = smtCore.verify_user(user_id, key, credentials)
+    local_verify_duration = time.time() - before_local_verify
+    print(
+        f"[verifyUserOnMerkle()] Local verification duration: {local_verify_duration:.4f} seconds"
+    )
+    # validOffchain = merkleCore.verify_proof(hash, proof)
+
+    # [TEST] Verify the user on the blockchain by computing the proof
+    # This should be moved to the frontend
+    # contract = get_merkle_verifier()
+    # before_onchain_verify = time.time()
+    # # Call the verifyProof function from the contract
+    # validOnchain = contract.functions.verifyProof(hash, proof).call()
+    # onchain_verify_duration = time.time() - before_onchain_verify
+    # print(
+    #     f"[verifyUserOnMerkle()] Onchain verification duration: {onchain_verify_duration:.4f} seconds"
+    # )
+
+    results = {
+        "valid_Offchain": validOffchain,
+        # "valid_Onchain": validOnchain,
+        "auth_Offchain_duration": local_verify_duration,
+        # "auth_Onchain_duration": onchain_verify_duration,
     }
 
     return results
