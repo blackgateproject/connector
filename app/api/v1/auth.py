@@ -156,7 +156,7 @@ async def pollRequestStatus(
                     # Fetch user formData & networkInfo from supabase table "requests"
                     formData = request.data[0]["form_data"]
                     networkInfo = request.data[0]["network_info"]
-                    proof_type = request.data[0]["proof_type"]
+                    proof_type = formData.get("proof_type")
 
                     if proof_type == "smt":
                         # Add user to merkle tree
@@ -311,17 +311,17 @@ async def verify_user(
         #         'userHash': '9822294c7c8cd2505d2aef2a0120d18a609c54d69aa048a5b7f12f7a70ddf579'
         # }}
 
-        form_data = {
-            "did": did,
-            "alias": vc_data.get("credentialSubject").get("alias"),
-            "testMode": vc_data.get("credentialSubject").get("testMode"),
-            "proof_type": proof_type,
-            "selected_role": vc_data.get("credentialSubject").get("selected_role"),
-            "firmware_version": vc_data.get("credentialSubject").get(
-                "firmware_version"
-            ),
-        }
-        # print(f"[verify_user()] form_data: {form_data}")
+        supabase: Client = create_client(
+            supabase_url=settings.SUPABASE_URL,
+            supabase_key=settings.SUPABASE_AUTH_ANON_KEY,
+        )
+        # Fetch user details from the did
+        response = supabase.table("requests").select("*").eq("did_str", did).execute()
+        if response.data:
+            # Get form_data from the response
+            form_data = response.data[0]["form_data"]
+        
+        print(f"[verify_user()] form_data: {form_data}")
         result = verifyUserOnSMT(user_id=form_data, key=index, credentials=networkInfo)
     elif proof_type == "merkle":
         # Verify user on the smt tree
