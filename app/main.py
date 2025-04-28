@@ -5,10 +5,10 @@ from fastapi.exceptions import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
 
-from .api.v1 import admin, auth, blockchain, merkle, setup, user
+from .api.v1 import admin, auth, blockchain, merkle, setup, user, sparse_merkle
 from .core.merkle import merkleCore
+from .core.sparseMerkleTree import smtCore
 from .utils.core_utils import settings_dependency, setup_state, verify_jwt
-from .core.merkle import merkleCore
 from .core.tasks.credserver_keepalive import start_health_check_scheduler, shutdown_scheduler
 
 app = FastAPI()
@@ -64,6 +64,8 @@ async def shutdown_event():
     print(f"[CORE] Shutting down merkle tree.")
     # Save the merkle tree to a file
     merkleCore.save_tree_to_file("merkle_tree.pkl")
+    print(f"[CORE] Shutting down SMT.")
+    smtCore.save_tree_to_file("smt.pkl")
     shutdown_scheduler()
 
 
@@ -86,6 +88,7 @@ app.include_router(auth.router, prefix=f"/auth/{API_VERSION}", tags=["Auth"])
 app.include_router(user.router, prefix=f"/user/{API_VERSION}", tags=["User"])
 app.include_router(admin.router, prefix=f"/admin/{API_VERSION}", tags=["Admin"])
 app.include_router(merkle.router, prefix=f"/merkle/{API_VERSION}", tags=["Merkle"])
+app.include_router(sparse_merkle.router, prefix=f"/sparse_merkle/{API_VERSION}", tags=["Spare Merkle"])
 app.include_router(
     blockchain.router, prefix=f"/blockchain/{API_VERSION}", tags=["Blockchain"]
 )

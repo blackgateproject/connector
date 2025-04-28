@@ -241,8 +241,6 @@ async def log_user_action(
         print(f"Error logging action: {str(e)}")
 
 
-
-
 def load_setup_state():
     with open("state.json", "r") as file:
         return json.load(file)
