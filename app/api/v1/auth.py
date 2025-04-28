@@ -320,14 +320,12 @@ async def verify_user(
         if response.data:
             # Get form_data from the response
             form_data = response.data[0]["form_data"]
-        
+
         print(f"[verify_user()] form_data: {form_data}")
         result = verifyUserOnSMT(user_id=form_data, key=index, credentials=networkInfo)
     elif proof_type == "merkle":
         # Verify user on the smt tree
-        result = verifyUserOnMerkle(
-            merkleHash=merkleHash,
-        )
+        result = verifyUserOnMerkle(merkleHash)
 
     print(f"[verify_user()] results: {result}")
     if result["valid_Offchain"] == False or result["valid_Onchain"] == False:
