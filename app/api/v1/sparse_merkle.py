@@ -76,7 +76,7 @@ async def add_user(
         credentials = data.credentials
 
         # Add user to the SMT tree
-        print(f"[add_user()] user_id: {user_id}, credentials: {credentials}")
+        print(f"[/addUser] user_id: {user_id}, credentials: {credentials}")
         data = addUserToSMT(user_id, credentials)
 
         # log_user_action(

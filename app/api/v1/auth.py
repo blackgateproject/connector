@@ -2,6 +2,7 @@ import datetime
 import json
 import random
 import time
+from operator import ne
 from typing import Annotated
 from uuid import UUID
 
@@ -24,7 +25,12 @@ from ...utils.core_utils import (
     settings_dependency,
     verify_jwt,
 )
-from ...utils.web3_utils import addUserToMerkle, verifyUserOnMerkle
+from ...utils.web3_utils import (
+    addUserToMerkle,
+    addUserToSMT,
+    verifyUserOnMerkle,
+    verifyUserOnSMT,
+)
 
 router = APIRouter()
 
@@ -150,12 +156,20 @@ async def pollRequestStatus(
                     # Fetch user formData & networkInfo from supabase table "requests"
                     formData = request.data[0]["form_data"]
                     networkInfo = request.data[0]["network_info"]
+                    proof_type = request.data[0]["proof_type"]
 
-                    # Add user to merkle tree
-                    merkle_data = addUserToMerkle(
-                        user=formData,
-                        pw=networkInfo,
-                    )
+                    if proof_type == "smt":
+                        # Add user to merkle tree
+                        merkle_data = addUserToSMT(
+                            user=formData,
+                            pw=networkInfo,
+                        )
+                    else:
+                        # Add user to merkle tree
+                        merkle_data = addUserToMerkle(
+                            user=formData,
+                            pw=networkInfo,
+                        )
 
                     # Remove merkleRoot and merkleProof from merkle
                     merkle_data.pop("merkleRoot", None)
@@ -260,16 +274,60 @@ async def verify_user(
 
     vc_data = body.get("credential")
     did = vc_data.get("credentialSubject").get("did")
-    merkleHash = vc_data.get("credentialSubject").get("ZKP").get("userHash")
+    proof_type = vc_data.get("credentialSubject").get("proof_type")
+    if proof_type == "merkle":
+        merkleHash = vc_data.get("credentialSubject").get("ZKP").get("userHash")
+        txHash = vc_data.get("credentialSubject").get("ZKP").get("txHash")
+        print(f"[verify_user()] txHash: {txHash}")
+        print(f"[verify_user()] merkleHash: {merkleHash}")
+    elif proof_type == "smt":
+        index = vc_data.get("credentialSubject").get("ZKP").get("index")
+        merkleHash = vc_data.get("credentialSubject").get("ZKP").get("userHash")
+        # This should not be used, only the hash
+        networkInfo = vc_data.get("credentialSubject").get("networkInfo")
+        print(f"[verify_user()] index: {index}")
+        print(f"[verify_user()] merkleHash: {merkleHash}")
     # merkleProof = zkp.merkleProof
 
+    print(f"[verify_user()] Proof Type: {proof_type}")
     print(f"[verify_user()] DID: {did}")
     print(f"[verify_user()] merkleHash: {merkleHash}")
 
-    # Verify user on the merkle tree
-    result = verifyUserOnMerkle(
-        merkleHash,
-    )
+    if proof_type == "smt":
+        # Verify user on the smt tree
+
+        # {'formData': {'did': 'did:ethr:0x025a3d2bb81424fb8ef339661abcfc6a58a3ce684154e8acc8ad19bc309f267695',
+        #               'alias': 1,
+        #               'testMode': True,
+        #               'proof_type': 'smt',
+        #               'selected_role': 'device',
+        #               'firmware_version': '4.5.8'},
+        # 'networkInfo': {'ip_address': '39.43.130.155',
+        #                 'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36 OPR/118.0.0.0',
+        #                 'location_lat': 33.7482655,
+        #                 'location_long': 72.7437014,
+        #                 'user_language': 'en-US'},
+        # 'ZKP': {'index': '3',
+        #         'userHash': '9822294c7c8cd2505d2aef2a0120d18a609c54d69aa048a5b7f12f7a70ddf579'
+        # }}
+
+        form_data = {
+            "did": did,
+            "alias": vc_data.get("credentialSubject").get("alias"),
+            "testMode": vc_data.get("credentialSubject").get("testMode"),
+            "proof_type": proof_type,
+            "selected_role": vc_data.get("credentialSubject").get("selected_role"),
+            "firmware_version": vc_data.get("credentialSubject").get(
+                "firmware_version"
+            ),
+        }
+        # print(f"[verify_user()] form_data: {form_data}")
+        result = verifyUserOnSMT(user_id=form_data, key=index, credentials=networkInfo)
+    elif proof_type == "merkle":
+        # Verify user on the smt tree
+        result = verifyUserOnMerkle(
+            merkleHash=merkleHash,
+        )
 
     print(f"[verify_user()] results: {result}")
     if result["valid_Offchain"] == False or result["valid_Onchain"] == False:
@@ -285,7 +343,8 @@ async def verify_user(
     if result["valid_Offchain"] and result["valid_Onchain"]:
         # Create a supabase client
         supabase: Client = create_client(
-            supabase_url=settings.SUPABASE_URL, supabase_key=settings.SUPABASE_AUTH_ANON_KEY
+            supabase_url=settings.SUPABASE_URL,
+            supabase_key=settings.SUPABASE_AUTH_ANON_KEY,
         )
         testMode = (
             vc_data.get("credentialSubject").get("testMode")
@@ -436,12 +495,21 @@ async def testAutoApproveReq(
                 # Fetch user formData & networkInfo from supabase table "requests"
                 formData = request.data[0]["form_data"]
                 networkInfo = request.data[0]["network_info"]
+                proof_type = formData.get("proof_type")
 
-                # Add user to merkle tree
-                merkle_data = addUserToMerkle(
-                    user=formData,
-                    pw=networkInfo,
-                )
+                if proof_type == "smt":
+                    # Add user to merkle tree
+                    merkle_data = addUserToSMT(
+                        user=formData,
+                        pw=networkInfo,
+                    )
+                elif proof_type == "merkle":
+                    # Add user to merkle tree
+                    merkle_data = addUserToMerkle(
+                        user=formData,
+                        pw=networkInfo,
+                    )
+
                 # Remove merkleRoot and merkleProof from merkle
                 merkle_data.pop("merkleRoot", None)
                 merkle_data.pop("userProof", None)
@@ -473,7 +541,7 @@ async def testAutoApproveReq(
                 )
 
                 returnResponse = {
-                    "message": f"approved request for role {formData.get('selected_role')}",
+                    "message": f"approved request for role '{formData.get('selected_role')}' using ZKP '{proof_type}'",
                     "verifiable_credential": verifiableCredential,
                     "request_status": f"{request.data[0]['request_status']}",
                 }

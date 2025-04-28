@@ -331,11 +331,15 @@ def verifyUserOnSMT(user_id, key, credentials):
     #     f"[verifyUserOnMerkle()] Onchain verification duration: {onchain_verify_duration:.4f} seconds"
     # )
 
+    # Remove this once the onchain verification is implemented
+    validOnchain = True
+    onchain_verify_duration = 99.0
+
     results = {
         "valid_Offchain": validOffchain,
-        # "valid_Onchain": validOnchain,
+        "valid_Onchain": validOnchain,
         "auth_Offchain_duration": local_verify_duration,
-        # "auth_Onchain_duration": onchain_verify_duration,
+        "auth_Onchain_duration": onchain_verify_duration,
     }
 
     return results

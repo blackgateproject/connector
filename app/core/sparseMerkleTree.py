@@ -47,8 +47,8 @@ class sparseMerkleTree:
             # proof = self.smt.generate_proof(int(user_id))
             data = {
                 # "_store_tree()": stuff,
-                "key": str(key),
-                "current_hash": current_hash.hex(),
+                "index": str(key),
+                "userHash": current_hash.hex(),
                 # "proof": json.dumps(
                 # "proof": 
                 #     [(sibling.hex(), is_right) for sibling, is_right in proof]
