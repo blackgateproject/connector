@@ -166,7 +166,7 @@ def addUserToMerkle(user: str, pw: str):
                 "chainId": chain_id,
                 "gas": 2000000,
                 "gasPrice": w3.to_wei("1", "gwei"),
-                "nonce": w3.eth.get_transaction_count(wallet_addr),
+                "nonce": w3.eth.get_transaction_count(wallet_addr, "pending"),
             }
         )
     )
