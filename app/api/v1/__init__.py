@@ -5,4 +5,5 @@ from .user import *
 from .merkle import *
 from .setup import *
 from .sparse_merkle import *
+from .accumulator import *
 # from .onboarding import *

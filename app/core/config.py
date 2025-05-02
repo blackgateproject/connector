@@ -16,3 +16,5 @@ class Settings(BaseSettings):
     ZKSYNC_NODE_TYPE: str
     BLOCKCHAIN_CHAIN_ID: int
     CRED_SERVER_URL: str
+    ACC_GENERATOR: int
+    ACC_MODULUS: int

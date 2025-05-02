@@ -5,11 +5,23 @@ from fastapi.exceptions import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
 
-from .api.v1 import admin, auth, blockchain, merkle, setup, user, sparse_merkle
+from .api.v1 import (
+    accumulator,
+    admin,
+    auth,
+    blockchain,
+    merkle,
+    setup,
+    sparse_merkle,
+    user,
+)
 from .core.merkle import merkleCore
 from .core.sparseMerkleTree import smtCore
+from .core.tasks.credserver_keepalive import (
+    shutdown_scheduler,
+    start_health_check_scheduler,
+)
 from .utils.core_utils import settings_dependency, setup_state, verify_jwt
-from .core.tasks.credserver_keepalive import start_health_check_scheduler, shutdown_scheduler
 
 app = FastAPI()
 debug = settings_dependency().DEBUG
@@ -52,11 +64,13 @@ app.add_middleware(
 
 #     return response
 
+
 # Add startup events
 @app.on_event("startup")
 async def startup_event():
     print(f"[CORE] Starting up health service check for credserver")
     start_health_check_scheduler()
+
 
 # Add a shutdown event to dump the merkle tree
 @app.on_event("shutdown")
@@ -88,11 +102,16 @@ app.include_router(auth.router, prefix=f"/auth/{API_VERSION}", tags=["Auth"])
 app.include_router(user.router, prefix=f"/user/{API_VERSION}", tags=["User"])
 app.include_router(admin.router, prefix=f"/admin/{API_VERSION}", tags=["Admin"])
 app.include_router(merkle.router, prefix=f"/merkle/{API_VERSION}", tags=["Merkle"])
-app.include_router(sparse_merkle.router, prefix=f"/sparse_merkle/{API_VERSION}", tags=["Spare Merkle"])
+app.include_router(
+    sparse_merkle.router, prefix=f"/sparse_merkle/{API_VERSION}", tags=["Spare Merkle"]
+)
 app.include_router(
     blockchain.router, prefix=f"/blockchain/{API_VERSION}", tags=["Blockchain"]
 )
 app.include_router(setup.router, prefix=f"/setup/{API_VERSION}", tags=["Setup"])
+app.include_router(
+    accumulator.router, prefix=f"/accumulator/{API_VERSION}", tags=["Accumulator"]
+)
 # app.include_router(onboarding.router, prefix=f"/onboarding/{API_VERSION}", tags=["Onboarding"])
 
 
@@ -104,6 +123,8 @@ def root():
             "message": "Connector running! Visit /docs for API documentation.",
         }
     )
+
+
 # return env var
 @app.get("/env")
 def get_env(settings: settings_dependency):

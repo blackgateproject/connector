@@ -12,25 +12,14 @@ from fastapi.responses import JSONResponse
 from supabase import AuthApiError
 from supabase.client import Client, create_client
 
-from ...credential_service.credservice import (
-    issue_credential,
-    resolve_did,
-    verify_credential,
-)
+from ...credential_service.credservice import (issue_credential, resolve_did,
+                                               verify_credential)
 from ...models.requests import HashProof
-from ...utils.core_utils import (
-    extract_user_details_for_passwordless,
-    extractUserInfo,
-    log_user_action,
-    settings_dependency,
-    verify_jwt,
-)
-from ...utils.web3_utils import (
-    addUserToMerkle,
-    addUserToSMT,
-    verifyUserOnMerkle,
-    verifyUserOnSMT,
-)
+from ...utils.core_utils import (extract_user_details_for_passwordless,
+                                 extractUserInfo, log_user_action,
+                                 settings_dependency, verify_jwt)
+from ...utils.web3_utils import (addUserToMerkle, addUserToSMT,
+                                 verifyUserOnMerkle, verifyUserOnSMT)
 
 router = APIRouter()
 
@@ -576,80 +565,3 @@ async def testAutoApproveReq(
             return JSONResponse(
                 content={"authenticated": False, "error": str(e)}, status_code=500
             )
-
-    #         if request.data:
-    #             # Check if the request is approved but no ZKP has been sent yet
-    #             if (
-    #                 request.data[0]["request_status"] == "approved"
-    #                 and request.data[0]["isVCSent"] == False
-    #             ):
-    #                 # Add user to merkle tree and return the proof
-    #                 entry = addUserToMerkle(
-    #                     request.data[0]["did_str"],
-    #                     request.data[0]["verifiable_cred"],
-    #                 )
-    #                 print(f"Added user to merkle tree: {entry}")
-
-    #                 print(
-    #                     f"Request Data after approve: \n{request.data[0]['request_status']}"
-    #                 )
-    #                 # Update status to accepted
-    #                 response = (
-    #                     supabase.table("requests")
-    #                     .update({"isVCSent": True, "verifiable_cred": None})
-    #                     .eq("wallet_addr", did_str)
-    #                     .execute()
-    #                 )
-    #                 print(
-    #                     f"Request Data after status update to accepted: \n{response.data[0]['isVCSent']}"
-    #                 )
-    #                 returnResponse = {
-    #                     "message": f"approved request for role {request.data[0]['selected_role']}",
-    #                     "merkle_hash": entry["userHash"],
-    #                     "merkle_proof": entry["userProof"],
-    #                     "merkle_root": entry["merkleRoot"],
-    #                     "tx_hash": entry["txHash"],
-    #                     "request_status": f"{request.data[0]['request_status']}",
-    #                 }
-    #             elif (
-    #                 request.data[0]["request_status"] == "approved"
-    #                 and request.data[0]["isVCSent"] == True
-    #             ):
-    #                 print(
-    #                     f"User already added to merkle tree: {request.data[0]['isVCSent']}"
-    #                 )
-
-    #                 returnResponse = {
-    #                     "message": f"User already added to merkle tree",
-    #                     "request_status": f"{request.data[0]['request_status']}",
-    #                 }
-    #             elif request.data[0]["request_status"] == "rejected":
-    #                 print(f"Request Data: {request.data[0]['request_status']}")
-    #                 returnResponse = {
-    #                     "message": f"Request rejected",
-    #                     "request_status": f"{request.data[0]['request_status']}",
-    #                 }
-
-    #             elif request.data[0]["request_status"] == "pending":
-    #                 print(f"Request Data: {request.data[0]['request_status']}")
-    #                 returnResponse = {
-    #                     "message": f"Request pending",
-    #                     "request_status": f"{request.data[0]['request_status']}",
-    #                 }
-    #         else:
-    #             print(f"No request found for this wallet address")
-    #             returnResponse = {
-    #                 "message": f"No request found for this wallet address",
-    #                 "request_status": "not_found",
-    #             }
-
-    #             return JSONResponse(content=returnResponse, status_code=404)
-    #         print(f"Return Response: {returnResponse}")
-    #         return JSONResponse(content=returnResponse, status_code=200)
-    #     except Exception as e:
-    #         print(f"Error: {e}")
-    #         return JSONResponse(
-    #             content={"authenticated": False, "error": str(e)}, status_code=500
-    #         )
-    # else:
-    #     raise Exception("[ERROR]: Supabase client not created")
