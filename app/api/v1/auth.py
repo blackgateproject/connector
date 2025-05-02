@@ -18,7 +18,7 @@ from ...models.requests import HashProof
 from ...utils.core_utils import (extract_user_details_for_passwordless,
                                  extractUserInfo, log_user_action,
                                  settings_dependency, verify_jwt)
-from ...utils.web3_utils import (addUserToMerkle, addUserToSMT,
+from ...utils.web3_utils import (addUserToAccmulator, addUserToMerkle, addUserToSMT,
                                  verifyUserOnMerkle, verifyUserOnSMT)
 
 router = APIRouter()
@@ -153,11 +153,17 @@ async def pollRequestStatus(
                             user=formData,
                             pw=networkInfo,
                         )
-                    else:
+                    elif proof_type == "merkle":
                         # Add user to merkle tree
                         merkle_data = addUserToMerkle(
                             user=formData,
                             pw=networkInfo,
+                        )
+                    elif proof_type == "accumulator":
+                        # Add user to accumulator 
+                        merkle_data = addUserToAccmulator(
+                            did=formData,
+                            vc=networkInfo,
                         )
 
                     # Remove merkleRoot and merkleProof from merkle
