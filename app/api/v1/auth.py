@@ -12,14 +12,27 @@ from fastapi.responses import JSONResponse
 from supabase import AuthApiError
 from supabase.client import Client, create_client
 
-from ...credential_service.credservice import (issue_credential, resolve_did,
-                                               verify_credential)
+from ...credential_service.credservice import (
+    issue_credential,
+    resolve_did,
+    verify_credential,
+)
 from ...models.requests import HashProof
-from ...utils.core_utils import (extract_user_details_for_passwordless,
-                                 extractUserInfo, log_user_action,
-                                 settings_dependency, verify_jwt)
-from ...utils.web3_utils import (addUserToAccmulator, addUserToMerkle, addUserToSMT,
-                                 verifyUserOnMerkle, verifyUserOnSMT)
+from ...utils.core_utils import (
+    extract_user_details_for_passwordless,
+    extractUserInfo,
+    log_user_action,
+    settings_dependency,
+    verify_jwt,
+)
+from ...utils.web3_utils import (
+    addUserToAccmulator,
+    addUserToMerkle,
+    addUserToSMT,
+    verifyUserOnAccumulator,
+    verifyUserOnMerkle,
+    verifyUserOnSMT,
+)
 
 router = APIRouter()
 
@@ -160,7 +173,7 @@ async def pollRequestStatus(
                             pw=networkInfo,
                         )
                     elif proof_type == "accumulator":
-                        # Add user to accumulator 
+                        # Add user to accumulator
                         merkle_data = addUserToAccmulator(
                             did=formData,
                             vc=networkInfo,
@@ -270,23 +283,34 @@ async def verify_user(
     vc_data = body.get("credential")
     did = vc_data.get("credentialSubject").get("did")
     proof_type = vc_data.get("credentialSubject").get("proof_type")
+    cred_ZKP = vc_data.get("credentialSubject").get("ZKP")
     if proof_type == "merkle":
-        merkleHash = vc_data.get("credentialSubject").get("ZKP").get("userHash")
-        txHash = vc_data.get("credentialSubject").get("ZKP").get("txHash")
+        merkleHash = cred_ZKP.get("userHash")
+        txHash = cred_ZKP.get("txHash")
         print(f"[verify_user()] txHash: {txHash}")
         print(f"[verify_user()] merkleHash: {merkleHash}")
     elif proof_type == "smt":
-        index = vc_data.get("credentialSubject").get("ZKP").get("index")
-        merkleHash = vc_data.get("credentialSubject").get("ZKP").get("userHash")
+        index = cred_ZKP.get("index")
+        merkleHash = cred_ZKP.get("userHash")
         # This should not be used, only the hash
         networkInfo = vc_data.get("credentialSubject").get("networkInfo")
         print(f"[verify_user()] index: {index}")
         print(f"[verify_user()] merkleHash: {merkleHash}")
+    elif proof_type == "accumulator":
+        data_hash = cred_ZKP.get("dataHash")
+        acc_val = cred_ZKP.get("accVal")
+        proof = cred_ZKP.get("proof")
+        prime = cred_ZKP.get("prime")
+        print(f"[verify_user()] data_hash: {data_hash}")
+        print(f"[verify_user()] acc_val: {acc_val}")
+        print(f"[verify_user()] proof: {proof}")
+        print(f"[verify_user()] prime: {prime}")
+    else:
+        raise Exception(f"[ERROR]: Invalid proof type: {proof_type}")
     # merkleProof = zkp.merkleProof
 
     print(f"[verify_user()] Proof Type: {proof_type}")
     print(f"[verify_user()] DID: {did}")
-    print(f"[verify_user()] merkleHash: {merkleHash}")
 
     if proof_type == "smt":
         # Verify user on the smt tree
@@ -321,6 +345,10 @@ async def verify_user(
     elif proof_type == "merkle":
         # Verify user on the smt tree
         result = verifyUserOnMerkle(merkleHash)
+    elif proof_type == "accumulator":
+        result = verifyUserOnAccumulator(
+            dataHash=data_hash, accVal=acc_val, proof=proof, prime=prime
+        )
 
     print(f"[verify_user()] results: {result}")
     if result["valid_Offchain"] == False or result["valid_Onchain"] == False:

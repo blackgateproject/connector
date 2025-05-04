@@ -375,14 +375,26 @@ def verifyUserOnAccumulator(dataHash: str, accVal: str, proof: str, prime: str):
         print(f"[verifyUserOnAccumulator()] proof: {proof}")
         print(f"[verifyUserOnAccumulator()] prime: {prime}")
 
-
         result = accumulatorCore.verify_membership(
             accVal=accVal, proof=proof, prime=prime
         )
+
+        results = {
+            "valid_Offchain": result,
+            "valid_Onchain": True,
+            "auth_Offchain_duration": 0,
+            "auth_Onchain_duration": 0,
+        }
+
     except Exception as e:
         print(f"[verifyUserOnAccumulator()] Error while verifying membership: {str(e)}")
-        return False
-    return result
+        results = {
+            "valid_Offchain": False,
+            "valid_Onchain": False,
+            "auth_Offchain_duration": 0,
+            "auth_Onchain_duration": 0,
+        }
+    return results
 
     # try:
     #     contract = get_rsa_accumulator()
