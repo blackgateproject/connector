@@ -5,9 +5,11 @@ import time
 from datetime import datetime, timezone
 from functools import lru_cache
 
+from eth_abi import decode as decode_abi
 from eth_account import Account
 from eth_account.signers.local import LocalAccount
 from fastapi import Depends
+from regex import F
 from typing_extensions import Annotated
 from web3 import Web3
 from zksync2.account.wallet import Wallet
@@ -15,6 +17,7 @@ from zksync2.module.module_builder import ZkSyncBuilder
 from zksync2.module.zksync_provider import ZkSyncProvider
 from zksync2.signer.eth_signer import BaseAccount, PrivateKeyEthSigner
 
+from ..core.accumulator import accumulatorCore
 from ..core.config import Settings
 from ..core.merkle import merkleCore
 from ..core.sparseMerkleTree import smtCore
@@ -52,7 +55,7 @@ if settings_dependency().BLOCKCHAIN_WALLET_ADDR:
             f"Derived Address({derived_addr}) does not match the provided address({wallet_addr})"
         )
 
-    if debug >= 2:
+    if debug >= 0:
         print("Using Wallet Address from .env")
 else:
     print(
@@ -68,12 +71,12 @@ def getContractZKsync(contract_name: str):
     # Basic error checks
     if not contract_name:
         raise ValueError("Contract name cannot be empty!")
-    elif contract_name not in ["Merkle"]:
+    elif contract_name not in ["Merkle", "RSAAccumulator"]:
         raise ValueError("Invalid contract name provided!")
 
     # Define the base directory (prefix path)
-    print(f"Current Directory: {os.getcwd()}")
-    print(f"Directory List: {os.listdir('./')}")
+    # print(f"Current Directory: {os.getcwd()}")
+    # print(f"Directory List: {os.listdir('./')}")
     # base_dir = "utils"
 
     # zksyncNodeType[dockerizedNode, anvilZKsync, zkSyncSepoliaTestnet, zkSyncSepoliaMainet]
@@ -87,14 +90,14 @@ def getContractZKsync(contract_name: str):
         f"{contract_name}.json",
     )
 
-    if debug >= 3:
+    if debug >= 0:
         print(f"Loading {contract_name} contract details...")
         print(f"  Deployments Path: {deployments_json_path}")
 
     # Load contract deployment json
     with open(deployments_json_path, "r") as contract_file:
         contract_data = json.load(contract_file)
-        # if debug >= 2:
+        # if debug >= 0:
         # print(f"Contract Data: {json.dumps(contract_data)}")
 
     # Extract contract ABI
@@ -106,7 +109,7 @@ def getContractZKsync(contract_name: str):
         txHash = entry.get("txHash")
         constructorArgs = entry.get("constructorArgs")
 
-        # if debug >= 4:
+        # if debug >= 0:
 
         #     print(f"Contract Address: {contract_address}")
         #     print(f"Contract ABI: {contract_abi}")
@@ -135,7 +138,7 @@ async def getZKSyncMerkleRoot():
     # Call the getRoot function from the contract
     merkle_root = contract.functions.getMerkleRoot().call()
 
-    if debug >= 2:
+    if debug >= 0:
         print(f"[get_zkSync_merkle_root()] Merkle Root: {merkle_root}")
 
     return merkle_root
@@ -188,7 +191,7 @@ def addUserToMerkle(user: str, pw: str):
     # )
 
     # Print the transaction hash for debugging purposes
-    if debug >= 1:
+    if debug >= 0:
         # print(f"[addUserToMerkle()] Transaction Hash: {signed_tx}")
         print(f"[addUserToMerkle()] Transaction Hash: 0x{signed_tx_hash.hex()}")
 
@@ -291,7 +294,7 @@ def addUserToSMT(user: str, pw: str):
     # )
 
     # Print the transaction hash for debugging purposes
-    # if debug >= 1:
+    # if debug >= 0:
     #     # print(f"[addUserToMerkle()] Transaction Hash: {signed_tx}")
     #     print(f"[addUserToMerkle()] Transaction Hash: 0x{signed_tx_hash.hex()}")
 
@@ -345,6 +348,95 @@ def verifyUserOnSMT(user_id, key, credentials):
     return results
 
 
+def addUserToAccmulator(did: str, vc: str):
+    # Combine the did and vc into json
+    userW3creds = json.dumps({"did": did, "vc": vc})
+    print(f"[addUserToAccmulator()] UserW3Creds: {userW3creds}")
+
+    # convert the json to bytes
+    userW3creds = userW3creds.encode("utf-8").hex()
+    print(f"[addUserToAccmulator()] UserW3Creds: {type(userW3creds)}\t{userW3creds}")
+
+    # Convert HexBytes to hex string before passing to accumulatorCore.add
+    data = accumulatorCore.add(userW3creds)
+
+    return data
+
+
+# Function to verify the accumulator
+def verifyUserOnAccumulator(dataHash: str, accVal: str, proof: str, prime: str):
+    """
+    Verify the user on the RSA accumulator
+    """
+    try:
+        # Verify the user on the RSA accumulator
+
+        print(f"[verifyUserOnAccumulator()] accVal: {accVal}")
+        print(f"[verifyUserOnAccumulator()] proof: {proof}")
+        print(f"[verifyUserOnAccumulator()] prime: {prime}")
+
+        result = accumulatorCore.verify_membership(
+            accVal=accVal, proof=proof, prime=prime
+        )
+
+        results = {
+            "valid_Offchain": result,
+            "valid_Onchain": True,
+            "auth_Offchain_duration": 0,
+            "auth_Onchain_duration": 0,
+        }
+
+    except Exception as e:
+        print(f"[verifyUserOnAccumulator()] Error while verifying membership: {str(e)}")
+        results = {
+            "valid_Offchain": False,
+            "valid_Onchain": False,
+            "auth_Offchain_duration": 0,
+            "auth_Onchain_duration": 0,
+        }
+    return results
+
+    # try:
+    #     contract = get_rsa_accumulator()
+
+    #     # Ensure prime is 32 bytes long
+    #     primeBytes = bytes.fromhex(prime[2:])
+    #     if len(primeBytes) != 32:
+    #         raise ValueError("Prime must be 32 bytes long")
+
+    #     result = contract.functions.verify(proof, prime, accVal).transact({"from": wallet_addr})
+
+    #     if debug >= 0:
+    #         print(f"[verifyUserOnAccumulator()] Verification Result: {result}")
+
+    #     return result
+
+    # except Exception as e:
+    #     print(f"Error while calling verify: {e}")
+    #     return {"error": str(e)}
+
+
+def getBlockchainModulus():
+    """
+    Get the modulus from the RSA accumulator contract
+    """
+    try:
+        contract = get_rsa_accumulator()
+        modulus = contract.functions.getModulus().call({"from": wallet_addr})
+
+        # Convert the bytes modulus to a hex string
+        modulus = f"0x{modulus.hex()}"
+
+        if debug >= 0:
+            print(f"[getBlockchainModulus()] Modulus: {modulus}")
+
+        return modulus
+
+    except Exception as e:
+        print(f"Error while calling getModulus: {e}")
+        return {"error": str(e)}
+
+
 """
 Contract init functions
 """
@@ -353,4 +445,10 @@ Contract init functions
 # Returns the contract instance for the Merkle contract, used for verifying proofs
 def get_merkle_verifier():
     contract_address, contract_abi = getContractZKsync("Merkle")
+    return w3.eth.contract(address=contract_address, abi=contract_abi)
+
+
+# Return a RSAAccumulator instance
+def get_rsa_accumulator():
+    contract_address, contract_abi = getContractZKsync("RSAAccumulator")
     return w3.eth.contract(address=contract_address, abi=contract_abi)

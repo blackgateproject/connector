@@ -39,7 +39,7 @@ security = HTTPBearer()
 async def verify_jwt(request: Request):
     credentials: HTTPAuthorizationCredentials = await security(request)
     token = credentials.credentials
-    if debug >= 6:
+    if debug >= 0:
         print(f"[VERIFY_JWT()] JWT_SECRET: {settings_dependency().JWT_SECRET}")
         print(f"[VERIFY_JWT()] JWT_ALGORITHM: {settings_dependency().JWT_ALGORITHM}")
         print(f"[VERIFY_JWT()] JWT Token: {token}")
@@ -52,7 +52,7 @@ async def verify_jwt(request: Request):
             ],
             audience="authenticated",
         )
-        if debug >= 6:
+        if debug >= 0:
             print(f"[VERIFY_JWT()] Payload: {payload}")
         return payload
     except Exception as e:
