@@ -89,7 +89,7 @@ async def getUsers(settings: settings_dependency):
         users_response = supabase.auth.admin.list_users(page=1, per_page=100)
 
         # Check the structure of the response (print it for inspection)
-        if debug >= 2:
+        if debug >= 0:
             print(f"Users Response: {users_response}")
 
         # The response might be a list of User objects. We need to serialize them.
@@ -126,7 +126,7 @@ async def getUsers(settings: settings_dependency):
             serialized_users.append(serialized_user)
 
         # Print the serialized user data
-        if debug >= 2:
+        if debug >= 0:
             print(f"Serialized Users: {serialized_users}")
 
         # Initialize the list to hold the return users
@@ -198,7 +198,7 @@ async def getUsers(settings: settings_dependency):
             # print(f"Return USR: \n{returnUser}")
 
         # Debug print the return users list
-        if debug >= 1:
+        if debug >= 0:
             print(f"Return OBJ: \n{returnUsers}")
 
         # Return the JSON response with the serialized user data
@@ -387,7 +387,7 @@ async def delete_user(
 #     password = data.get("password")
 #     role = data.get("role")
 
-#     if debug >= 1:
+#     if debug >= 0:
 #         print(f"User Data: {data}")
 
 #     supabase: Client = create_client(
@@ -409,7 +409,7 @@ async def delete_user(
 #                 },
 #             },
 #         )
-#         if debug >= 1:
+#         if debug >= 0:
 #             print(f"Response: {response}")
 
 #         # Update the user's role
@@ -444,7 +444,7 @@ async def get_admin_profile(
     # request: Request, settings: settings_dependency, _: dict = Depends(verify_jwt)
 ):
     access_token = request.headers.get("Authorization").split(" ")[1]
-    if debug >= 1:
+    if debug >= 0:
         print(f"Access Token: {access_token}")
     supabase: Client = create_client(
         supabase_url=settings.SUPABASE_URL,
@@ -454,7 +454,7 @@ async def get_admin_profile(
     try:
         user_response = supabase.auth.get_user(access_token)
         user = user_response.user
-        if debug >= 1:
+        if debug >= 0:
             print(f"GOT USER: {user}")
 
         # # Fetch the role from the user_roles table

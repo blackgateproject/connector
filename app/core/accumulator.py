@@ -55,7 +55,7 @@ class AccumulatorClass:
             print(f"[CORE] Using Random RSA Modulus and Generator")
             self.setup()
         print(f"[CORE] Accumulator Initialized.")
-        if debug >= 3:
+        if debug >= 0:
             print(
                 f"\n\tMODULUS: {self.MODULUS}\n\tpaddStrMOD: {to_padded_num_str(self.MODULUS, 384)}\n\tGENERATOR: {self.GENERATOR}"
             )
@@ -109,7 +109,7 @@ class AccumulatorClass:
                 self.prevAccumulator, hash_prime, self.MODULUS
             )
             self.SECRETS_DICT[x] = nonce
-            if debug >= 4:
+            if debug >= 0:
                 print(
                     f"[ADD]:\n\tAdded to SECRET_DICT: \n\t\tELEMENT: {x}\n\t\tNONCE: {nonce}\n\t\tSECRET_DICT: {self.SECRETS_DICT}"
                 )
@@ -120,7 +120,7 @@ class AccumulatorClass:
             paddedStrAccumulator = to_padded_num_str(self.currentAccumulator, 384)
             paddedStrProof = to_padded_num_str(proof, 384)
             paddedStrPrime = to_padded_num_str(prime, 32)
-            if debug >= 4:
+            if debug >= 0:
                 print(f"\n\t\tProof: {proof}")
                 print(f"\n\t\tPrime: {prime}")
                 print(f"\n\t\tAccumulator: {self.currentAccumulator}")
@@ -190,7 +190,7 @@ class AccumulatorClass:
             print(f"[ERR] Element {x} not in SECRETS_DICT")
             return None
         else:
-            if debug >= 4:
+            if debug >= 0:
                 print(f"[PRV_MBMRSHP]: Element {x} in SECRETS_DICT")
             product = 1
             for element in self.SECRETS_DICT.keys():
@@ -199,15 +199,15 @@ class AccumulatorClass:
                     product *= hash_to_prime(
                         element, self.ACCUMULATED_PRIME_SIZE, nonce
                     )[0]
-                    if debug >= 4:
+                    if debug >= 0:
                         print(f"[PRV_MBMRSHP] \n\tnonce: {nonce} for element {element}")
             # If the loop did not run, meaning x is the only element in SECRETS_DICT, we can handle this case:
             if "nonce" not in locals():
-                if debug >= 4:
+                if debug >= 0:
                     print(
                         f"[PRV_MBMRSHP] No nonces processed (only {x} in SECRETS_DICT)"
                     )
-            if debug >= 4:
+            if debug >= 0:
                 print(f"[PRV_MBMRSHP] \n\tPRODUCT: {product}")
             # A = g^product mod n
             A = pow(self.GENERATOR, product, self.MODULUS)
@@ -474,7 +474,7 @@ class AccumulatorClass:
         #     return False
         try:
             # nonce = self.SECRETS_DICT[x]
-            # if debug >= 4:
+            # if debug >= 0:
             #     print(f"Element {x} has a Nonce {nonce}")
 
             # Proof is hex encoded, return back to large int
@@ -518,7 +518,7 @@ class AccumulatorClass:
     #         return False
     #     try:
     #         nonce = self.SECRETS_DICT[x]
-    #         if debug >= 4:
+    #         if debug >= 0:
     #             print(f"Element {x} has a Nonce {nonce}")
 
     #         # Proof is hex encoded, return back to large int
@@ -562,7 +562,7 @@ class AccumulatorClass:
     #         return False
 
     #     nonce = self.SECRETS_DICT[x]
-    #     if debug >= 4:
+    #     if debug >= 0:
     #         print(f"Element {x} has a Nonce {nonce}")
     #     return self.__verify_membership(
     #         self.currentAccumulator,

@@ -55,7 +55,7 @@ if settings_dependency().BLOCKCHAIN_WALLET_ADDR:
             f"Derived Address({derived_addr}) does not match the provided address({wallet_addr})"
         )
 
-    if debug >= 2:
+    if debug >= 0:
         print("Using Wallet Address from .env")
 else:
     print(
@@ -90,14 +90,14 @@ def getContractZKsync(contract_name: str):
         f"{contract_name}.json",
     )
 
-    if debug >= 3:
+    if debug >= 0:
         print(f"Loading {contract_name} contract details...")
         print(f"  Deployments Path: {deployments_json_path}")
 
     # Load contract deployment json
     with open(deployments_json_path, "r") as contract_file:
         contract_data = json.load(contract_file)
-        # if debug >= 2:
+        # if debug >= 0:
         # print(f"Contract Data: {json.dumps(contract_data)}")
 
     # Extract contract ABI
@@ -109,7 +109,7 @@ def getContractZKsync(contract_name: str):
         txHash = entry.get("txHash")
         constructorArgs = entry.get("constructorArgs")
 
-        # if debug >= 4:
+        # if debug >= 0:
 
         #     print(f"Contract Address: {contract_address}")
         #     print(f"Contract ABI: {contract_abi}")
@@ -138,7 +138,7 @@ async def getZKSyncMerkleRoot():
     # Call the getRoot function from the contract
     merkle_root = contract.functions.getMerkleRoot().call()
 
-    if debug >= 2:
+    if debug >= 0:
         print(f"[get_zkSync_merkle_root()] Merkle Root: {merkle_root}")
 
     return merkle_root
@@ -191,7 +191,7 @@ def addUserToMerkle(user: str, pw: str):
     # )
 
     # Print the transaction hash for debugging purposes
-    if debug >= 1:
+    if debug >= 0:
         # print(f"[addUserToMerkle()] Transaction Hash: {signed_tx}")
         print(f"[addUserToMerkle()] Transaction Hash: 0x{signed_tx_hash.hex()}")
 
@@ -294,7 +294,7 @@ def addUserToSMT(user: str, pw: str):
     # )
 
     # Print the transaction hash for debugging purposes
-    # if debug >= 1:
+    # if debug >= 0:
     #     # print(f"[addUserToMerkle()] Transaction Hash: {signed_tx}")
     #     print(f"[addUserToMerkle()] Transaction Hash: 0x{signed_tx_hash.hex()}")
 
@@ -406,7 +406,7 @@ def verifyUserOnAccumulator(dataHash: str, accVal: str, proof: str, prime: str):
 
     #     result = contract.functions.verify(proof, prime, accVal).transact({"from": wallet_addr})
 
-    #     if debug >= 2:
+    #     if debug >= 0:
     #         print(f"[verifyUserOnAccumulator()] Verification Result: {result}")
 
     #     return result
@@ -427,7 +427,7 @@ def getBlockchainModulus():
         # Convert the bytes modulus to a hex string
         modulus = f"0x{modulus.hex()}"
 
-        if debug >= 2:
+        if debug >= 0:
             print(f"[getBlockchainModulus()] Modulus: {modulus}")
 
         return modulus

@@ -1,17 +1,19 @@
+import asyncio
 import datetime
 import json
 import random
 import time
+from functools import lru_cache
 from operator import ne
-from typing import Annotated
+from typing import Annotated, Any, List, Optional, Tuple
 from uuid import UUID
 
+import psycopg
 from fastapi import APIRouter, Depends, Form
 from fastapi.requests import Request
 from fastapi.responses import JSONResponse
-from supabase import AuthApiError
-from supabase.client import Client, create_client
 
+from ...core.config import Settings
 from ...credential_service.credservice import (
     issue_credential,
     resolve_did,
@@ -34,13 +36,58 @@ from ...utils.web3_utils import (
     verifyUserOnSMT,
 )
 
+
+@lru_cache
+def get_settings():
+    return Settings()
+
+
+settings_dependency = Annotated[Settings, Depends(get_settings)]
+db_url = settings_dependency().SUPABASE_DB_URL
+
 router = APIRouter()
 
 debug = settings_dependency().DEBUG
 
-# Global list to store logged-in users (Shift this to supabase DB eventually)
-logged_in_users = []
-challenges = {}
+
+def fetch_one(query: str, params: Optional[Tuple] = None) -> Optional[dict]:
+    with psycopg.connect(db_url) as conn:
+        with conn.cursor() as cur:
+            cur.execute(query, params)
+            row = cur.fetchone()
+            if row:
+                columns = [desc[0] for desc in cur.description]
+                return dict(zip(columns, row))
+            return None
+
+
+def fetch_all(query: str, params: Optional[Tuple] = None) -> list:
+    with psycopg.connect(db_url) as conn:
+        with conn.cursor() as cur:
+            cur.execute(query, params)
+            rows = cur.fetchall()
+            columns = [desc[0] for desc in cur.description]
+            return [dict(zip(columns, row)) for row in rows]
+
+
+def execute_query(query: str, params: Optional[Tuple] = None) -> int:
+    with psycopg.connect(db_url) as conn:
+        with conn.cursor() as cur:
+            cur.execute(query, params)
+            affected = cur.rowcount
+            conn.commit()
+            return affected
+
+
+def execute_returning(query: str, params: Optional[Tuple] = None) -> Optional[dict]:
+    with psycopg.connect(db_url) as conn:
+        with conn.cursor() as cur:
+            cur.execute(query, params)
+            row = cur.fetchone()
+            if row:
+                columns = [desc[0] for desc in cur.description]
+                return dict(zip(columns, row))
+            return None
 
 
 @router.get("/")
@@ -49,223 +96,164 @@ async def health_check():
 
 
 @router.post("/register")
-async def register(request: Request, settings: settings_dependency):
-    """
-    User self-generates a DID & sends it here to be verified from an admin controller
-    Takes didString
-    Request body should contain formData & networkInfo
-    formData: {did, alias, selectedRole, firmwareVersion}
-    networkInfo: {user_agent, user_language, location_lat, location_long, ip_address}
-    :param request:
-    :return:
-    """
+async def register(request: Request):
     body = await request.json()
     formData = body.get("formData")
     networkInfo = body.get("networkInfo")
-    # Print the request body
-    if debug:
-        # print(f"Recieved Data: {body}")
+    if debug >= 0:
         print(f"Recieved Data: {formData}")
         print(f"Recieved Data: {networkInfo}")
 
-    # Add details to supabase table "requests"
-    supabase: Client = create_client(
-        supabase_url=settings.SUPABASE_URL, supabase_key=settings.SUPABASE_AUTH_ANON_KEY
+    wallet_times = formData.get("walletTimes")
+    print(f"Got Wallet Times: {wallet_times}")
+    wallet_generate_time = wallet_times.get("walletCreateTime")
+    wallet_encrypt_time = wallet_times.get("walletEncryptTime")
+    if wallet_times:
+        formData.pop("wallet_generate_time", None)
+        formData.pop("wallet_encrypt_time", None)
+        wallet_generate_time = (
+            wallet_generate_time if wallet_generate_time is not None else 0
+        )
+        wallet_encrypt_time = (
+            wallet_encrypt_time if wallet_encrypt_time is not None else 0
+        )
+
+    test_mode = (
+        formData.get("testMode") if formData.get("testMode") is not None else False
     )
-    if supabase:
-        try:
+    request_status = (
+        "approved"
+        if formData["selected_role"] == "device" and not test_mode
+        else "pending"
+    )
 
-            test_mode = (
-                formData.get("testMode")
-                if formData.get("testMode") is not None
-                else False
-            )
+    total_time = int(wallet_generate_time) + int(wallet_encrypt_time)
 
-            # # For device role, approve automatically only if not in test mode
-            request_status = (
-                "approved"
-                if formData["selected_role"] == "device" and not test_mode
-                else "pending"
-            )
+    requests_data = {
+        "did_str": formData["did"],
+        "form_data": json.dumps(formData),
+        "network_info": json.dumps(networkInfo),
+        "request_status": request_status,
+        "isVCSent": False,
+        "wallet_generate_time": wallet_generate_time,
+        "total_time": total_time,
+    }
 
-            request = (
-                supabase.table("requests")
-                .insert(
-                    [
-                        {
-                            "did_str": formData["did"],
-                            "form_data": formData,
-                            "network_info": networkInfo,
-                            "request_status": request_status,
-                            "isVCSent": False,
-                        }
-                    ]
-                )
-                .execute()
-            )
-            # Print the request data
-            if debug:
-                print(f"Request Data: {request.data}")
+    print(f"\n\nTimes: {wallet_generate_time}, {wallet_encrypt_time}")
 
-            # Return authenticated response
-            return JSONResponse(
-                content={"authenticated": True, "message": "Request added to DB"},
-                status_code=200,
-            )
-        except Exception as e:
-            print(f"[ERROR] Supabase client encountered: {e}")
-            return JSONResponse(
-                content={"authenticated": False, "error": str(e)}, status_code=500
-            )
-    else:
-        raise Exception("[ERROR]: Supabase client not created")
-    # return JSONResponse(content=credential, status_code=200)
+    try:
+        query = """
+            INSERT INTO requests (did_str, form_data, network_info, request_status, "isVCSent", wallet_generate_time, total_time)
+            VALUES (%(did_str)s, %(form_data)s, %(network_info)s, %(request_status)s, %(isVCSent)s, %(wallet_generate_time)s, %(total_time)s)
+        """
+        execute_query(query, requests_data)
+        return JSONResponse(
+            content={"authenticated": True, "message": "Request added to DB"},
+            status_code=200,
+        )
+    except Exception as e:
+        print(f"[ERROR] psycopg encountered: {e}")
+        return JSONResponse(
+            content={"authenticated": False, "error": str(e)}, status_code=500
+        )
 
 
 @router.get("/poll/{did_str}")
-async def pollRequestStatus(
-    request: Request, settings: settings_dependency, did_str: str
-):
-    """
-    Poll the request status from the supabase table "requests"
-    :param request:
-    :return:
-    """
-    # Print the request body
-    if debug:
+async def pollRequestStatus(request: Request, did_str: str):
+    if debug >= 0:
         print(f"Recieved Data: {did_str}")
 
-    # Add details to supabase table "requests"
-    supabase: Client = create_client(
-        supabase_url=settings.SUPABASE_URL, supabase_key=settings.SUPABASE_AUTH_ANON_KEY
-    )
-    if supabase:
-        try:
-            # Fetch requests table from supabase
-            request = (
-                supabase.table("requests").select("*").eq("did_str", did_str).execute()
-            )
-            # Print the request data
-            # if debug:
-            #     print(f"Request Status: {request.data[0]}")
+    try:
+        query = "SELECT * FROM requests WHERE did_str = %s"
+        rows = fetch_all(query, (did_str,))
+        returnResponse = {}
+        if rows:
+            req = rows[0]
+            # Only decode if it's a string
+            if isinstance(req["form_data"], str):
+                req["form_data"] = json.loads(req["form_data"])
+            if isinstance(req["network_info"], str):
+                req["network_info"] = json.loads(req["network_info"])
+            if req["request_status"] == "approved" and not req["isVCSent"]:
+                formData = req["form_data"]
+                networkInfo = req["network_info"]
+                proof_type = formData.get("proof_type")
 
-            if request.data:
-                # Check if the request is approved but no VC has been sent yet
-                if (
-                    request.data[0]["request_status"] == "approved"
-                    and request.data[0]["isVCSent"] == False
-                ):
-                    # Fetch user formData & networkInfo from supabase table "requests"
-                    formData = request.data[0]["form_data"]
-                    networkInfo = request.data[0]["network_info"]
-                    proof_type = formData.get("proof_type")
+                if proof_type == "smt":
+                    merkle_data = addUserToSMT(user=formData, pw=networkInfo)
+                elif proof_type == "merkle":
+                    merkle_data = addUserToMerkle(user=formData, pw=networkInfo)
+                elif proof_type == "accumulator":
+                    merkle_data = addUserToAccmulator(did=formData, vc=networkInfo)
+                else:
+                    merkle_data = {}
 
-                    if proof_type == "smt":
-                        # Add user to merkle tree
-                        merkle_data = addUserToSMT(
-                            user=formData,
-                            pw=networkInfo,
-                        )
-                    elif proof_type == "merkle":
-                        # Add user to merkle tree
-                        merkle_data = addUserToMerkle(
-                            user=formData,
-                            pw=networkInfo,
-                        )
-                    elif proof_type == "accumulator":
-                        # Add user to accumulator
-                        merkle_data = addUserToAccmulator(
-                            did=formData,
-                            vc=networkInfo,
-                        )
+                merkle_data.pop("merkleRoot", None)
+                merkle_data.pop("userProof", None)
 
-                    # Remove merkleRoot and merkleProof from merkle
-                    merkle_data.pop("merkleRoot", None)
-                    merkle_data.pop("userProof", None)
-
-                    # Issue a credential based on data.
-                    data = {
-                        "formData": formData,
-                        "networkInfo": networkInfo,
-                        "ZKP": merkle_data,
-                    }
-
-                    verifiableCredential = await issue_credential(data)
-
-                    # Update status to accepted, store VC, return the VC to the user
-                    response = (
-                        supabase.table("requests")
-                        .update(
-                            {
-                                "isVCSent": True,
-                                "verifiable_cred": verifiableCredential,
-                                "updated_at": datetime.datetime.now().isoformat(),
-                            }
-                        )
-                        .eq("did_str", formData.get("did"))
-                        .execute()
-                    )
-                    print(
-                        f"Request Data after status update to accepted: \n{response.data[0]['isVCSent']}"
-                    )
-                    returnResponse = {
-                        "message": f"approved request for role {formData.get('selected_role')}",
-                        "verifiable_credential": verifiableCredential,
-                        "request_status": f"{request.data[0]['request_status']}",
-                    }
-                elif (
-                    request.data[0]["request_status"] == "approved"
-                    and request.data[0]["isVCSent"] == True
-                ):
-                    print(
-                        f"User already added to merkle tree: {request.data[0]['isVCSent']}"
-                    )
-
-                    returnResponse = {
-                        "message": f"User already added to merkle tree",
-                        "request_status": f"{request.data[0]['request_status']}",
-                    }
-                elif request.data[0]["request_status"] == "rejected":
-                    print(f"Request Data: {request.data[0]['request_status']}")
-                    returnResponse = {
-                        "message": f"Request rejected",
-                        "request_status": f"{request.data[0]['request_status']}",
-                    }
-
-                elif request.data[0]["request_status"] == "pending":
-                    print(f"Request Data: {request.data[0]['request_status']}")
-                    returnResponse = {
-                        "message": f"Request pending",
-                        "request_status": f"{request.data[0]['request_status']}",
-                    }
-            else:
-                print(f"No request found for this did_str")
-                returnResponse = {
-                    "message": f"No request found for this did_str",
-                    "request_status": "not_found",
+                data = {
+                    "formData": formData,
+                    "networkInfo": networkInfo,
+                    "ZKP": merkle_data,
                 }
 
-                return JSONResponse(content=returnResponse, status_code=404)
-            print(f"Return Response: {returnResponse}")
-            return JSONResponse(content=returnResponse, status_code=200)
-        except Exception as e:
-            print(f"[ERR_SUPABASE] Error: {e}")
-            return JSONResponse(
-                content={"authenticated": False, "error": str(e)}, status_code=500
-            )
-    else:
-        raise Exception("[ERROR]: Supabase client not created")
+                verifiableCredential = await issue_credential(data)
 
-
-# Using request.json() to get the request body, forces async to be used. Need to
-# ensure this is optimized to be non-blocking
-#
+                update_query = """
+                    UPDATE requests
+                    SET "isVCSent" = TRUE,
+                        verifiable_cred = %s,
+                        updated_at = %s
+                    WHERE did_str = %s
+                    RETURNING *
+                """
+                execute_query(
+                    update_query,
+                    (
+                        json.dumps(verifiableCredential),
+                        datetime.datetime.now().isoformat(),
+                        formData.get("did"),
+                    ),
+                )
+                returnResponse = {
+                    "message": f"approved request for role {formData.get('selected_role')}",
+                    "verifiable_credential": verifiableCredential,
+                    "request_status": f"{req['request_status']}",
+                }
+            elif req["request_status"] == "approved" and req["isVCSent"]:
+                returnResponse = {
+                    "message": f"User already added to merkle tree",
+                    "request_status": f"{req['request_status']}",
+                }
+            elif req["request_status"] == "rejected":
+                returnResponse = {
+                    "message": f"Request rejected",
+                    "request_status": f"{req['request_status']}",
+                }
+            elif req["request_status"] == "pending":
+                returnResponse = {
+                    "message": f"Request pending",
+                    "request_status": f"{req['request_status']}",
+                }
+        else:
+            print(f"No request found for this did_str")
+            returnResponse = {
+                "message": f"No request found for this did_str",
+                "request_status": "not_found",
+            }
+            return JSONResponse(content=returnResponse, status_code=404)
+        print(f"Return Response: {returnResponse}")
+        return JSONResponse(content=returnResponse, status_code=200)
+    except Exception as e:
+        print(f"[ERR_psycopg] Error: {e}")
+        return JSONResponse(
+            content={"authenticated": False, "error": str(e)}, status_code=500
+        )
 
 
 @router.post("/verify")
 async def verify_user(
     request: Request,
-    settings: settings_dependency,
 ):
     """
     Verify user on the merkle tree.
@@ -281,9 +269,11 @@ async def verify_user(
         body = json.loads(body)
 
     vc_data = body.get("credential")
+    
     did = vc_data.get("credentialSubject").get("did")
     proof_type = vc_data.get("credentialSubject").get("proof_type")
     cred_ZKP = vc_data.get("credentialSubject").get("ZKP")
+
     if proof_type == "merkle":
         merkleHash = cred_ZKP.get("userHash")
         txHash = cred_ZKP.get("txHash")
@@ -307,43 +297,30 @@ async def verify_user(
         print(f"[verify_user()] prime: {prime}")
     else:
         raise Exception(f"[ERROR]: Invalid proof type: {proof_type}")
-    # merkleProof = zkp.merkleProof
 
     print(f"[verify_user()] Proof Type: {proof_type}")
     print(f"[verify_user()] DID: {did}")
 
+    access_token = ""
+    refresh_token = ""
+    duration = 0
+
     if proof_type == "smt":
-        # Verify user on the smt tree
-
-        # {'formData': {'did': 'did:ethr:0x025a3d2bb81424fb8ef339661abcfc6a58a3ce684154e8acc8ad19bc309f267695',
-        #               'alias': 1,
-        #               'testMode': True,
-        #               'proof_type': 'smt',
-        #               'selected_role': 'device',
-        #               'firmware_version': '4.5.8'},
-        # 'networkInfo': {'ip_address': '39.43.130.155',
-        #                 'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36 OPR/118.0.0.0',
-        #                 'location_lat': 33.7482655,
-        #                 'location_long': 72.7437014,
-        #                 'user_language': 'en-US'},
-        # 'ZKP': {'index': '3',
-        #         'userHash': '9822294c7c8cd2505d2aef2a0120d18a609c54d69aa048a5b7f12f7a70ddf579'
-        # }}
-
-        supabase: Client = create_client(
-            supabase_url=settings.SUPABASE_URL,
-            supabase_key=settings.SUPABASE_AUTH_ANON_KEY,
-        )
-        # Fetch user details from the did
-        response = supabase.table("requests").select("*").eq("did_str", did).execute()
-        if response.data:
-            # Get form_data from the response
-            form_data = response.data[0]["form_data"]
-
+        # Fetch user details from the did using psycopg
+        query = "SELECT form_data FROM requests WHERE did_str = %s"
+        with psycopg.connect(db_url) as conn:
+            with conn.cursor() as cur:
+                cur.execute(query, (did,))
+                row = cur.fetchone()
+                if row:
+                    form_data = row[0]
+                    if isinstance(form_data, str):
+                        form_data = json.loads(form_data)
+                else:
+                    form_data = {}
         print(f"[verify_user()] form_data: {form_data}")
         result = verifyUserOnSMT(user_id=form_data, key=index, credentials=networkInfo)
     elif proof_type == "merkle":
-        # Verify user on the smt tree
         result = verifyUserOnMerkle(merkleHash)
     elif proof_type == "accumulator":
         result = verifyUserOnAccumulator(
@@ -360,64 +337,40 @@ async def verify_user(
     else:
         message = "User verified on merkle tree"
 
-    # If the user is valid on both chains, return an anon user with the did in options
+    # If the user is valid on both chains, log the event in Postgres
     if result["valid_Offchain"] and result["valid_Onchain"]:
-        # Create a supabase client
-        supabase: Client = create_client(
-            supabase_url=settings.SUPABASE_URL,
-            supabase_key=settings.SUPABASE_AUTH_ANON_KEY,
-        )
         testMode = (
             vc_data.get("credentialSubject").get("testMode")
             if vc_data.get("credentialSubject")
             else False
         )
-        # Once created, attempt to fetch an anon user
-        if supabase:
+        if not testMode:
+            end_time = time.time()
+            duration = end_time - total_start_time
+            # Insert login event into login_events table
+            insert_query = """
+                INSERT INTO login_events (did_str, total_auth_duration, local_auth_duration, onchain_auth_duration)
+                VALUES (%s, %s, %s, %s)
+            """
             try:
-                # DO not return a session if in testmode
-                if not testMode:
-                    # Add the request to the supabase table
-                    response = supabase.auth.sign_in_anonymously(
-                        {
-                            "options": vc_data,
-                        }
-                    )
-                    print(f"Response[Parse for access TOken + refresh]: \n{response}")
-
-                    if response.session:
-                        access_token = response.session.access_token
-                        refresh_token = response.session.refresh_token
-                    else:
-                        access_token = ""
-                        refresh_token = ""
-                else:
-                    access_token = ""
-                    refresh_token = ""
-                    print(f"Test Mode: No access token returned")
-
-                end_time = time.time()
-                duration = end_time - total_start_time
-
-                # Placeholder for supabase code to store the duration
-                # supabase.table("request_durations").insert({"did": did, "duration": duration}).execute()
-                response = (
-                    supabase.table("login_events")
-                    .insert(
-                        {
-                            "did_str": did,
-                            "total_auth_duration": duration,
-                            "local_auth_duration": result["auth_Offchain_duration"],
-                            "onchain_auth_duration": result["auth_Onchain_duration"],
-                        }
-                    )
-                    .execute()
-                )
-                print(f"Added login event to supabase: \n{response}")
+                with psycopg.connect(db_url) as conn:
+                    with conn.cursor() as cur:
+                        cur.execute(
+                            insert_query,
+                            (
+                                did,
+                                duration,
+                                result.get("auth_Offchain_duration", 0),
+                                result.get("auth_Onchain_duration", 0),
+                            ),
+                        )
+                        conn.commit()
+                print(f"Added login event to Postgres for did: {did}")
             except Exception as e:
-                print(f"[ERROR-Supabase]: {e}")
+                print(f"[ERROR-Postgres]: {e}")
         else:
-            raise Exception("[ERROR-Supabase]: Supabase client not created")
+            print(f"Test Mode: No access token returned")
+            duration = 0
 
     return JSONResponse(
         content={
@@ -431,171 +384,95 @@ async def verify_user(
 
 
 @router.post("/logout")
-async def logout(
-    request: Request, settings: settings_dependency, _: dict = Depends(verify_jwt)
-):
-    """
-    Log the user out and remove the user from the logged_in_users list
-    :param request:
-    :return:
-    """
+async def logout(request: Request, _: dict = Depends(verify_jwt)):
     body = await request.json()
     access_token = body.get("access_token")
     # did = body.get("did")
-
-    supabase: Client = create_client(
-        supabase_url=settings.SUPABASE_URL, supabase_key=settings.SUPABASE_AUTH_SERV_KEY
+    # No direct logout with psycopg, just return success
+    return JSONResponse(
+        content={"authenticated": False, "message": "User logged out"},
+        status_code=200,
     )
-
-    try:
-        # Call the logout API for supabase as well
-        supabase.auth.admin.sign_out(access_token)
-
-        # # Remove the user from the logged_in_users list
-        # for user in logged_in_users:
-        #     if user.uuid == did:
-        #         logged_in_users.remove(user)
-        #         await log_user_action(did, "User logged out", settings, type="Logout")
-        return JSONResponse(
-            content={"authenticated": False, "message": "User logged out"},
-            status_code=200,
-        )
-        # return JSONResponse(
-        #     content={"authenticated": False, "message": "User not found"},
-        #     status_code=404,
-        # )
-    except Exception as e:
-        print(f"[ERR_SUPABASE] Error: {e}")
-        return JSONResponse(
-            content={"authenticated": False, "error": str(e)}, status_code=500
-        )
-
-
-"""
-TEST ONLY FUNCTONS
-"""
 
 
 @router.get("/pollTest/{did_str}")
-async def testAutoApproveReq(
-    request: Request, settings: settings_dependency, did_str: str
-):
-    """
-    TESTING ONLY, DISABLE WHEN DONE, will approve any request with the wallet address
-    uses approval code from pollRequestStatus, will return the same response as pollRequestStatus
-
-    """
-    # Print the request body
-    if debug:
+async def testAutoApproveReq(request: Request, did_str: str):
+    if debug >= 0:
         print(f"Recieved Data: {did_str}")
 
-    # Add details to supabase table "requests"
-    supabase: Client = create_client(
-        supabase_url=settings.SUPABASE_URL, supabase_key=settings.SUPABASE_AUTH_ANON_KEY
-    )
-    if supabase:
-        try:
-            # Fetch requests table from supabase
-            request = (
-                supabase.table("requests").select("*").eq("did_str", did_str).execute()
-            )
-            # Print the request data
-            # if debug:
-            #     print(f"Request Status: {request.data[0]}")
-            returnResponse = {
-                "authenticated": False,
-                "message": "No pending request found",
+    try:
+        query = "SELECT * FROM requests WHERE did_str = %s"
+        rows = fetch_all(query, (did_str,))
+        returnResponse = {
+            "authenticated": False,
+            "message": "No pending request found",
+        }
+        entry = None
+        if rows and rows[0]["request_status"] != "approved":
+            req = rows[0]
+            # Only decode if it's a string
+            if isinstance(req["form_data"], str):
+                req["form_data"] = json.loads(req["form_data"])
+            if isinstance(req["network_info"], str):
+                req["network_info"] = json.loads(req["network_info"])
+            status = "rejected" if random.randint(1, 10) == 1 else "approved"
+
+            formData = req["form_data"]
+            networkInfo = req["network_info"]
+            proof_type = formData.get("proof_type")
+
+            if proof_type == "smt":
+                merkle_data = addUserToSMT(user=formData, pw=networkInfo)
+            elif proof_type == "merkle":
+                merkle_data = addUserToMerkle(user=formData, pw=networkInfo)
+            elif proof_type == "accumulator":
+                merkle_data = addUserToAccmulator(did=formData, vc=networkInfo)
+            else:
+                merkle_data = {}
+
+            merkle_data.pop("merkleRoot", None)
+            merkle_data.pop("userProof", None)
+
+            data = {
+                "formData": formData,
+                "networkInfo": networkInfo,
+                "ZKP": merkle_data,
             }
-            entry = None
-            if request.data and request.data[0]["request_status"] != "approved":
-                # Existing code to add user to merkle tree and update status
-                # Update status to accepted
-                # 1 in 10 chance to randomly reject the request
-                status = "rejected" if random.randint(1, 10) == 1 else "approved"
+            verifiableCredential = await issue_credential(data)
 
-                # Fetch user formData & networkInfo from supabase table "requests"
-                formData = request.data[0]["form_data"]
-                networkInfo = request.data[0]["network_info"]
-                proof_type = formData.get("proof_type")
-
-                if proof_type == "smt":
-                    # Add user to merkle tree
-                    merkle_data = addUserToSMT(
-                        user=formData,
-                        pw=networkInfo,
-                    )
-                elif proof_type == "merkle":
-                    # Add user to merkle tree
-                    merkle_data = addUserToMerkle(
-                        user=formData,
-                        pw=networkInfo,
-                    )
-
-                # Remove merkleRoot and merkleProof from merkle
-                merkle_data.pop("merkleRoot", None)
-                merkle_data.pop("userProof", None)
-
-                # Issue a credential based on data.
-                data = {
-                    "formData": formData,
-                    "networkInfo": networkInfo,
-                    "ZKP": merkle_data,
-                }
-                verifiableCredential = await issue_credential(data)
-
-                # Update status to accepted, store VC, return the VC to the user
-                response = (
-                    supabase.table("requests")
-                    .update(
-                        {
-                            "isVCSent": True,
-                            "verifiable_cred": verifiableCredential,
-                            "request_status": status,
-                        }
-                    )
-                    .eq("did_str", formData.get("did"))
-                    .execute()
-                )
-                print(f"Added user to merkle tree: {entry}")
-                print(
-                    f"Request Data after status update to accepted: \n{response.data[0]['isVCSent']}"
-                )
-
-                returnResponse = {
-                    "message": f"approved request for role '{formData.get('selected_role')}' using ZKP '{proof_type}'",
-                    "verifiable_credential": verifiableCredential,
-                    "request_status": f"{request.data[0]['request_status']}",
-                }
-            elif request.data and request.data[0]["request_status"] == "approved":
-                # Handle already approved case
-
-                # Fetch existing proof for did from merkle table
-                entry = (
-                    supabase.table("requests")
-                    .select("*")
-                    .eq("did", request.data[0]["did_str"])
-                    .execute()
-                )
-                print(f"Entry: {entry.data}")
-                if entry.data:
-                    entry = entry.data[0]
-                    returnResponse = {
-                        "message": f"approved request for role {formData.get('selected_role')}",
-                        "verifiable_credential": request.data[0]["verifiable_cred"],
-                        "request_status": f"{request.data[0]['request_status']}",
-                    }
-                returnResponse = {
-                    "authenticated": True,
-                    "message": "Request already approved",
-                    "request_status": "approved",
-                }
-
-            return JSONResponse(
-                content=returnResponse,
-                status_code=200,
+            update_query = """
+                UPDATE requests
+                SET "isVCSent" = TRUE,
+                    verifiable_cred = %s,
+                    request_status = %s
+                WHERE did_str = %s
+                RETURNING *
+            """
+            execute_query(
+                update_query,
+                (json.dumps(verifiableCredential), status, formData.get("did")),
             )
-        except Exception as e:
-            print(f"[ERR_SUPABASE] Error: {e}")
-            return JSONResponse(
-                content={"authenticated": False, "error": str(e)}, status_code=500
-            )
+            returnResponse = {
+                "message": f"{status} request for role '{formData.get('selected_role')}' using ZKP '{proof_type}'",
+                "verifiable_credential": verifiableCredential,
+                "request_status": f"{status}",
+            }
+        elif rows and rows[0]["request_status"] == "approved":
+            req = rows[0]
+            # Only decode if it's a string
+            if isinstance(req["form_data"], str):
+                req["form_data"] = json.loads(req["form_data"])
+            returnResponse = {
+                "message": f"approved request for role {req['form_data'].get('selected_role')}",
+                "verifiable_credential": req["verifiable_cred"],
+                "request_status": f"{req['request_status']}",
+            }
+        return JSONResponse(
+            content=returnResponse,
+            status_code=200,
+        )
+    except Exception as e:
+        print(f"[ERR_psycopg] Error: {e}")
+        return JSONResponse(
+            content={"authenticated": False, "error": str(e)}, status_code=500
+        )

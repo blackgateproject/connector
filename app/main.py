@@ -75,10 +75,12 @@ async def startup_event():
 # Add a shutdown event to dump the merkle tree
 @app.on_event("shutdown")
 async def shutdown_event():
-    print(f"[CORE] Shutting down merkle tree.")
+    if debug >= 3:
+        print(f"[CORE] Shutting down merkle tree.")
     # Save the merkle tree to a file
     merkleCore.save_tree_to_file("merkle_tree.pkl")
-    print(f"[CORE] Shutting down SMT.")
+    if debug >= 3:
+        print(f"[CORE] Shutting down SMT.")
     smtCore.save_tree_to_file("smt.pkl")
     shutdown_scheduler()
 
@@ -123,6 +125,14 @@ def root():
             "message": "Connector running! Visit /docs for API documentation.",
         }
     )
+
+# Returns an IP address of the requestor
+@app.get("/get-ip")
+async def get_ip(request: Request):
+    # Check 'X-Forwarded-For' for reverse proxies, ensure proxy is trusted
+    forwarded = request.headers.get("X-Forwarded-For")
+    ip = forwarded.split(",")[0] if forwarded else request.client.host
+    return {"ip": ip}
 
 
 # return env var

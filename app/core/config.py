@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     SUPABASE_AUTH_JWT_SECRET: str
     SUPABASE_JWT_ALGORITHM: str
     SUPABASE_JWT_EXPIRES: int
+    SUPABASE_DB_URL: str
     DEBUG: int
     ZKSYNC_NODE_TYPE: str
     BLOCKCHAIN_CHAIN_ID: int
