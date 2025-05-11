@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import re
 import time
 from datetime import datetime, timezone
 from functools import lru_cache
@@ -12,6 +13,7 @@ from fastapi import Depends
 from regex import F
 from typing_extensions import Annotated
 from web3 import Web3
+from web3.contract import Contract
 from zksync2.account.wallet import Wallet
 from zksync2.module.module_builder import ZkSyncBuilder
 from zksync2.module.zksync_provider import ZkSyncProvider
@@ -250,63 +252,122 @@ SMT Merkle functions
 # Add user to the Merkle Tree Offchain and update the state Onchain
 def addUserToSMT(user: str, pw: str):
     """
-    Add a user to the SMT Tree
+    Add a user to the SMT Tree and update the state Onchain with dummy device/VC/fog values.
     """
-    # Add the user to the SMT Tree
-    # print(f"[addUserToSMT()] Old SMT root: {SMTCore.get_root()}")
-    # print(f"[addUserToSMT()] Adding to local SMT tree")
-    userHashAndProof = smtCore.add_user(user, pw)
-    # print(f"[addUserToSMT()] User Added to local SMT tree")
-    # print(f"[addUserToSMT()] Data Entries: {userHashAndProof}")
-    # print(f"[addUserToSMT()] New SMT root: {SMTCore.get_root()}")
+    # Remove prefix from the did and send did
+    did_str = user
+    public_key = user.replace("did:ethr:", "")
+    userHashAndProof = smtCore.add_user(did_str, public_key)
+    
+    # Dummy values for Device ID, VC Hash, Fog Node Address
+    device_id = pw.get("device_id")
+    vc_hash = "dummy-vc-hash"
+    fog_node_address = "dummy-fog-node-address"
 
     # Update the SMT root state onchain
-    print(f"[addUserToSMT()] Updating root onchain disabled for now, need to uncomment")
-    # root = str(smtCore.get_root())
-    # built_tx = (
-    #     get_merkle_verifier()
-    #     .functions.storeMerkleRoot(root)
-    #     .build_transaction(
-    #         {
-    #             "from": wallet_addr,
-    #             "chainId": chain_id,
-    #             "gas": 2000000,
-    #             "gasPrice": w3.to_wei("1", "gwei"),
-    #             "nonce": w3.eth.get_transaction_count(wallet_addr),
-    #         }
-    #     )
-    # )
-    # print(f"[addUserToSMT()] Built transaction: {built_tx}")
-    # signed_tx = w3.eth.account.sign_transaction(built_tx, private_key=wallet_prv_key)
-    # signed_tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
-    # print(f"[addUserToSMT()] Updated root onchain")
-    # logs = (
-    #     get_did_registry()
-    #     .events.DIDRegistered()
-    #     .get_logs(from_block=w3.eth.block_number - 1)
-    # )
-    # # for log in logs:
-    # #     print(
-    # #         f"[storeDIDonBlockchain()] Transaction Successful: \n\tDID: {log.args.did}\n\tIPFS_CID{log.args.ipfsCID}\n\tTX_HASH: {log.transactionHash.hex()}"
-    # #     )
-    # print(
-    #     f"[storeDIDonBlockchain()] Transaction Successful: \n\tDID: {logs[0].args.did}\n\tIPFS_CID{logs[0].args.ipfsCID}\n\tTX_HASH: {logs[0].transactionHash.hex()}"
-    # )
+    print(f"[addUserToSMT()] Updating root onchain")
+    root = str(smtCore.get_root())
+    built_tx = (
+        get_merkle_verifier()
+        .functions.storeMerkleRoot(root, device_id, vc_hash, fog_node_address)
+        .build_transaction(
+            {
+                "from": wallet_addr,
+                "chainId": chain_id,
+                "gas": 2000000,
+                "gasPrice": w3.to_wei("1", "gwei"),
+                "nonce": w3.eth.get_transaction_count(wallet_addr, "pending"),
+            }
+        )
+    )
+    print(f"[addUserToSMT()] Built transaction: {built_tx}")
+    signed_tx = w3.eth.account.sign_transaction(built_tx, private_key=wallet_prv_key)
+    signed_tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
+    print(f"[addUserToSMT()] Updated root onchain")
 
-    # Print the transaction hash for debugging purposes
-    # if debug >= 0:
-    #     # print(f"[addUserToMerkle()] Transaction Hash: {signed_tx}")
-    #     print(f"[addUserToMerkle()] Transaction Hash: 0x{signed_tx_hash.hex()}")
+    # Read the latest MerkleRootUpdated event to get the latest values
+    contract = get_merkle_verifier()
+    events = contract.events.MerkleRootUpdated().get_logs(from_block=0, to_block="latest")
+    if events:
+        latest_event = events[-1]
+        # Convert AttributeDict to a regular dictionary
+        latest_event_json = dict(latest_event.args)
+        print(f"[addUserToSMT()] Latest MerkleRootUpdated event: {latest_event_json}")
+    else:
+        latest_event_json = None
 
     # Prepare return values
-    # data = {
-    #     "user_id": user,
-    #     "merkleRoot": smtCore.get_root(),
-    #     "stored_data": userHashAndProof,
-    # }
+    data = {
+        "userHash": userHashAndProof["userHash"],
+        "userIndex": userHashAndProof["index"],
+        "merkleRoot": smtCore.get_root(),
+        "txHash": signed_tx_hash.hex(),
+        "event": latest_event_json,
+    }
 
-    return userHashAndProof
+    return data
 
+
+# Add user to the Merkle Tree Offchain and update the state Onchain
+def addUserToSMTLocal(did_str: str):
+    """
+    Add a user to the SMT Tree Local
+    """
+    # Remove prefix from the did and send did
+    public_key = did_str.replace("did:ethr:", "")
+    userHashAndProof = smtCore.add_user(did_str, public_key)
+
+    # Prepare return values
+    data = {
+        "userHash": userHashAndProof["userHash"],
+        "userIndex": userHashAndProof["index"],
+        "merkleRoot": userHashAndProof["root"],
+    }
+
+    return data
+
+def addUserToSMTOnChain(merkleRoot: str, device_id: str, vc_hash: str, fog_node_pubkey: str):
+    """
+    Add a user to the SMT Tree Onchain & get the latest event
+    """
+    # Update the SMT root state onchain
+    print(f"[addUserToSMT()] Updating root onchain")
+    built_tx = (
+        get_merkle_verifier()
+        .functions.storeMerkleRoot(merkleRoot, device_id, vc_hash, fog_node_pubkey)
+        .build_transaction(
+            {
+                "from": wallet_addr,
+                "chainId": chain_id,
+                "gas": 2000000,
+                "gasPrice": w3.to_wei("1", "gwei"),
+                "nonce": w3.eth.get_transaction_count(wallet_addr, "pending"),
+            }
+        )
+    )
+    print(f"[addUserToSMT()] Built transaction: {built_tx}")
+    signed_tx = w3.eth.account.sign_transaction(built_tx, private_key=wallet_prv_key)
+    signed_tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
+    print(f"[addUserToSMT()] Updated root onchain")
+
+    # Read the latest MerkleRootUpdated event to get the latest values
+    contract = get_merkle_verifier()
+    events = contract.events.MerkleRootUpdated().get_logs(from_block=0, to_block="latest")
+    if events:
+        latest_event = events[-1]
+        # Convert AttributeDict to a regular dictionary
+        latest_event_json = dict(latest_event.args)
+        print(f"[addUserToSMT()] Latest MerkleRootUpdated event: {latest_event_json}")
+    else:
+        latest_event_json = None
+
+    returnData = {
+        "tx_hash": signed_tx_hash.hex(),
+        "event": latest_event_json,
+    }
+
+    return returnData
+    
 
 # def verifyUserOnMerkle(hash: str, proof: list[str]):
 def verifyUserOnSMT(user_id, key, credentials):
@@ -436,6 +497,29 @@ def getBlockchainModulus():
         print(f"Error while calling getModulus: {e}")
         return {"error": str(e)}
 
+"""
+W3 Helper functions
+"""
+
+async def keccakHash(data: str) -> str:
+    """
+    Hash the data using keccak256
+    """
+    # Convert the data to bytes
+    data_bytes = data
+    # data_bytes = data.encode("utf-8")
+
+    # Hash the data using keccak256
+    hash_bytes = w3.keccak(data_bytes)
+
+    # Convert the hash to hex string
+    hash_hex = f"0x{hash_bytes.hex()}"
+
+    if debug >= 0:
+        print(f"[keccakHash()] Hash: {hash_hex}")
+
+    return hash_hex
+
 
 """
 Contract init functions
@@ -443,12 +527,12 @@ Contract init functions
 
 
 # Returns the contract instance for the Merkle contract, used for verifying proofs
-def get_merkle_verifier():
+def get_merkle_verifier() -> Contract:
     contract_address, contract_abi = getContractZKsync("Merkle")
     return w3.eth.contract(address=contract_address, abi=contract_abi)
 
 
 # Return a RSAAccumulator instance
-def get_rsa_accumulator():
+def get_rsa_accumulator() -> Contract:
     contract_address, contract_abi = getContractZKsync("RSAAccumulator")
     return w3.eth.contract(address=contract_address, abi=contract_abi)
