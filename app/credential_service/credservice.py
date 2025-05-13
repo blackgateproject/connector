@@ -118,3 +118,22 @@ async def verify_credential(credential: dict):
     except Exception as e:
         print(f"[verify_credential()] Exception: {str(e)}")
         raise e
+
+async def verify_presentation(presentation: dict):
+    """
+    Verify a presentation using the credential service.
+    """
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f"{credential_service_url}/verify-vp", json=presentation
+            ) as response:
+                if response.status == 200:
+                    return await response.json()
+                else:
+                    response_json = await response.json()
+                    print(f"[verify_presentation()] Response ERR: {response_json}")
+                    raise Exception("Credential service is not healthy.\nReturned: " + str(response_json))
+    except Exception as e:
+        print(f"[verify_presentation()] Exception: {str(e)}")
+        raise e

@@ -332,6 +332,16 @@ def addUserToSMTOnChain(merkleRoot: str, device_id: str, vc_hash: str, fog_node_
     """
     # Update the SMT root state onchain
     print(f"[addUserToSMT()] Updating root onchain")
+
+    # ensure data types are correct and match the format   (str,int,str,str)
+    if not isinstance(merkleRoot, str):
+        raise ValueError("merkleRoot must be a string")
+    if not isinstance(device_id, str):
+        raise ValueError("device_id must be a string")
+    if not isinstance(vc_hash, str):
+        raise ValueError("vc_hash must be a string")
+    if not isinstance(fog_node_pubkey, str):
+        raise ValueError("fog_node_pubkey must be a string")
     built_tx = (
         get_merkle_verifier()
         .functions.storeMerkleRoot(merkleRoot, device_id, vc_hash, fog_node_pubkey)
@@ -352,7 +362,7 @@ def addUserToSMTOnChain(merkleRoot: str, device_id: str, vc_hash: str, fog_node_
 
     # Read the latest MerkleRootUpdated event to get the latest values
     contract = get_merkle_verifier()
-    events = contract.events.MerkleRootUpdated().get_logs(from_block=0, to_block="latest")
+    events = contract.events.MerkleRootUpdated().get_logs(from_block=0, to_block="pending")
     if events:
         latest_event = events[-1]
         # Convert AttributeDict to a regular dictionary
@@ -367,7 +377,7 @@ def addUserToSMTOnChain(merkleRoot: str, device_id: str, vc_hash: str, fog_node_
     }
 
     return returnData
-    
+
 
 # def verifyUserOnMerkle(hash: str, proof: list[str]):
 def verifyUserOnSMT(user_id, key, credentials):
