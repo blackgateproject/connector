@@ -130,7 +130,11 @@ async def verify_presentation(presentation: dict):
             ) as response:
                 if response.status == 200:
                     return await response.json()
+                elif response.status >= 400 and response.status < 500:
+                    print(f"[verify_presentation()] NOT FOUND: {await response.json()}")
+                    raise Exception("Credential service BAD: \nReturned: " + str(await response.json()))
                 else:
+                    # Handle unexpected status codes
                     response_json = await response.json()
                     print(f"[verify_presentation()] Response ERR: {response_json}")
                     raise Exception("Credential service is not healthy.\nReturned: " + str(response_json))
