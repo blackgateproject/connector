@@ -12,3 +12,5 @@ smt.pkl
 
 # app\state.json
 # app/state.json
+
+app\utils\deployments-zk

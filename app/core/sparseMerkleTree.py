@@ -49,6 +49,7 @@ class sparseMerkleTree:
                 # "_store_tree()": stuff,
                 "index": str(key),
                 "userHash": current_hash.hex(),
+                "root": self.smt.get_root().hex(),
                 # "proof": json.dumps(
                 # "proof": 
                 #     [(sibling.hex(), is_right) for sibling, is_right in proof]

@@ -5,6 +5,7 @@ import random
 import time
 from functools import lru_cache
 from operator import ne
+from types import NoneType
 from typing import Annotated, Any, List, Optional, Tuple
 from uuid import UUID
 
@@ -18,6 +19,7 @@ from ...credential_service.credservice import (
     issue_credential,
     resolve_did,
     verify_credential,
+    verify_presentation,
 )
 from ...models.requests import HashProof
 from ...utils.core_utils import (
@@ -31,6 +33,10 @@ from ...utils.web3_utils import (
     addUserToAccmulator,
     addUserToMerkle,
     addUserToSMT,
+    addUserToSMTLocal,
+    addUserToSMTOnChain,
+    get_merkle_verifier,
+    keccakHash,
     verifyUserOnAccumulator,
     verifyUserOnMerkle,
     verifyUserOnSMT,
@@ -126,7 +132,12 @@ async def register(request: Request):
         if formData["selected_role"] == "device" and not test_mode
         else "pending"
     )
-
+    if type(wallet_generate_time) == NoneType or type(wallet_encrypt_time) == NoneType:
+        wallet_generate_time = 0
+        wallet_encrypt_time = 0
+    else:
+        wallet_generate_time = int(wallet_generate_time)
+        wallet_encrypt_time = int(wallet_encrypt_time)
     total_time = int(wallet_generate_time) + int(wallet_encrypt_time)
 
     requests_data = {
@@ -178,27 +189,67 @@ async def pollRequestStatus(request: Request, did_str: str):
                 formData = req["form_data"]
                 networkInfo = req["network_info"]
                 proof_type = formData.get("proof_type")
-
+                public_key = did_str.replace("did:ethr:blackgate:", "")
                 if proof_type == "smt":
-                    merkle_data = addUserToSMT(user=formData, pw=networkInfo)
+                    zkpData = addUserToSMTLocal(did_str=did_str)
+
+                    data = {
+                        "formData": formData,
+                        "networkInfo": networkInfo,
+                        "ZKP": zkpData,
+                    }
+                    verifiableCredential = await issue_credential(data)
+
+                    # if debug >= 0:
+                    #     print(f"Verifiable Credential: {verifiableCredential}")
+                    # Keccak hash the VC
+                    vcHash = await keccakHash(
+                        json.dumps(verifiableCredential, sort_keys=True).encode("utf-8")
+                    )
+
+                    if debug >= 0:
+                        print(f"VC Hash: {vcHash}")
+
+                    # Send data onchain
+                    fog_node_publicKey = (
+                        verifiableCredential.get("credential").get("issuer").get("id")
+                    ).replace("did:ethr:blackgate:", "")
+                    if formData.get("device_id") is None:
+                        formData["device_id"] = "NO Device ID"
+
+                    # Convert device_id to a string
+
+                    if isinstance(formData["device_id"], int):
+                        formData["device_id"] = str(formData["device_id"])
+                    onChainResults = addUserToSMTOnChain(
+                        merkleRoot=zkpData["merkleRoot"],
+                        vc_hash=vcHash,
+                        device_id=formData["device_id"],
+                        fog_node_pubkey=fog_node_publicKey,
+                    )
+                    print(f"OnChain Results: {onChainResults}")
+
                 elif proof_type == "merkle":
-                    merkle_data = addUserToMerkle(user=formData, pw=networkInfo)
+                    merkle_data = addUserToMerkle(user=did_str, pw=public_key)
                 elif proof_type == "accumulator":
-                    merkle_data = addUserToAccmulator(did=formData, vc=networkInfo)
+                    merkle_data = addUserToAccmulator(did=did_str, vc=public_key)
                 else:
                     merkle_data = {}
 
-                merkle_data.pop("merkleRoot", None)
-                merkle_data.pop("userProof", None)
+                # merkle_data.pop("merkleRoot", None)
+                # merkle_data.pop("userProof", None)
 
-                data = {
-                    "formData": formData,
-                    "networkInfo": networkInfo,
-                    "ZKP": merkle_data,
-                }
+                # data = {
+                #     "formData": formData,
+                #     "networkInfo": networkInfo,
+                #     "ZKP": merkle_data,
+                # }
 
-                verifiableCredential = await issue_credential(data)
+                # print(f"Data before issue_credential(): {data}")
 
+                # verifiableCredential = await issue_credential(data)
+
+                # SET "isVCSent" = TRUE,
                 update_query = """
                     UPDATE requests
                     SET "isVCSent" = TRUE,
@@ -269,7 +320,7 @@ async def verify_user(
         body = json.loads(body)
 
     vc_data = body.get("credential")
-    
+
     did = vc_data.get("credentialSubject").get("did")
     proof_type = vc_data.get("credentialSubject").get("proof_type")
     cred_ZKP = vc_data.get("credentialSubject").get("ZKP")
@@ -365,7 +416,28 @@ async def verify_user(
                             ),
                         )
                         conn.commit()
-                print(f"Added login event to Postgres for did: {did}")
+                    print(f"Added login event to Postgres for did: {did}")
+                    # with conn.cursor() as cur:
+                    #     # Add zkp_generation_time + vc_issuance_time to the requests table
+                    #     update_query = """
+                    #         UPDATE requests
+                    #         SET zkp_generation_time = %s,
+                    #             vc_issuance_time = %s, updated_at = %s
+                    #         WHERE did_str = %s
+                    #         RETURNING *
+                    #     """
+                    #     cur.execute(
+                    #         update_query,
+                    #         (
+                    #             result.get("auth_Offchain_duration", 0),
+                    #             result.get("auth_Onchain_duration", 0),
+                    #             datetime.datetime.now().isoformat(),
+                    #             did,
+                    #         ),
+                    #     )
+                    #     conn.commit()
+                    #     print(f"Added zkp_generation_time and vc_issuance_time to Postgres for did: {did}")
+
             except Exception as e:
                 print(f"[ERROR-Postgres]: {e}")
         else:
@@ -420,25 +492,56 @@ async def testAutoApproveReq(request: Request, did_str: str):
             formData = req["form_data"]
             networkInfo = req["network_info"]
             proof_type = formData.get("proof_type")
+            public_key = did_str.replace("did:ethr:blackgate:", "")
 
             if proof_type == "smt":
-                merkle_data = addUserToSMT(user=formData, pw=networkInfo)
+                zkpData = addUserToSMTLocal(did_str=did_str)
+
+                data = {
+                    "formData": formData,
+                    "networkInfo": networkInfo,
+                    "ZKP": zkpData,
+                }
+                verifiableCredential = await issue_credential(data)
+
+                # if debug >= 0:
+                #     print(f"Verifiable Credential: {verifiableCredential}")
+                # Keccak hash the VC
+                vcHash = await keccakHash(
+                    json.dumps(verifiableCredential, sort_keys=True).encode("utf-8")
+                )
+
+                if debug >= 0:
+                    print(f"VC Hash: {vcHash}")
+
+                # Send data onchain
+                fog_node_publicKey = (
+                    verifiableCredential.get("credential").get("issuer").get("id")
+                ).replace("did:ethr:blackgate:", "")
+                onChainResults = addUserToSMTOnChain(
+                    merkleRoot=zkpData["merkleRoot"],
+                    vc_hash=vcHash,
+                    device_id=formData["device_id"],
+                    fog_node_pubkey=fog_node_publicKey,
+                )
+                # print(f"OnChain Results: {onChainResults}")
+
             elif proof_type == "merkle":
-                merkle_data = addUserToMerkle(user=formData, pw=networkInfo)
+                merkle_data = addUserToMerkle(user=did_str, pw=public_key)
             elif proof_type == "accumulator":
-                merkle_data = addUserToAccmulator(did=formData, vc=networkInfo)
+                merkle_data = addUserToAccmulator(did=did_str, vc=public_key)
             else:
                 merkle_data = {}
 
-            merkle_data.pop("merkleRoot", None)
-            merkle_data.pop("userProof", None)
+            # merkle_data.pop("merkleRoot", None)
+            # merkle_data.pop("userProof", None)
 
-            data = {
-                "formData": formData,
-                "networkInfo": networkInfo,
-                "ZKP": merkle_data,
-            }
-            verifiableCredential = await issue_credential(data)
+            # data = {
+            #     "formData": formData,
+            #     "networkInfo": networkInfo,
+            #     "ZKP": merkle_data,
+            # }
+            # verifiableCredential = await issue_credential(data)
 
             update_query = """
                 UPDATE requests
@@ -473,6 +576,29 @@ async def testAutoApproveReq(request: Request, did_str: str):
         )
     except Exception as e:
         print(f"[ERR_psycopg] Error: {e}")
+        return JSONResponse(
+            content={"authenticated": False, "error": str(e)}, status_code=500
+        )
+
+
+@router.post("/verify-vp")
+async def verify_vp(request: Request):
+    """
+    Verify a presentation using the credential service.
+    """
+    body = await request.json()
+    if debug >= 0:
+        print(f"Recieved Data: {body}")
+
+    # Check if body is a string and parse it if needed
+    if isinstance(body, str):
+        body = json.loads(body)
+
+    try:
+        response = await verify_presentation(body)
+        return JSONResponse(content=response, status_code=200)
+    except Exception as e:
+        print(f"[verify_vp()] Exception: {str(e)}")
         return JSONResponse(
             content={"authenticated": False, "error": str(e)}, status_code=500
         )
