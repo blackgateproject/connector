@@ -307,7 +307,8 @@ async def verify_user(
     request: Request,
 ):
     """
-    Verify user on the merkle tree.
+    Verify user.
+    It takes the VP, verifies it and then extracts the VC and verifies it after which the ZKP is finally verified
     """
     total_start_time = time.time()
     # Get the request body
@@ -319,8 +320,29 @@ async def verify_user(
     if isinstance(body, str):
         body = json.loads(body)
 
-    vc_data = body.get("credential")
+    # Verify the VP first
+    vp_response = await verify_presentation(body)
+    if not vp_response.get("verified", False):
+        return JSONResponse(
+            content={"error": "Invalid Verifiable Presentation"}, status_code=400
+        )
+    print(f"\n\n[verify_user()] VP Response: {vp_response.get("verified")}")
 
+    # Verify the VC within the VP
+    if vp_response.get("verified") == True:
+        vc_response = await verify_credential(
+            {"credential": body.get("verifiableCredential")}
+        )
+        if not vc_response.get("verified", False):
+            return JSONResponse(
+                content={"error": "Invalid Verifiable Credential"}, status_code=400
+            )
+        print(f"[verify_user()] VC Response: {vc_response.get("verified")}")    
+    else:
+        print(f"\n\n\nVP NOT VERIFIED\n\n\n")
+    # Now extract the ZKP data from the VC
+    vc_data = body.get("verifiableCredential")[0]
+    print(f"\n\n\nVC_DATA grabbed from body of VP: {vc_data}")
     did = vc_data.get("credentialSubject").get("did")
     proof_type = vc_data.get("credentialSubject").get("proof_type")
     cred_ZKP = vc_data.get("credentialSubject").get("ZKP")
@@ -331,7 +353,12 @@ async def verify_user(
         print(f"[verify_user()] txHash: {txHash}")
         print(f"[verify_user()] merkleHash: {merkleHash}")
     elif proof_type == "smt":
-        index = cred_ZKP.get("index")
+        index = cred_ZKP.get("userIndex")
+        if index is None:
+            return JSONResponse(
+                content={"error": "Missing 'index' in ZKP for SMT proof."},
+                status_code=400,
+            )
         merkleHash = cred_ZKP.get("userHash")
         # This should not be used, only the hash
         networkInfo = vc_data.get("credentialSubject").get("networkInfo")
@@ -596,6 +623,7 @@ async def verify_vp(request: Request):
 
     try:
         response = await verify_presentation(body)
+        print(f"[verify_vp()] Response: {response}")
         return JSONResponse(content=response, status_code=200)
     except Exception as e:
         print(f"[verify_vp()] Exception: {str(e)}")

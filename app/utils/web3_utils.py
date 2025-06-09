@@ -390,7 +390,7 @@ def verifyUserOnSMT(user_id, key, credentials):
     validOffchain = smtCore.verify_user(user_id, key, credentials)
     local_verify_duration = time.time() - before_local_verify
     print(
-        f"[verifyUserOnMerkle()] Local verification duration: {local_verify_duration:.4f} seconds"
+        f"[verifyUserOnSMT()] Local verification duration: {local_verify_duration:.4f} seconds"
     )
     # validOffchain = merkleCore.verify_proof(hash, proof)
 

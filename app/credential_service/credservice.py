@@ -113,7 +113,7 @@ async def verify_credential(credential: dict):
                 if response.status == 200:
                     return await response.json()
                 else:
-                    print(f"[verify_credential()] Response ERR: {response.json()}")
+                    print(f"[verify_credential()] Response ERR: {await response.json()}")
                     raise Exception("Credential service is not healthy.")
     except Exception as e:
         print(f"[verify_credential()] Exception: {str(e)}")

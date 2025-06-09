@@ -6,10 +6,9 @@ from functools import lru_cache
 from typing import Annotated
 
 import requests
+from app.core.config import Settings
 from fastapi import Depends
 from supabase import Client, create_client
-
-from app.core.config import Settings
 
 # from SMT import SparseMerkleTree  # Your SMT class
 from ..utils.sparseMerkle_utils import sparseMerkleTreeUtils
@@ -26,6 +25,7 @@ settings_dependency = Annotated[Settings, Depends(get_settings)]
 SUPABASE_URL = settings_dependency().SUPABASE_URL
 SUPABASE_AUTH_ANON_KEY = settings_dependency().SUPABASE_AUTH_ANON_KEY
 
+
 # ./SMTHandler.py
 # class SparseRollupGenerator:
 class sparseMerkleTree:
@@ -40,8 +40,7 @@ class sparseMerkleTree:
     def add_user(self, user_id, credentials):
         # print(f"[SMT->add_user()]: (DEBUG) Entered add_user for {user_id}")
         try:
-            key, current_hash = self.smt.add_user_auto(
-                f"{user_id}|{credentials}")
+            key, current_hash = self.smt.add_user_auto(f"{user_id}|{credentials}")
             # print(f"[SMT->add_user()]: User {user_id} added. Current root: {self.smt.get_root().hex()}")
             # stuff = self._store_tree()
             # proof = self.smt.generate_proof(int(user_id))
@@ -51,7 +50,7 @@ class sparseMerkleTree:
                 "userHash": current_hash.hex(),
                 "root": self.smt.get_root().hex(),
                 # "proof": json.dumps(
-                # "proof": 
+                # "proof":
                 #     [(sibling.hex(), is_right) for sibling, is_right in proof]
                 # ),
             }
@@ -61,11 +60,17 @@ class sparseMerkleTree:
             print(f"[SMT->add_user() ERROR]: {e}")
             raise
 
-    def verify_user(self, user_id, key,credentials):
+    def verify_user(self, user_id, key, credentials):
         # key = int.from_bytes(key.encode(), "big")
         # Expected method should be to use the user hash and the key + proof for verification
         proof = self.smt.generate_proof(int(key))
         root = self.smt.get_root()
+        print(f"[SMT->verify_user()]: Verifying user with key:", key)
+        print(f"[SMT->verify_user()]: User ID: {user_id}, Credentials: {credentials}")
+        print(f"[SMT->verify_user()]: Proof: {proof}")
+        print(
+            f"[SMT->verify_user()]: Result: {self.smt.verify_proof(int(key), f'{user_id}|{credentials}', proof, root)}"
+        )
         return self.smt.verify_proof(int(key), f"{user_id}|{credentials}", proof, root)
 
     def update_user(self, user_id, new_credentials):
