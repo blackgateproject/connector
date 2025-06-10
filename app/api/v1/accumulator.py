@@ -17,8 +17,6 @@ from ...utils.web3_utils import (
     verifyUserOnAccumulator,
 )
 
-# from ...utils.pki_utils import generate_private_key, generate_public_key
-
 # Initialize the API router
 router = APIRouter()
 
