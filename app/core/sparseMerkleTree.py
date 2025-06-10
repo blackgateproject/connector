@@ -69,10 +69,13 @@ class sparseMerkleTree:
         print(f"[SMT->verify_user()]: Verifying user with root:", root)
         print(f"[SMT->verify_user()]: User ID: {user_id}\n Credentials: {credentials}")
         print(f"[SMT->verify_user()]: Proof: {proof}")
-        print(
-            f"[SMT->verify_user()]: Result: {self.smt.verify_proof(int(key), f'{user_id}|{credentials}', proof, root)}"
+        result = self.smt.verify_proof(
+            int(key), f"{user_id}|{credentials}", proof, root
         )
-        return self.smt.verify_proof(int(key), f"{user_id}|{credentials}", proof, root)
+        print(
+            f"[SMT->verify_user()]: Result: {result}"
+        )
+        return result
 
     def update_user(self, user_id, new_credentials):
         self.smt.update_with_key(user_id, f"{user_id}|{new_credentials}")
