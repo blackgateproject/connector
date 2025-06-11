@@ -1,5 +1,7 @@
+from typing import Dict, List, Optional
+
 from pydantic import BaseModel, Field
-from typing import List, Dict, Optional
+
 
 # Might have to change this to suit other ZKP types
 class ZKP(BaseModel):
@@ -16,24 +18,6 @@ class NetworkInfo(BaseModel):
     user_language: str
 
 
-class WalletTimes(BaseModel):
-    walletCreateTime: Optional[float] = None
-    walletEncryptTime: Optional[float] = None
-
-
-class CredentialSubject(BaseModel):
-    did: str
-    alias: int
-    testMode: Optional[bool] = None
-    device_id: Optional[int] = None
-    proof_type: str
-    walletTimes: WalletTimes
-    selected_role: str
-    firmware_version: str
-    networkInfo: NetworkInfo
-    ZKP: ZKP
-
-
 class Issuer(BaseModel):
     id: str
 
@@ -41,6 +25,20 @@ class Issuer(BaseModel):
 class Proof(BaseModel):
     type: str
     jwt: str
+
+
+class CredentialSubject(BaseModel):
+    ZKP: ZKP
+    networkInfo: NetworkInfo
+    did: str
+    alias: str
+    proof_type: str
+    selected_role: str
+    firmware_version: str
+    testMode: Optional[bool] = None
+    device_id: Optional[str] = None
+    walletCreateTime: Optional[float] = None
+    walletEncryptTime: Optional[float] = None
 
 
 class VerifiableCredential(BaseModel):
@@ -53,6 +51,9 @@ class VerifiableCredential(BaseModel):
 
     class Config:
         validate_by_name = True
+
+    def serialize(self, **kwargs) -> Dict:
+        return self.model_dump(by_alias=True, exclude_none=True, **kwargs)
 
 
 class VerifiablePresentation(BaseModel):
@@ -70,3 +71,6 @@ class VerifiablePresentation(BaseModel):
 
     class Config:
         validate_by_name = True
+
+    def serialize(self, **kwargs) -> Dict:
+        return self.model_dump(by_alias=True, exclude_none=True, **kwargs)
