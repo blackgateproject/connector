@@ -1,7 +1,7 @@
 import pickle
 
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.exceptions import HTTPException
+from fastapi.exceptions import HTTPException, RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
 
@@ -70,6 +70,15 @@ app.add_middleware(
 async def startup_event():
     print(f"[CORE] Starting up health service check for credserver")
     start_health_check_scheduler()
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    print(exc.errors())  # This prints all validation errors to the console
+    return JSONResponse(
+        status_code=422,
+        content={"detail": exc.errors()},
+    )
 
 
 # Add a shutdown event to dump the merkle tree

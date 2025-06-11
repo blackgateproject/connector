@@ -14,6 +14,8 @@ from fastapi import APIRouter, Depends, Form
 from fastapi.requests import Request
 from fastapi.responses import JSONResponse
 
+from ...models.web3_cred_models import VerifiablePresentation
+
 from ...core.config import Settings
 from ...credential_service.credservice import (
     issue_credential,
@@ -110,11 +112,9 @@ async def register(request: Request):
         print(f"Recieved Data: {formData}")
         print(f"Recieved Data: {networkInfo}")
 
-    wallet_times = formData.get("walletTimes")
-    print(f"Got Wallet Times: {wallet_times}")
-    wallet_generate_time = wallet_times.get("walletCreateTime")
-    wallet_encrypt_time = wallet_times.get("walletEncryptTime")
-    if wallet_times:
+    wallet_generate_time = body.get("walletCreateTime")
+    wallet_encrypt_time = body.get("walletEncryptTime")
+    if wallet_generate_time:
         formData.pop("wallet_generate_time", None)
         formData.pop("wallet_encrypt_time", None)
         wallet_generate_time = (
@@ -301,39 +301,35 @@ async def pollRequestStatus(request: Request, did_str: str):
             content={"authenticated": False, "error": str(e)}, status_code=500
         )
 
-
 @router.post("/verify")
 async def verify_user(
-    request: Request,
+    verifiablePresentation: VerifiablePresentation
 ):
     """
     Verify user.
     It takes the VP, verifies it and then extracts the VC and verifies it after which the ZKP is finally verified
     """
     total_start_time = time.time()
-    # Get the request body
-    body = await request.json()
-
-    print(f"[verify_user()] Body: {body}")
-
-    # Check if body is a string and parse it if needed
-    if isinstance(body, str):
-        body = json.loads(body)
 
     # Verify the VP first
-    vp_response = await verify_presentation(body)
+    vp_response = await verify_presentation(verifiablePresentation.serialize())
     if not vp_response.get("verified", False):
         return JSONResponse(
             content={"error": "Invalid Verifiable Presentation"}, status_code=400
         )
     print(f"\n\n[verify_user()] VP Response: {vp_response.get("verified")}")
 
+    # print(f"[verify_user()] VCs in VP: {verifiablePresentation.verifiableCredential[0].model_dump()}")
+    # print(f"[verify_user()] TYPEOF [VCs in VP]: {type(verifiablePresentation.verifiableCredential[0].model_dump())}")
+    # print(f"[verify_user()] TYPEOF [VCs in VP]: {type(json.dumps(verifiablePresentation.verifiableCredential[0].model_dump()))}")
     # Verify the VC within the VP
     if vp_response.get("verified") == True:
         vc_response = await verify_credential(
-            {"credential": body.get("verifiableCredential")}
+            # verifiablePresentation.verifiableCredential[0].model_dump()
+            {"credential": verifiablePresentation.verifiableCredential[0].serialize()}
         )
         if not vc_response.get("verified", False):
+            print(f"[verify_user()] VC Response: {vc_response.get("verified")}")
             return JSONResponse(
                 content={"error": "Invalid Verifiable Credential"}, status_code=400
             )
@@ -341,8 +337,8 @@ async def verify_user(
     else:
         print(f"\n\n\nVP NOT VERIFIED\n\n\n")
     # Now extract the ZKP data from the VC
-    vc_data = body.get("verifiableCredential")[0]
-    print(f"\n\n\nVC_DATA grabbed from body of VP: {vc_data}")
+    vc_data = verifiablePresentation.verifiableCredential[0].model_dump()
+    # print(f"\n\n\nVC_DATA grabbed from body of VP: {vc_data}")
     did = vc_data.get("credentialSubject").get("did")
     proof_type = vc_data.get("credentialSubject").get("proof_type")
     cred_ZKP = vc_data.get("credentialSubject").get("ZKP")

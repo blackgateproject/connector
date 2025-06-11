@@ -1,0 +1,76 @@
+from typing import Dict, List, Optional
+
+from pydantic import BaseModel, Field
+
+
+# Might have to change this to suit other ZKP types
+class ZKP(BaseModel):
+    userHash: str
+    userIndex: str
+    merkleRoot: str
+
+
+class NetworkInfo(BaseModel):
+    ip_address: str
+    user_agent: str
+    location_lat: float
+    location_long: float
+    user_language: str
+
+
+class Issuer(BaseModel):
+    id: str
+
+
+class Proof(BaseModel):
+    type: str
+    jwt: str
+
+
+class CredentialSubject(BaseModel):
+    ZKP: ZKP
+    networkInfo: NetworkInfo
+    did: str
+    alias: str
+    proof_type: str
+    selected_role: str
+    firmware_version: str
+    testMode: Optional[bool] = None
+    device_id: Optional[str] = None
+    walletCreateTime: Optional[float] = None
+    walletEncryptTime: Optional[float] = None
+
+
+class VerifiableCredential(BaseModel):
+    credentialSubject: CredentialSubject
+    issuer: Issuer
+    type: List[str]
+    context_: List[str] = Field(..., alias="@context")
+    issuanceDate: str
+    proof: Proof
+
+    class Config:
+        validate_by_name = True
+
+    def serialize(self, **kwargs) -> Dict:
+        return self.model_dump(by_alias=True, exclude_none=True, **kwargs)
+
+
+class VerifiablePresentation(BaseModel):
+    iat: int
+    nbf: int
+    issuanceDate: str
+    nonce: str
+    verifiableCredential: List[VerifiableCredential]
+    holder: str
+    verifier: List[str]
+    type: List[str]
+    context_: List[str] = Field(..., alias="@context")
+    expirationDate: str
+    proof: Proof
+
+    class Config:
+        validate_by_name = True
+
+    def serialize(self, **kwargs) -> Dict:
+        return self.model_dump(by_alias=True, exclude_none=True, **kwargs)
