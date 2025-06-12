@@ -386,6 +386,8 @@ def verifyUserOnSMT(user_id, key, credentials):
     """
     # Verify the user on the SMT Tree
     before_local_verify = time.time()
+
+
     # Commented this out, neeed a way to get proof
     validOffchain = smtCore.verify_user(user_id, key, credentials)
     local_verify_duration = time.time() - before_local_verify
