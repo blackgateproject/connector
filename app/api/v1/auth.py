@@ -14,8 +14,6 @@ from fastapi import APIRouter, Depends, Form
 from fastapi.requests import Request
 from fastapi.responses import JSONResponse
 
-from ...models.web3_cred_models import VerifiablePresentation
-
 from ...core.config import Settings
 from ...credential_service.credservice import (
     issue_credential,
@@ -24,6 +22,7 @@ from ...credential_service.credservice import (
     verify_presentation,
 )
 from ...models.requests import HashProof
+from ...models.web3_creds import FormData, NetworkInfo, VerifiablePresentation
 from ...utils.core_utils import (
     extract_user_details_for_passwordless,
     extractUserInfo,
@@ -104,54 +103,37 @@ async def health_check():
 
 
 @router.post("/register")
-async def register(request: Request):
-    body = await request.json()
-    formData = body.get("formData")
-    networkInfo = body.get("networkInfo")
+async def register(formData: FormData, networkInfo: NetworkInfo) -> JSONResponse:
+    # Debugging output
     if debug >= 0:
         print(f"Recieved Data: {formData}")
         print(f"Recieved Data: {networkInfo}")
 
-    wallet_generate_time = body.get("walletCreateTime")
-    wallet_encrypt_time = body.get("walletEncryptTime")
-    if wallet_generate_time:
-        formData.pop("wallet_generate_time", None)
-        formData.pop("wallet_encrypt_time", None)
-        wallet_generate_time = (
-            wallet_generate_time if wallet_generate_time is not None else 0
-        )
-        wallet_encrypt_time = (
-            wallet_encrypt_time if wallet_encrypt_time is not None else 0
-        )
-
-    test_mode = (
-        formData.get("testMode") if formData.get("testMode") is not None else False
-    )
+    # Auto-approve all requests for devices or test_mode users/devices
     request_status = (
         "approved"
-        if formData["selected_role"] == "device" and not test_mode
+        if formData.selected_role == "device" and not formData.testMode
         else "pending"
     )
-    if type(wallet_generate_time) == NoneType or type(wallet_encrypt_time) == NoneType:
-        wallet_generate_time = 0
-        wallet_encrypt_time = 0
-    else:
-        wallet_generate_time = int(wallet_generate_time)
-        wallet_encrypt_time = int(wallet_encrypt_time)
-    total_time = int(wallet_generate_time) + int(wallet_encrypt_time)
 
+    # Compute the total time for creating the wallet
+    total_time = int(formData.walletCreateTime) + int(formData.walletEncryptTime)
+
+    # Prepare the data to be inserted into the requests table
     requests_data = {
-        "did_str": formData["did"],
-        "form_data": json.dumps(formData),
-        "network_info": json.dumps(networkInfo),
+        "did_str": formData.did,
+        "form_data": formData.model_dump_json(),
+        "network_info": networkInfo.model_dump_json(),
         "request_status": request_status,
         "isVCSent": False,
-        "wallet_generate_time": wallet_generate_time,
+        "wallet_generate_time": formData.walletCreateTime,
         "total_time": total_time,
     }
 
-    print(f"\n\nTimes: {wallet_generate_time}, {wallet_encrypt_time}")
+    if debug >= 0:
+        print(f"\n\nTimes: {formData.walletCreateTime}, {formData.walletEncryptTime}")
 
+    # Prepare the SQL query to insert the request
     try:
         query = """
             INSERT INTO requests (did_str, form_data, network_info, request_status, "isVCSent", wallet_generate_time, total_time)
@@ -163,7 +145,7 @@ async def register(request: Request):
             status_code=200,
         )
     except Exception as e:
-        print(f"[ERROR] psycopg encountered: {e}")
+        print(f"[ERROR] psycopg in /register encountered: {e}")
         return JSONResponse(
             content={"authenticated": False, "error": str(e)}, status_code=500
         )
@@ -301,10 +283,9 @@ async def pollRequestStatus(request: Request, did_str: str):
             content={"authenticated": False, "error": str(e)}, status_code=500
         )
 
+
 @router.post("/verify")
-async def verify_user(
-    verifiablePresentation: VerifiablePresentation
-):
+async def verify_user(verifiablePresentation: VerifiablePresentation):
     """
     Verify user.
     It takes the VP, verifies it and then extracts the VC and verifies it after which the ZKP is finally verified
@@ -333,7 +314,7 @@ async def verify_user(
             return JSONResponse(
                 content={"error": "Invalid Verifiable Credential"}, status_code=400
             )
-        print(f"[verify_user()] VC Response: {vc_response.get("verified")}")    
+        print(f"[verify_user()] VC Response: {vc_response.get("verified")}")
     else:
         print(f"\n\n\nVP NOT VERIFIED\n\n\n")
     # Now extract the ZKP data from the VC
