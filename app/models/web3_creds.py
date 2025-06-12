@@ -3,6 +3,21 @@ from typing import Dict, List, Optional
 from pydantic import BaseModel, Field
 
 
+class FormData(BaseModel):
+    """
+    Represents the form data for a web3 credential.
+    This is used to capture the data that will be included in the credential.
+    """
+    alias: str
+    device_id: Optional[str] = None
+    did: str
+    firmware_version: Optional[str] = None
+    proof_type: str
+    selected_role: str
+    testMode: Optional[bool] = None
+    walletCreateTime: Optional[float] = 0
+    walletEncryptTime: Optional[float] = 0
+
 # Might have to change this to suit other ZKP types
 class ZKP(BaseModel):
     userHash: str
@@ -37,8 +52,8 @@ class CredentialSubject(BaseModel):
     firmware_version: str
     testMode: Optional[bool] = None
     device_id: Optional[str] = None
-    walletCreateTime: Optional[float] = None
-    walletEncryptTime: Optional[float] = None
+    walletCreateTime: Optional[float] = 0
+    walletEncryptTime: Optional[float] = 0
 
 
 class VerifiableCredential(BaseModel):

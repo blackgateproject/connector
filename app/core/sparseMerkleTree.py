@@ -10,6 +10,8 @@ from app.core.config import Settings
 from fastapi import Depends
 from supabase import Client, create_client
 
+from ..models.zkp import MerkleProof, MerkleProofElement
+
 # from SMT import SparseMerkleTree  # Your SMT class
 from ..utils.sparseMerkle_utils import sparseMerkleTreeUtils
 
@@ -34,21 +36,27 @@ class sparseMerkleTree:
         self.smt = sparseMerkleTreeUtils(depth=16)
         print(f"[CORE] SMT Initialized. \n{type(self.smt)}")
 
-    def _hash_user_data(self, user_id, credentials):
+    def _hash_user_data(self, user_id, credentials) -> str:
         return hashlib.sha256(f"{user_id}|{credentials}".encode()).hexdigest()
 
     def add_user(self, user_id, credentials):
         # print(f"[SMT->add_user()]: (DEBUG) Entered add_user for {user_id}")
         try:
+            # Parse out the prefix "did:ethr:blackgate:0x" from the user_id
+            if user_id.startswith("did:ethr:blackgate:"):
+                user_id = user_id[len("did:ethr:blackgate:") :]
+            print(f"[SMT->add_user()]: (DEBUG) User ID after parsing: {user_id}")
+
             key, current_hash = self.smt.add_user_auto(f"{user_id}|{credentials}")
             # print(f"[SMT->add_user()]: User {user_id} added. Current root: {self.smt.get_root().hex()}")
             # stuff = self._store_tree()
-            # proof = self.smt.generate_proof(int(user_id))
+            proof = self.smt.generate_proof(int(user_id, base=16))
             data = {
                 # "_store_tree()": stuff,
                 "index": str(key),
                 "userHash": current_hash.hex(),
                 "root": self.smt.get_root().hex(),
+                "proof": proof.model_dump_json(),
                 # "proof": json.dumps(
                 # "proof":
                 #     [(sibling.hex(), is_right) for sibling, is_right in proof]
@@ -60,22 +68,41 @@ class sparseMerkleTree:
             print(f"[SMT->add_user() ERROR]: {e}")
             raise
 
-    def verify_user(self, user_id, key, credentials):
+    def verify_user(self, user_id, credentials, provided_proof):
         # key = int.from_bytes(key.encode(), "big")
         # Expected method should be to use the user hash and the key + proof for verification
-        proof = self.smt.generate_proof(int(key))
-        root = self.smt.get_root()
-        print(f"[SMT->verify_user()]: Verifying user with key:", key)
-        print(f"[SMT->verify_user()]: Verifying user with root:", root)
-        print(f"[SMT->verify_user()]: User ID: {user_id}\n Credentials: {credentials}")
-        print(f"[SMT->verify_user()]: Proof: {proof}")
-        result = self.smt.verify_proof(
-            int(key), f"{user_id}|{credentials}", proof, root
-        )
-        print(
-            f"[SMT->verify_user()]: Result: {result}"
-        )
-        return result
+        # proof = self.smt.generate_proof(int(key))
+        # root = self.smt.get_root()
+        # print(f"[SMT->verify_user()]: Verifying user with key:", key)
+        # print(f"[SMT->verify_user()]: Verifying user with root:", root)
+        # print(f"[SMT->verify_user()]: User ID: {user_id}\n Credentials: {credentials}")
+        # print(f"[SMT->verify_user()]: Proof: {proof}")
+        # result = self.smt.verify_proof(
+        #     int(key), f"{user_id}|{credentials}", proof, root
+        # )
+        # print(
+        #     f"[SMT->verify_user()]: Result: {result}"
+        # )
+        # return result
+        value_raw = f"{user_id}|{credentials}"
+        root_hash = self.smt.get_root()
+
+        # Deserialize the JSON proof into MerkleProof object
+        if isinstance(provided_proof, str):
+            provided_proof = MerkleProof.model_validate_json(provided_proof)
+        elif isinstance(provided_proof, dict):
+            provided_proof = MerkleProof(**provided_proof)
+
+        if self.smt.verify_proof(user_id, value_raw, provided_proof, root_hash):
+            return True, provided_proof.model_dump_json()
+
+        # Fallback verification
+        if user_id in self.smt.used_indexes:
+            fresh_proof = self.smt.generate_proof(user_id)
+            if self.smt.verify_proof(user_id, value_raw, fresh_proof, root_hash):
+                return True, fresh_proof.model_dump_json()
+
+        return False, provided_proof.model_dump_json()
 
     def update_user(self, user_id, new_credentials):
         self.smt.update_with_key(user_id, f"{user_id}|{new_credentials}")
@@ -110,8 +137,11 @@ class sparseMerkleTree:
     #         tree_data = response.data[0]["tree_data"]
     #         self.smt = sparseMerkleTreeUtils.deserialize(tree_data)
 
-    def get_root(self):
+    def get_root(self) -> str:
         return self.smt.get_root().hex()
+
+    def print_tree(self):
+        self.smt.print_tree()
 
     def save_tree_to_file(self, filename):
         """Save the Merkle tree to a file."""

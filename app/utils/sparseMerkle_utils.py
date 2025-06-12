@@ -1,7 +1,10 @@
+import base64
 import hashlib
 import random
 import time
-import base64
+
+from ..models.zkp import MerkleProof, MerkleProofElement
+
 
 # ./SMT.py
 class sparseMerkleTreeUtils:
@@ -11,7 +14,7 @@ class sparseMerkleTreeUtils:
         self.default_hashes = self._precompute_default_hashes()
         self.used_indexes = set()
 
-    def _precompute_default_hashes(self):
+    def _precompute_default_hashes(self) -> list:
         hashes = []
         h = hashlib.sha256(b"empty").digest()
         for _ in range(self.depth + 1):
@@ -19,17 +22,17 @@ class sparseMerkleTreeUtils:
             h = hashlib.sha256(h + h).digest()
         return hashes
 
-    def _hash(self, left, right):
+    def _hash(self, left, right) -> bytes:
         return hashlib.sha256(left + right).digest()
 
     def _get_node(self, position, level):
         return self.nodes.get((position, level), self.default_hashes[level])
 
-    def _index_to_position(self, index):
+    def _index_to_position(self, index) -> int:
         key_bin = bin(index)[2:].zfill(self.depth)
         return int(key_bin, 2)
 
-    def _find_smallest_empty_index(self):
+    def _find_smallest_empty_index(self) -> int:
         index = 0
         while index in self.used_indexes:
             index += 1
@@ -43,7 +46,6 @@ class sparseMerkleTreeUtils:
     def update_with_key(self, key, value_raw):
         """Manually update or insert at a specified key."""
         pos = self._index_to_position(key)
-        og_pos = pos
         self.used_indexes.add(key)
 
         value_hash = hashlib.sha256(value_raw.encode()).digest()
@@ -63,7 +65,7 @@ class sparseMerkleTreeUtils:
             pos //= 2
             self.nodes[(pos, level)] = current_hash
 
-        return key, value_hash
+        return key, current_hash
 
     def delete(self, key):
         """Delete a value at a given key (set it to default hash)."""
@@ -94,25 +96,31 @@ class sparseMerkleTreeUtils:
     def get_root(self):
         return self._get_node(0, 0)
 
-    def generate_proof(self, key):
+    def generate_proof(self, key) -> MerkleProof:
         pos = self._index_to_position(key)
-
         proof = []
+
         for level in reversed(range(self.depth)):
             is_right = pos % 2
             sibling_pos = pos - 1 if is_right else pos + 1
             sibling_hash = self._get_node(sibling_pos, level + 1)
-            proof.append((sibling_hash, is_right))
+            proof.append(
+                MerkleProofElement(
+                    sibling_hash=base64.b64encode(sibling_hash).decode(),
+                    is_right=is_right,
+                )
+            )
             pos //= 2
 
-        return proof
+        return MerkleProof(key=key, proof=proof)
 
-    def verify_proof(self, key, value_raw, proof, root_hash):
+    def verify_proof(self, key, value_raw, proof: MerkleProof, root_hash):
         value_hash = hashlib.sha256(value_raw.encode()).digest()
         current_hash = value_hash
 
-        for sibling_hash, is_right in proof:
-            if is_right:
+        for element in proof.proof:
+            sibling_hash = base64.b64decode(element.sibling_hash)
+            if element.is_right:
                 current_hash = hashlib.sha256(sibling_hash + current_hash).digest()
             else:
                 current_hash = hashlib.sha256(current_hash + sibling_hash).digest()
