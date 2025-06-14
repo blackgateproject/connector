@@ -3,7 +3,7 @@ import hashlib
 import random
 import time
 
-from ..models.zkp import MerkleProof, MerkleProofElement
+from ..models.zkp import MerkleProofElement, SMTMerkleProof
 
 
 # ./SMT.py
@@ -96,7 +96,7 @@ class sparseMerkleTreeUtils:
     def get_root(self):
         return self._get_node(0, 0)
 
-    def generate_proof(self, key) -> MerkleProof:
+    def generate_proof(self, key) -> SMTMerkleProof:
         pos = self._index_to_position(key)
         proof = []
 
@@ -112,9 +112,9 @@ class sparseMerkleTreeUtils:
             )
             pos //= 2
 
-        return MerkleProof(key=key, proof=proof)
+        return SMTMerkleProof(key=key, proof=proof)
 
-    def verify_proof(self, key, value_raw, proof: MerkleProof, root_hash):
+    def verify_proof(self, key, value_raw, proof: SMTMerkleProof, root_hash):
         value_hash = hashlib.sha256(value_raw.encode()).digest()
         current_hash = value_hash
 

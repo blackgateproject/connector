@@ -19,6 +19,8 @@ from zksync2.module.module_builder import ZkSyncBuilder
 from zksync2.module.zksync_provider import ZkSyncProvider
 from zksync2.signer.eth_signer import BaseAccount, PrivateKeyEthSigner
 
+from ..models.zkp import SMTMerkleProof
+
 from ..core.accumulator import accumulatorCore
 from ..core.config import Settings
 from ..core.merkle import merkleCore
@@ -258,7 +260,7 @@ def addUserToSMT(user: str, pw: str):
     did_str = user
     public_key = user.replace("did:ethr:", "")
     userHashAndProof = smtCore.add_user(did_str, public_key)
-    
+
     # Dummy values for Device ID, VC Hash, Fog Node Address
     device_id = pw.get("device_id")
     vc_hash = "dummy-vc-hash"
@@ -287,7 +289,9 @@ def addUserToSMT(user: str, pw: str):
 
     # Read the latest MerkleRootUpdated event to get the latest values
     contract = get_merkle_verifier()
-    events = contract.events.MerkleRootUpdated().get_logs(from_block=0, to_block="latest")
+    events = contract.events.MerkleRootUpdated().get_logs(
+        from_block=0, to_block="latest"
+    )
     if events:
         latest_event = events[-1]
         # Convert AttributeDict to a regular dictionary
@@ -314,19 +318,22 @@ def addUserToSMTLocal(did_str: str):
     Add a user to the SMT Tree Local
     """
     # Remove prefix from the did and send did
-    public_key = did_str.replace("did:ethr:", "")
-    userHashAndProof = smtCore.add_user(did_str, public_key)
-
+    public_key = did_str.replace("did:ethr:blackgate:", "")
+    userHashAndData, proof = smtCore.add_user(did_str=did_str, credentials=public_key)
+    print(f"[addUserToSMTLocal()] User Hash and Proof: {userHashAndData}")
     # Prepare return values
     data = {
-        "userHash": userHashAndProof["userHash"],
-        "userIndex": userHashAndProof["index"],
-        "merkleRoot": userHashAndProof["root"],
+        "userHash": userHashAndData["userHash"],
+        "userIndex": userHashAndData["index"],
+        "merkleRoot": userHashAndData["root"],
     }
 
-    return data
+    return data, proof
 
-def addUserToSMTOnChain(merkleRoot: str, device_id: str, vc_hash: str, fog_node_pubkey: str):
+
+def addUserToSMTOnChain(
+    merkleRoot: str, device_id: str, vc_hash: str, fog_node_pubkey: str
+):
     """
     Add a user to the SMT Tree Onchain & get the latest event
     """
@@ -362,7 +369,9 @@ def addUserToSMTOnChain(merkleRoot: str, device_id: str, vc_hash: str, fog_node_
 
     # Read the latest MerkleRootUpdated event to get the latest values
     contract = get_merkle_verifier()
-    events = contract.events.MerkleRootUpdated().get_logs(from_block=0, to_block="pending")
+    events = contract.events.MerkleRootUpdated().get_logs(
+        from_block=0, to_block="pending"
+    )
     if events:
         latest_event = events[-1]
         # Convert AttributeDict to a regular dictionary
@@ -380,16 +389,18 @@ def addUserToSMTOnChain(merkleRoot: str, device_id: str, vc_hash: str, fog_node_
 
 
 # def verifyUserOnMerkle(hash: str, proof: list[str]):
-def verifyUserOnSMT(user_id, key, credentials):
+def verifyUserOnSMT(did_str, smt_proof: SMTMerkleProof):
     """
     Verify a user on the SMT Tree
     """
-    # Verify the user on the SMT Tree
+    # Start timer
     before_local_verify = time.time()
 
+    # Remove prefix from the did and send did
+    public_key = did_str.replace("did:ethr:blackgate:", "")
 
-    # Commented this out, neeed a way to get proof
-    validOffchain = smtCore.verify_user(user_id, key, credentials)
+    # Verify the user on the SMT Tree
+    validOffchain = smtCore.verify_user(user_id=did_str, credentials=public_key, provided_proof=smt_proof)
     local_verify_duration = time.time() - before_local_verify
     print(
         f"[verifyUserOnSMT()] Local verification duration: {local_verify_duration:.4f} seconds"
@@ -421,7 +432,7 @@ def verifyUserOnSMT(user_id, key, credentials):
     return results
 
 
-def addUserToAccmulator(did: str, vc: str):
+def addUserToAccumulator(did: str, vc: str):
     # Combine the did and vc into json
     userW3creds = json.dumps({"did": did, "vc": vc})
     print(f"[addUserToAccmulator()] UserW3Creds: {userW3creds}")
@@ -509,9 +520,11 @@ def getBlockchainModulus():
         print(f"Error while calling getModulus: {e}")
         return {"error": str(e)}
 
+
 """
 W3 Helper functions
 """
+
 
 async def keccakHash(data: str) -> str:
     """

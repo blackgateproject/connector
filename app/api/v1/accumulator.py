@@ -12,7 +12,7 @@ from ...core.accumulator import accumulatorCore
 from ...models.requests import HashProof, MerkleInput
 from ...utils.core_utils import log_user_action, settings_dependency, verify_jwt
 from ...utils.web3_utils import (
-    addUserToAccmulator,
+    addUserToAccumulator,
     getBlockchainModulus,
     verifyUserOnAccumulator,
 )
@@ -43,7 +43,7 @@ async def add_user_to_accumulator(
         did_str = body.get("formData")
         vc = body.get("networkInfo")
 
-        data = addUserToAccmulator(did_str, vc)
+        data = addUserToAccumulator(did_str, vc)
 
         return JSONResponse(
             status_code=200,

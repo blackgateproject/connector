@@ -1,9 +1,10 @@
+import base64
 import hashlib
 import random
 import time
-import base64
-from pydantic import BaseModel
 from typing import List
+
+from pydantic import BaseModel
 
 
 class MerkleProofElement(BaseModel):
@@ -11,6 +12,6 @@ class MerkleProofElement(BaseModel):
     is_right: bool
 
 
-class MerkleProof(BaseModel):
+class SMTMerkleProof(BaseModel):
     key: int
     proof: List[MerkleProofElement]

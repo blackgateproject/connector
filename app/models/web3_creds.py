@@ -2,12 +2,15 @@ from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
+from ..models.zkp import SMTMerkleProof
+
 
 class FormData(BaseModel):
     """
     Represents the form data for a web3 credential.
     This is used to capture the data that will be included in the credential.
     """
+
     alias: str
     device_id: Optional[str] = None
     did: str
@@ -17,6 +20,7 @@ class FormData(BaseModel):
     testMode: Optional[bool] = None
     walletCreateTime: Optional[float] = 0
     walletEncryptTime: Optional[float] = 0
+
 
 # Might have to change this to suit other ZKP types
 class ZKP(BaseModel):
@@ -44,7 +48,7 @@ class Proof(BaseModel):
 
 class CredentialSubject(BaseModel):
     ZKP: ZKP
-    networkInfo: NetworkInfo
+    networkInfo: Optional[NetworkInfo] = None
     did: str
     alias: str
     proof_type: str
@@ -68,6 +72,7 @@ class VerifiableCredential(BaseModel):
         validate_by_name = True
 
     def serialize(self, **kwargs) -> Dict:
+        """Convert the VerifiablePresentation to a JSON-serializable dict."""
         return self.model_dump(by_alias=True, exclude_none=True, **kwargs)
 
 
@@ -83,9 +88,11 @@ class VerifiablePresentation(BaseModel):
     context_: List[str] = Field(..., alias="@context")
     expirationDate: str
     proof: Proof
+    smt_proofs: Optional[SMTMerkleProof] = None
 
     class Config:
         validate_by_name = True
 
     def serialize(self, **kwargs) -> Dict:
+        """Convert the VerifiablePresentation to a JSON-serializable dict."""
         return self.model_dump(by_alias=True, exclude_none=True, **kwargs)

@@ -3,6 +3,7 @@ import datetime
 import json
 import random
 import time
+from calendar import c
 from functools import lru_cache
 from operator import ne
 from types import NoneType
@@ -22,7 +23,13 @@ from ...credential_service.credservice import (
     verify_presentation,
 )
 from ...models.requests import HashProof
-from ...models.web3_creds import FormData, NetworkInfo, VerifiablePresentation
+from ...models.web3_creds import (
+    FormData,
+    NetworkInfo,
+    VerifiableCredential,
+    VerifiablePresentation,
+)
+from ...models.zkp import SMTMerkleProof
 from ...utils.core_utils import (
     extract_user_details_for_passwordless,
     extractUserInfo,
@@ -31,7 +38,7 @@ from ...utils.core_utils import (
     verify_jwt,
 )
 from ...utils.web3_utils import (
-    addUserToAccmulator,
+    addUserToAccumulator,
     addUserToMerkle,
     addUserToSMT,
     addUserToSMTLocal,
@@ -152,7 +159,7 @@ async def register(formData: FormData, networkInfo: NetworkInfo) -> JSONResponse
 
 
 @router.get("/poll/{did_str}")
-async def pollRequestStatus(request: Request, did_str: str):
+async def pollRequestStatus(did_str: str) -> JSONResponse:
     if debug >= 0:
         print(f"Recieved Data: {did_str}")
 
@@ -162,47 +169,59 @@ async def pollRequestStatus(request: Request, did_str: str):
         returnResponse = {}
         if rows:
             req = rows[0]
-            # Only decode if it's a string
+
+            # Load formData and networkInfo from supabase
             if isinstance(req["form_data"], str):
                 req["form_data"] = json.loads(req["form_data"])
             if isinstance(req["network_info"], str):
                 req["network_info"] = json.loads(req["network_info"])
+
+            # If request status has been set to approved then issue the credential
             if req["request_status"] == "approved" and not req["isVCSent"]:
                 formData = req["form_data"]
                 networkInfo = req["network_info"]
                 proof_type = formData.get("proof_type")
                 public_key = did_str.replace("did:ethr:blackgate:", "")
+                proofs = None  # Track proofs only for SMT
                 if proof_type == "smt":
-                    zkpData = addUserToSMTLocal(did_str=did_str)
+                    # Add user to the Sparse Merkle Tree (SMT) locally
+                    zkpData, proofs = addUserToSMTLocal(did_str=did_str)
 
+                    print(
+                        f"About to issue credential with data: {formData}, {networkInfo}, {zkpData}"
+                    )
+                    # Prepare the data for issuing the credential
                     data = {
                         "formData": formData,
                         "networkInfo": networkInfo,
                         "ZKP": zkpData,
                     }
+                    print(f"Issuing credential")
+                    # Issue the verifiable credential
                     verifiableCredential = await issue_credential(data)
 
                     # if debug >= 0:
                     #     print(f"Verifiable Credential: {verifiableCredential}")
                     # Keccak hash the VC
+                    print(f"Keccak hashing the VC")
                     vcHash = await keccakHash(
                         json.dumps(verifiableCredential, sort_keys=True).encode("utf-8")
                     )
 
+                    # Debug Statement
                     if debug >= 0:
                         print(f"VC Hash: {vcHash}")
 
                     # Send data onchain
+                    print(f"Sending data onchain")
                     fog_node_publicKey = (
                         verifiableCredential.get("credential").get("issuer").get("id")
                     ).replace("did:ethr:blackgate:", "")
-                    if formData.get("device_id") is None:
-                        formData["device_id"] = "NO Device ID"
 
                     # Convert device_id to a string
 
-                    if isinstance(formData["device_id"], int):
-                        formData["device_id"] = str(formData["device_id"])
+                    # if isinstance(formData["device_id"], int):
+                    # formData["device_id"] = str(formData["device_id"])
                     onChainResults = addUserToSMTOnChain(
                         merkleRoot=zkpData["merkleRoot"],
                         vc_hash=vcHash,
@@ -214,7 +233,7 @@ async def pollRequestStatus(request: Request, did_str: str):
                 elif proof_type == "merkle":
                     merkle_data = addUserToMerkle(user=did_str, pw=public_key)
                 elif proof_type == "accumulator":
-                    merkle_data = addUserToAccmulator(did=did_str, vc=public_key)
+                    merkle_data = addUserToAccumulator(did=did_str, vc=public_key)
                 else:
                     merkle_data = {}
 
@@ -232,6 +251,7 @@ async def pollRequestStatus(request: Request, did_str: str):
                 # verifiableCredential = await issue_credential(data)
 
                 # SET "isVCSent" = TRUE,
+                print(f"Updating request status in Postgres")
                 update_query = """
                     UPDATE requests
                     SET "isVCSent" = TRUE,
@@ -248,27 +268,35 @@ async def pollRequestStatus(request: Request, did_str: str):
                         formData.get("did"),
                     ),
                 )
+
+                # Build the response, only include proofs if SMT
                 returnResponse = {
-                    "message": f"approved request for role {formData.get('selected_role')}",
+                    "message": f"Request approved for role '{formData.get('selected_role')}' using ZKP '{proof_type}'",
                     "verifiable_credential": verifiableCredential,
                     "request_status": f"{req['request_status']}",
                 }
+                if proof_type == "smt" and proofs is not None:
+                    returnResponse["smt_proofs"] = proofs
             elif req["request_status"] == "approved" and req["isVCSent"]:
-                returnResponse = {
-                    "message": f"User already added to merkle tree",
+                # If the request is already approved and the VC is sent, return the verifiable credential
+                returnResponse += {
+                    "message": f"User already added to ZKP module",
                     "request_status": f"{req['request_status']}",
                 }
             elif req["request_status"] == "rejected":
-                returnResponse = {
+                # If the request is rejected, return a rejection message
+                returnResponse += {
                     "message": f"Request rejected",
                     "request_status": f"{req['request_status']}",
                 }
             elif req["request_status"] == "pending":
-                returnResponse = {
+                # If the request is still pending, return a pending message
+                returnResponse += {
                     "message": f"Request pending",
                     "request_status": f"{req['request_status']}",
                 }
         else:
+            # If no request is found for the given did_str, return a not found message
             print(f"No request found for this did_str")
             returnResponse = {
                 "message": f"No request found for this did_str",
@@ -278,17 +306,19 @@ async def pollRequestStatus(request: Request, did_str: str):
         print(f"Return Response: {returnResponse}")
         return JSONResponse(content=returnResponse, status_code=200)
     except Exception as e:
-        print(f"[ERR_psycopg] Error: {e}")
+        print(f"[ERR: /poll/{did_str}] Error: {e}")
         return JSONResponse(
             content={"authenticated": False, "error": str(e)}, status_code=500
         )
 
 
 @router.post("/verify")
-async def verify_user(verifiablePresentation: VerifiablePresentation):
+# Takes VP and optionally a MerkleProof
+async def verify_user(verifiablePresentation: VerifiablePresentation) -> JSONResponse:
     """
     Verify user.
     It takes the VP, verifies it and then extracts the VC and verifies it after which the ZKP is finally verified
+    IF proof type is SMT, then a MerkleProof is expected in the body.
     """
     total_start_time = time.time()
 
@@ -305,10 +335,17 @@ async def verify_user(verifiablePresentation: VerifiablePresentation):
     # print(f"[verify_user()] TYPEOF [VCs in VP]: {type(json.dumps(verifiablePresentation.verifiableCredential[0].model_dump()))}")
     # Verify the VC within the VP
     if vp_response.get("verified") == True:
-        vc_response = await verify_credential(
-            # verifiablePresentation.verifiableCredential[0].model_dump()
-            {"credential": verifiablePresentation.verifiableCredential[0].serialize()}
+        # Extract the first VC from the VP
+        verifiableCredential: VerifiableCredential = (
+            verifiablePresentation.verifiableCredential[0].serialize()
         )
+
+        # Verify the VC using the credential service
+        vc_response = await verify_credential(
+            {"credential": verifiableCredential}
+        )
+
+        # Error response if not verified
         if not vc_response.get("verified", False):
             print(f"[verify_user()] VC Response: {vc_response.get("verified")}")
             return JSONResponse(
@@ -317,19 +354,29 @@ async def verify_user(verifiablePresentation: VerifiablePresentation):
         print(f"[verify_user()] VC Response: {vc_response.get("verified")}")
     else:
         print(f"\n\n\nVP NOT VERIFIED\n\n\n")
-    # Now extract the ZKP data from the VC
-    vc_data = verifiablePresentation.verifiableCredential[0].model_dump()
-    # print(f"\n\n\nVC_DATA grabbed from body of VP: {vc_data}")
-    did = vc_data.get("credentialSubject").get("did")
-    proof_type = vc_data.get("credentialSubject").get("proof_type")
-    cred_ZKP = vc_data.get("credentialSubject").get("ZKP")
 
+    # Extract the credentialSubject from the VC
+    credentialSubject = verifiableCredential.get("credentialSubject")
+    if not credentialSubject:
+        return JSONResponse(
+            content={"error": "Missing 'credentialSubject' in Verifiable Credential."},
+            status_code=400,
+        )
+
+    # All 3 proof types require these    
+    did = credentialSubject.get("did")
+    proof_type = credentialSubject.get("proof_type")
+    cred_ZKP = credentialSubject.get("ZKP")
+
+    # ZKP handling
     if proof_type == "merkle":
+        # Handle Merkle proof type
         merkleHash = cred_ZKP.get("userHash")
         txHash = cred_ZKP.get("txHash")
         print(f"[verify_user()] txHash: {txHash}")
         print(f"[verify_user()] merkleHash: {merkleHash}")
     elif proof_type == "smt":
+        # Handle Sparse Merkle Tree (SMT) proof type
         index = cred_ZKP.get("userIndex")
         if index is None:
             return JSONResponse(
@@ -337,11 +384,11 @@ async def verify_user(verifiablePresentation: VerifiablePresentation):
                 status_code=400,
             )
         merkleHash = cred_ZKP.get("userHash")
-        # This should not be used, only the hash
-        networkInfo = vc_data.get("credentialSubject").get("networkInfo")
+        networkInfo = verifiableCredential.get("credentialSubject").get("networkInfo")
         print(f"[verify_user()] index: {index}")
         print(f"[verify_user()] merkleHash: {merkleHash}")
     elif proof_type == "accumulator":
+        # Handle Accumulator proof type
         data_hash = cred_ZKP.get("dataHash")
         acc_val = cred_ZKP.get("accVal")
         proof = cred_ZKP.get("proof")
@@ -361,7 +408,7 @@ async def verify_user(verifiablePresentation: VerifiablePresentation):
     duration = 0
 
     if proof_type == "smt":
-        # Fetch user details from the did using psycopg
+        # Fetch formData from the did using psycopg
         query = "SELECT form_data FROM requests WHERE did_str = %s"
         with psycopg.connect(db_url) as conn:
             with conn.cursor() as cur:
@@ -370,11 +417,28 @@ async def verify_user(verifiablePresentation: VerifiablePresentation):
                 if row:
                     form_data = row[0]
                     if isinstance(form_data, str):
-                        form_data = json.loads(form_data)
+                        # Load as a formData model
+                        form_data = FormData.model_validate_json(form_data)
+                    elif isinstance(form_data, dict):
+                        # If it's already a dict, just use it
+                        form_data = FormData.model_validate(form_data)
                 else:
                     form_data = {}
         print(f"[verify_user()] form_data: {form_data}")
-        result = verifyUserOnSMT(user_id=form_data, key=index, credentials=networkInfo)
+
+        # Get the SMT_Proofs from the verifiablePresentation
+        smt_proof: SMTMerkleProof = verifiablePresentation.smt_proofs
+        if not smt_proof:
+            print(f"[verify_user()] Missing 'smt_proofs' in Verifiable Presentation.")
+            return JSONResponse(
+                content={"error": "Missing 'smt_proofs' in Verifiable Presentation."},
+                status_code=400,
+            )
+
+        # Verify the user on the Sparse Merkle Tree (SMT)
+        print(f"[verify_user()] Verifying user on SMT with index: {index}")
+        result = verifyUserOnSMT(did_str=did, smt_proof=smt_proof)
+        print(f"[verify_user()] SMT Verification Result: {result}")
     elif proof_type == "merkle":
         result = verifyUserOnMerkle(merkleHash)
     elif proof_type == "accumulator":
@@ -382,6 +446,7 @@ async def verify_user(verifiablePresentation: VerifiablePresentation):
             dataHash=data_hash, accVal=acc_val, proof=proof, prime=prime
         )
 
+    # Process the results
     print(f"[verify_user()] results: {result}")
     if result["valid_Offchain"] == False or result["valid_Onchain"] == False:
         message = "Problem with verification: "
@@ -395,8 +460,8 @@ async def verify_user(verifiablePresentation: VerifiablePresentation):
     # If the user is valid on both chains, log the event in Postgres
     if result["valid_Offchain"] and result["valid_Onchain"]:
         testMode = (
-            vc_data.get("credentialSubject").get("testMode")
-            if vc_data.get("credentialSubject")
+            verifiableCredential.get("credentialSubject").get("testMode")
+            if verifiableCredential.get("credentialSubject")
             else False
         )
         if not testMode:
@@ -460,7 +525,7 @@ async def verify_user(verifiablePresentation: VerifiablePresentation):
 
 
 @router.post("/logout")
-async def logout(request: Request, _: dict = Depends(verify_jwt)):
+async def logout(request: Request, _: dict = Depends(verify_jwt)) -> JSONResponse:
     body = await request.json()
     access_token = body.get("access_token")
     # did = body.get("did")
@@ -471,122 +536,8 @@ async def logout(request: Request, _: dict = Depends(verify_jwt)):
     )
 
 
-@router.get("/pollTest/{did_str}")
-async def testAutoApproveReq(request: Request, did_str: str):
-    if debug >= 0:
-        print(f"Recieved Data: {did_str}")
-
-    try:
-        query = "SELECT * FROM requests WHERE did_str = %s"
-        rows = fetch_all(query, (did_str,))
-        returnResponse = {
-            "authenticated": False,
-            "message": "No pending request found",
-        }
-        entry = None
-        if rows and rows[0]["request_status"] != "approved":
-            req = rows[0]
-            # Only decode if it's a string
-            if isinstance(req["form_data"], str):
-                req["form_data"] = json.loads(req["form_data"])
-            if isinstance(req["network_info"], str):
-                req["network_info"] = json.loads(req["network_info"])
-            status = "rejected" if random.randint(1, 10) == 1 else "approved"
-
-            formData = req["form_data"]
-            networkInfo = req["network_info"]
-            proof_type = formData.get("proof_type")
-            public_key = did_str.replace("did:ethr:blackgate:", "")
-
-            if proof_type == "smt":
-                zkpData = addUserToSMTLocal(did_str=did_str)
-
-                data = {
-                    "formData": formData,
-                    "networkInfo": networkInfo,
-                    "ZKP": zkpData,
-                }
-                verifiableCredential = await issue_credential(data)
-
-                # if debug >= 0:
-                #     print(f"Verifiable Credential: {verifiableCredential}")
-                # Keccak hash the VC
-                vcHash = await keccakHash(
-                    json.dumps(verifiableCredential, sort_keys=True).encode("utf-8")
-                )
-
-                if debug >= 0:
-                    print(f"VC Hash: {vcHash}")
-
-                # Send data onchain
-                fog_node_publicKey = (
-                    verifiableCredential.get("credential").get("issuer").get("id")
-                ).replace("did:ethr:blackgate:", "")
-                onChainResults = addUserToSMTOnChain(
-                    merkleRoot=zkpData["merkleRoot"],
-                    vc_hash=vcHash,
-                    device_id=formData["device_id"],
-                    fog_node_pubkey=fog_node_publicKey,
-                )
-                # print(f"OnChain Results: {onChainResults}")
-
-            elif proof_type == "merkle":
-                merkle_data = addUserToMerkle(user=did_str, pw=public_key)
-            elif proof_type == "accumulator":
-                merkle_data = addUserToAccmulator(did=did_str, vc=public_key)
-            else:
-                merkle_data = {}
-
-            # merkle_data.pop("merkleRoot", None)
-            # merkle_data.pop("userProof", None)
-
-            # data = {
-            #     "formData": formData,
-            #     "networkInfo": networkInfo,
-            #     "ZKP": merkle_data,
-            # }
-            # verifiableCredential = await issue_credential(data)
-
-            update_query = """
-                UPDATE requests
-                SET "isVCSent" = TRUE,
-                    verifiable_cred = %s,
-                    request_status = %s
-                WHERE did_str = %s
-                RETURNING *
-            """
-            execute_query(
-                update_query,
-                (json.dumps(verifiableCredential), status, formData.get("did")),
-            )
-            returnResponse = {
-                "message": f"{status} request for role '{formData.get('selected_role')}' using ZKP '{proof_type}'",
-                "verifiable_credential": verifiableCredential,
-                "request_status": f"{status}",
-            }
-        elif rows and rows[0]["request_status"] == "approved":
-            req = rows[0]
-            # Only decode if it's a string
-            if isinstance(req["form_data"], str):
-                req["form_data"] = json.loads(req["form_data"])
-            returnResponse = {
-                "message": f"approved request for role {req['form_data'].get('selected_role')}",
-                "verifiable_credential": req["verifiable_cred"],
-                "request_status": f"{req['request_status']}",
-            }
-        return JSONResponse(
-            content=returnResponse,
-            status_code=200,
-        )
-    except Exception as e:
-        print(f"[ERR_psycopg] Error: {e}")
-        return JSONResponse(
-            content={"authenticated": False, "error": str(e)}, status_code=500
-        )
-
-
 @router.post("/verify-vp")
-async def verify_vp(request: Request):
+async def verify_vp(request: Request) -> JSONResponse:
     """
     Verify a presentation using the credential service.
     """
