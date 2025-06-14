@@ -88,15 +88,15 @@ class sparseMerkleTree:
             provided_proof = SMTMerkleProof(**provided_proof)
 
         if self.smt.verify_proof(user_id, value_raw, provided_proof, root_hash):
-            return True, provided_proof.model_dump_json()
+            return True, provided_proof
 
         # Fallback verification
         if user_id in self.smt.used_indexes:
             fresh_proof = self.smt.generate_proof(user_id)
             if self.smt.verify_proof(user_id, value_raw, fresh_proof, root_hash):
-                return True, fresh_proof.model_dump_json()
+                return True, fresh_proof
 
-        return False, provided_proof.model_dump_json()
+        return False, provided_proof
 
     def update_user(self, user_id, new_credentials):
         self.smt.update_with_key(user_id, f"{user_id}|{new_credentials}")

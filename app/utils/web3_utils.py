@@ -400,7 +400,7 @@ def verifyUserOnSMT(did_str, smt_proof: SMTMerkleProof):
     public_key = did_str.replace("did:ethr:blackgate:", "")
 
     # Verify the user on the SMT Tree
-    validOffchain = smtCore.verify_user(user_id=did_str, credentials=public_key, provided_proof=smt_proof)
+    validOffchain, updatedProofs = smtCore.verify_user(user_id=did_str, credentials=public_key, provided_proof=smt_proof)
     local_verify_duration = time.time() - before_local_verify
     print(
         f"[verifyUserOnSMT()] Local verification duration: {local_verify_duration:.4f} seconds"
@@ -429,7 +429,7 @@ def verifyUserOnSMT(did_str, smt_proof: SMTMerkleProof):
         "auth_Onchain_duration": onchain_verify_duration,
     }
 
-    return results
+    return results, updatedProofs.model_dump(mode="json")
 
 
 def addUserToAccumulator(did: str, vc: str):

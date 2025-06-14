@@ -341,9 +341,7 @@ async def verify_user(verifiablePresentation: VerifiablePresentation) -> JSONRes
         )
 
         # Verify the VC using the credential service
-        vc_response = await verify_credential(
-            {"credential": verifiableCredential}
-        )
+        vc_response = await verify_credential({"credential": verifiableCredential})
 
         # Error response if not verified
         if not vc_response.get("verified", False):
@@ -363,7 +361,7 @@ async def verify_user(verifiablePresentation: VerifiablePresentation) -> JSONRes
             status_code=400,
         )
 
-    # All 3 proof types require these    
+    # All 3 proof types require these
     did = credentialSubject.get("did")
     proof_type = credentialSubject.get("proof_type")
     cred_ZKP = credentialSubject.get("ZKP")
@@ -436,9 +434,7 @@ async def verify_user(verifiablePresentation: VerifiablePresentation) -> JSONRes
             )
 
         # Verify the user on the Sparse Merkle Tree (SMT)
-        print(f"[verify_user()] Verifying user on SMT with index: {index}")
-        result = verifyUserOnSMT(did_str=did, smt_proof=smt_proof)
-        print(f"[verify_user()] SMT Verification Result: {result}")
+        result, updated_smtProofs = verifyUserOnSMT(did_str=did, smt_proof=smt_proof)
     elif proof_type == "merkle":
         result = verifyUserOnMerkle(merkleHash)
     elif proof_type == "accumulator":
@@ -456,6 +452,19 @@ async def verify_user(verifiablePresentation: VerifiablePresentation) -> JSONRes
             message += "Onchain verification failed."
     else:
         message = "User verified on merkle tree"
+
+    # SMT_Only: If user fails offchain, return a 409, send updated proofs and request user to re-verify
+    if not result["valid_Offchain"] and proof_type == "smt":
+        print(f"[verify_user()] User failed offchain verification, returning 409")
+        return JSONResponse(
+            content={
+                "authenticated": False,
+                "message": message,
+                "results": result,
+                "smt_proofs": updated_smtProofs,
+            },
+            status_code=409,
+        )
 
     # If the user is valid on both chains, log the event in Postgres
     if result["valid_Offchain"] and result["valid_Onchain"]:

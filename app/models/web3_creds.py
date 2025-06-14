@@ -53,7 +53,7 @@ class CredentialSubject(BaseModel):
     alias: str
     proof_type: str
     selected_role: str
-    firmware_version: str
+    firmware_version: Optional[str] = None
     testMode: Optional[bool] = None
     device_id: Optional[str] = None
     walletCreateTime: Optional[float] = 0
