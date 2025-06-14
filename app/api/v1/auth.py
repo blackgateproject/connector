@@ -528,6 +528,7 @@ async def verify_user(verifiablePresentation: VerifiablePresentation) -> JSONRes
             "access_token": access_token,
             "refresh_token": refresh_token,
             "duration": duration,
+            **({"smt_proofs": updated_smtProofs} if proof_type == "smt" else {})
         }
     )
 
