@@ -382,7 +382,6 @@ async def verify_user(verifiablePresentation: VerifiablePresentation) -> JSONRes
                 status_code=400,
             )
         merkleHash = cred_ZKP.get("userHash")
-        networkInfo = verifiableCredential.get("credentialSubject").get("networkInfo")
         print(f"[verify_user()] index: {index}")
         print(f"[verify_user()] merkleHash: {merkleHash}")
     elif proof_type == "accumulator":

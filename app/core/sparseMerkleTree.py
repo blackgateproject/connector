@@ -43,10 +43,7 @@ class sparseMerkleTree:
         # print(f"[SMT->add_user()]: (DEBUG) Entered add_user for {did_str}")
         try:
             # Parse out the prefix "did:ethr:blackgate:0x" from the did_str
-            if did_str.startswith("did:ethr:blackgate:"):
-                did_str = did_str[len("did:ethr:blackgate:") :]
-            print(f"[SMT->add_user()]: (DEBUG) User ID after parsing: {did_str}")
-
+            print(f"[SMT->add_user()]: (DEBUG) Adding user: \n\tDID: {did_str}\n\tCredentials: {credentials}")
             key, current_hash = self.smt.add_user_auto(f"{did_str}|{credentials}")
             # print(f"[SMT->add_user()]: User {did_str} added. Current root: {self.smt.get_root().hex()}")
             # stuff = self._store_tree()
@@ -63,30 +60,23 @@ class sparseMerkleTree:
             raise
 
     def verify_user(self, user_id: str, credentials, provided_proof: SMTMerkleProof):
-        # key = int.from_bytes(key.encode(), "big")
-        # Expected method should be to use the user hash and the key + proof for verification
-        # proof = self.smt.generate_proof(int(key))
-        # root = self.smt.get_root()
-        # print(f"[SMT->verify_user()]: Verifying user with key:", key)
-        # print(f"[SMT->verify_user()]: Verifying user with root:", root)
-        # print(f"[SMT->verify_user()]: User ID: {user_id}\n Credentials: {credentials}")
-        # print(f"[SMT->verify_user()]: Proof: {proof}")
-        # result = self.smt.verify_proof(
-        #     int(key), f"{user_id}|{credentials}", proof, root
-        # )
-        # print(
-        #     f"[SMT->verify_user()]: Result: {result}"
-        # )
-        # return result
-        value_raw = f"{user_id}|{credentials}"
-        root_hash = self.smt.get_root()
+        # print(f"[SMT->verify_user()]: (DEBUG) Verifying user {user_id}")
+        # print(f"[SMT->verify_user()]: (DEBUG) Credentials: {credentials}")
+        # print(f"[SMT->verify_user()]: (DEBUG) Provided proof: {provided_proof.model_dump(mode='json')}")
 
         # Deserialize the JSON proof into MerkleProof object
         if isinstance(provided_proof, str):
+            print(f"[SMT->verify_user()]: (DEBUG) Provided proof is a str, converting to SMTMerkleProof")
             provided_proof = SMTMerkleProof.model_validate_json(provided_proof)
         elif isinstance(provided_proof, dict):
+            print(f"[SMT->verify_user()]: (DEBUG) Provided proof is a dict, converting to SMTMerkleProof")
             provided_proof = SMTMerkleProof(**provided_proof)
+        else:
+            print(f"[SMT->verify_user()]: (DEBUG) Provided proof is already an SMTMerkleProof instance")
+            print(f"[SMT->verify_user()]: (DEBUG) Proof Type: {type(provided_proof)}")
 
+        value_raw = f"{user_id}|{credentials}"
+        root_hash = self.smt.get_root()
         if self.smt.verify_proof(user_id, value_raw, provided_proof, root_hash):
             return True, provided_proof
 
