@@ -573,6 +573,7 @@ async def verify_user(verifiablePresentation: VerifiablePresentation, partial_ti
                 "smt_local_verify_time": partial_times.smt_local_verify_time if proof_type == "smt" else None,
                 "smt_onchain_verify_time": partial_times.smt_onchain_verify_time if proof_type == "smt" else None,
                 "smt_proof_gen_time": partial_times.smt_proof_gen_time if proof_type == "smt" else None,
+                "smt_on_server_verify_time": duration,
             },
         }
     )
