@@ -214,7 +214,7 @@ async def pollRequestStatus(did_str: str) -> JSONResponse:
                     print(f"Poll (DEBUG): Adding user to SMT locally")
                     start_time = time.time()
                     zkpData, proofs = addUserToSMTLocal(did_str=did_str)
-                    smt_local_add_time = time.time() - start_time
+                    smt_local_add_time = float(time.time() - start_time)
                     print(
                         f"About to issue credential with data: {formData}, {networkInfo}, {zkpData}"
                     )
