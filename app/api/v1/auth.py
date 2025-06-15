@@ -113,18 +113,18 @@ async def health_check():
 async def register(formData: FormData, networkInfo: NetworkInfo) -> JSONResponse:
     # Debugging output
     if debug >= 0:
-        print(f"Recieved Data: {formData}")
-        print(f"Recieved Data: {networkInfo}")
+        print(f"Recieved Data: {formData.model_dump()}")
+        print(f"Recieved Data: {networkInfo.model_dump()}")
 
     # Auto-approve all requests for devices or test_mode users/devices
-    request_status = (
-        "approved"
-        if formData.selected_role == "device" and not formData.testMode
-        else "pending"
-    )
+    if formData.testMode:
+        print(f"Test Mode is enabled for DID: {formData.did}. Auto approving request.")
+    if formData.selected_role == "device":
+        print(f"Device role selected for DID: {formData.did}. Auto approving request.")
+    request_status = "approved" if formData.testMode or formData.selected_role == "device" else "pending"
 
     # Compute the total time for creating the wallet
-    total_time = int(formData.walletCreateTime) + int(formData.walletEncryptTime)
+    total_time = formData.walletCreateTime + formData.walletEncryptTime
 
     # Prepare the data to be inserted into the requests table
     requests_data = {
@@ -191,6 +191,11 @@ async def pollRequestStatus(did_str: str) -> JSONResponse:
             elif isinstance(req["network_info"], dict):
                 req["network_info"] = NetworkInfo.model_validate(req["network_info"])
 
+            # # Auto-approve requests for devices or test_mode users/devices
+            # test_mode = getattr(formData, "testMode", False)
+            # if test_mode:
+            #     print(f"Test Mode is enabled for DID: {did_str}. Auto approving request.")
+            #     req["request_status"] = "approved"
             # If request status has been set to approved then issue the credential
             if req["request_status"] == "approved" and not req["isVCSent"]:
                 formData: FormData = req["form_data"]

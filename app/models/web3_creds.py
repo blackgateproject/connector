@@ -18,8 +18,8 @@ class FormData(BaseModel):
     proof_type: str
     selected_role: str
     testMode: Optional[bool] = None
-    walletCreateTime: Optional[float] = 0
-    walletEncryptTime: Optional[float] = 0
+    walletCreateTime: Optional[float] = 0  # in ms
+    walletEncryptTime: Optional[float] = 0  # in ms
 
 
 # Might have to change this to suit other ZKP types
