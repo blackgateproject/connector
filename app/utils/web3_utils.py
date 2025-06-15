@@ -19,12 +19,11 @@ from zksync2.module.module_builder import ZkSyncBuilder
 from zksync2.module.zksync_provider import ZkSyncProvider
 from zksync2.signer.eth_signer import BaseAccount, PrivateKeyEthSigner
 
-from ..models.zkp import SMTMerkleProof
-
 from ..core.accumulator import accumulatorCore
 from ..core.config import Settings
 from ..core.merkle import merkleCore
 from ..core.sparseMerkleTree import smtCore
+from ..models.zkp import SMTMerkleProof
 
 
 @lru_cache
@@ -319,16 +318,22 @@ def addUserToSMTLocal(did_str: str):
     """
     # Remove prefix from the did and send did
     public_key = did_str.replace("did:ethr:blackgate:", "")
-    userHashAndData, proof = smtCore.add_user(did_str=did_str, credentials=public_key)
+    userHashAndData, proof, zkp_times = smtCore.add_user(
+        did_str=did_str, credentials=public_key
+    )
     print(f"[addUserToSMTLocal()] User Hash and Proof: {userHashAndData}")
     # Prepare return values
     data = {
         "userHash": userHashAndData["userHash"],
         "userIndex": userHashAndData["index"],
         "merkleRoot": userHashAndData["root"],
+        # "zkp_times": zkp_times,
     }
 
-    return data, proof
+    return (
+        data,
+        proof,
+    )
 
 
 def addUserToSMTOnChain(
@@ -393,17 +398,16 @@ def verifyUserOnSMT(did_str, smt_proof: SMTMerkleProof):
     """
     Verify a user on the SMT Tree
     """
-    # Start timer
-    before_local_verify = time.time()
 
     # Remove prefix from the did and send did
     public_key = did_str.replace("did:ethr:blackgate:", "")
 
     # Verify the user on the SMT Tree
-    validOffchain, updatedProofs = smtCore.verify_user(user_id=did_str, credentials=public_key, provided_proof=smt_proof)
-    local_verify_duration = time.time() - before_local_verify
+    validOffchain, updatedProofs, smt_local_verify_time = smtCore.verify_user(
+        user_id=did_str, credentials=public_key, provided_proof=smt_proof
+    )
     print(
-        f"[verifyUserOnSMT()] Local verification duration: {local_verify_duration:.4f} seconds"
+        f"[verifyUserOnSMT()] Local verification duration: {smt_local_verify_time:.4f} seconds"
     )
     # validOffchain = merkleCore.verify_proof(hash, proof)
 
@@ -420,13 +424,14 @@ def verifyUserOnSMT(did_str, smt_proof: SMTMerkleProof):
 
     # Remove this once the onchain verification is implemented
     validOnchain = True
-    onchain_verify_duration = 99.0
+    smt_onchain_verify_time = -1.0
 
     results = {
         "valid_Offchain": validOffchain,
         "valid_Onchain": validOnchain,
-        "auth_Offchain_duration": local_verify_duration,
-        "auth_Onchain_duration": onchain_verify_duration,
+        "smt_local_verify_time": smt_local_verify_time,
+        "smt_onchain_verify_time": smt_onchain_verify_time,
+        "smt_proof_gen_time": updatedProofs.smt_proof_gen_time,
     }
 
     return results, updatedProofs.model_dump(mode="json")

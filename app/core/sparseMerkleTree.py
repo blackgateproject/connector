@@ -3,6 +3,8 @@ import json
 import os
 import pickle
 from functools import lru_cache
+import time
+from tracemalloc import start
 from typing import Annotated
 
 import requests
@@ -44,22 +46,32 @@ class sparseMerkleTree:
         try:
             # Parse out the prefix "did:ethr:blackgate:0x" from the did_str
             print(f"[SMT->add_user()]: (DEBUG) Adding user: \n\tDID: {did_str}\n\tCredentials: {credentials}")
+            start_time = time.time()
             key, current_hash = self.smt.add_user_auto(f"{did_str}|{credentials}")
+            add_user_time = float(time.time() - start_time)
             # print(f"[SMT->add_user()]: User {did_str} added. Current root: {self.smt.get_root().hex()}")
             # stuff = self._store_tree()
+            start_time = time.time()
             proof = self.smt.generate_proof(key)
+            proof_gen_time = float(time.time() - start_time)
             data = {
                 "index": str(key),
                 "userHash": current_hash.hex(),
                 "root": self.smt.get_root().hex(),
             }
+            zkp_times = {
+                "add_user_time": add_user_time,
+                "proof_gen_time": proof_gen_time,
+
+            }
             # print(f"[SMT->add_user()]: Tree stored. Data: {data}")
-            return data, proof.model_dump(mode="json")
+            return data, proof.model_dump(mode="json"), zkp_times
         except Exception as e:
             print(f"[SMT->add_user() ERROR]: {e}")
             raise
 
     def verify_user(self, user_id: str, credentials, provided_proof: SMTMerkleProof):
+            
         print(f"[SMT->verify_user()]: (DEBUG) Verifying user {user_id}")
         print(f"[SMT->verify_user()]: (DEBUG) Credentials: {credentials}")
         print(f"[SMT->verify_user()]: (DEBUG) Provided proof: {provided_proof.model_dump(mode='json')}")
@@ -79,19 +91,21 @@ class sparseMerkleTree:
         key = provided_proof.key
         print(f"[SMT->verify_user()]: (DEBUG) Key from proof: {key}")
         root_hash = self.smt.get_root()
+        start_time = time.time()
         if self.smt.verify_proof(value_raw=value_raw, proof=provided_proof, root_hash=root_hash):
-            return True, provided_proof
+            return True, provided_proof, time.time() - start_time
         
 
         # Fallback verification
         if key in self.smt.used_indexes:
             print(f"[SMT->verify_user()]: (DEBUG) User ID found in used indexes, using fallback verification")
             fresh_proof = self.smt.generate_proof(key=key)
+            start_time = time.time()
             if self.smt.verify_proof(value_raw=value_raw, proof=fresh_proof, root_hash=root_hash):
-                return True, fresh_proof
+                return True, fresh_proof, time.time() - start_time
         print(f"[SMT->verify_user()]: (DEBUG) SMT Proof Verification failed for user {user_id}")
         print(f"[SMT->verify_user()]: (DEBUG) Fallback Indexes: {self.smt.used_indexes}")
-        return False, provided_proof
+        return False, provided_proof, time.time() - start_time
 
     def update_user(self, user_id, new_credentials):
         self.smt.update_with_key(user_id, f"{user_id}|{new_credentials}")

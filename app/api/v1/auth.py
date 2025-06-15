@@ -6,6 +6,7 @@ import time
 from calendar import c
 from functools import lru_cache
 from operator import ne
+from turtle import st
 from types import NoneType
 from typing import Annotated, Any, List, Optional, Tuple
 from uuid import UUID
@@ -14,6 +15,8 @@ import psycopg
 from fastapi import APIRouter, Depends, Form
 from fastapi.requests import Request
 from fastapi.responses import JSONResponse
+
+from ...models.metrics import timesOfTime
 
 from ...core.config import Settings
 from ...credential_service.credservice import (
@@ -206,8 +209,9 @@ async def pollRequestStatus(did_str: str) -> JSONResponse:
                 if proof_type == "smt":
                     # Add user to the Sparse Merkle Tree (SMT) locally
                     print(f"Poll (DEBUG): Adding user to SMT locally")
+                    start_time = time.time()
                     zkpData, proofs = addUserToSMTLocal(did_str=did_str)
-
+                    smt_local_add_time = time.time() - start_time
                     print(
                         f"About to issue credential with data: {formData}, {networkInfo}, {zkpData}"
                     )
@@ -219,8 +223,9 @@ async def pollRequestStatus(did_str: str) -> JSONResponse:
                     }
                     print(f"Issuing credential")
                     # Issue the verifiable credential
+                    start_time = time.time()
                     verifiableCredential = await issue_credential(data)
-
+                    vc_issuance_time = time.time() - start_time
                     # Keccak hash the VC
                     print(f"Keccak hashing the VC")
                     vcHash = await keccakHash(
@@ -237,13 +242,15 @@ async def pollRequestStatus(did_str: str) -> JSONResponse:
                         verifiableCredential.get("credential").get("issuer").get("id")
                     ).replace("did:ethr:blackgate:", "")
 
+                    start_time = time.time()
                     onChainResults = addUserToSMTOnChain(
                         merkleRoot=zkpData["merkleRoot"],
                         vc_hash=vcHash,
                         device_id=formData.device_id,
                         fog_node_pubkey=fog_node_publicKey,
                     )
-                    print(f"OnChain Results: {onChainResults}")
+                    smt_onchain_add_time = time.time() - start_time
+                    print(f"smt_onchain_add_time Results: {smt_onchain_add_time}")
 
                 elif proof_type == "merkle":
                     merkle_data = addUserToMerkle(user=did_str, pw=public_key)
@@ -275,6 +282,11 @@ async def pollRequestStatus(did_str: str) -> JSONResponse:
                     "message": f"Request approved for role '{formData.selected_role}' using ZKP '{proof_type}'",
                     "verifiable_credential": verifiableCredential,
                     "request_status": f"{req['request_status']}",
+                    "times": {
+                        "vc_issuance_time": vc_issuance_time,
+                        "smt_local_add_time": smt_local_add_time if proof_type == "smt" else None,
+                        "smt_onchain_add_time": smt_onchain_add_time if proof_type == "smt" else None,
+                    },
                 }
                 if proof_type == "smt" and proofs is not None:
                     returnResponse["smt_proofs"] = proofs
@@ -315,25 +327,34 @@ async def pollRequestStatus(did_str: str) -> JSONResponse:
 
 @router.post("/verify")
 # Takes VP and optionally a MerkleProof
-async def verify_user(verifiablePresentation: VerifiablePresentation) -> JSONResponse:
+async def verify_user(verifiablePresentation: VerifiablePresentation, partial_times: timesOfTime) -> JSONResponse:
     """
     Verify user.
     It takes the VP, verifies it and then extracts the VC and verifies it after which the ZKP is finally verified
     IF proof type is SMT, then a MerkleProof is expected in the body.
+    partial_times has to have the following fields:
+    - wallet_gen_time
+    - wallet_enc_time
+    - network_info_time
+    - vc_issuance_time
+    - smt_local_add_time
+    - smt_onchain_add_time
+    - vp_gen_time
     """
     total_start_time = time.time()
-
     # Verify the VP first
+    start_time = time.time()
     vp_response = await verify_presentation(verifiablePresentation.serialize())
+    partial_times.vp_verify_time = time.time() - start_time
     if not vp_response.get("verified", False):
         return JSONResponse(
-            content={"error": "Invalid Verifiable Presentation"}, status_code=400
+            content={"error": "Invalid Verifiable Presentation: VP not Verified"}, status_code=400
         )
     print(f"\n\n[verify_user()] VP Response: {vp_response.get("verified")}")
 
-    # print(f"[verify_user()] VCs in VP: {verifiablePresentation.verifiableCredential[0].model_dump()}")
-    # print(f"[verify_user()] TYPEOF [VCs in VP]: {type(verifiablePresentation.verifiableCredential[0].model_dump())}")
-    # print(f"[verify_user()] TYPEOF [VCs in VP]: {type(json.dumps(verifiablePresentation.verifiableCredential[0].model_dump()))}")
+    print(f"[verify_user()] VCs in VP: {verifiablePresentation.verifiableCredential[0].model_dump()}")
+    print(f"[verify_user()] TYPEOF [VCs in VP]: {type(verifiablePresentation.verifiableCredential[0].model_dump())}")
+    print(f"[verify_user()] TYPEOF [VCs in VP]: {type(json.dumps(verifiablePresentation.verifiableCredential[0].model_dump()))}")
     # Verify the VC within the VP
     if vp_response.get("verified") == True:
         # Extract the first VC from the VP
@@ -342,13 +363,15 @@ async def verify_user(verifiablePresentation: VerifiablePresentation) -> JSONRes
         )
 
         # Verify the VC using the credential service
+        start_time = time.time()
         vc_response = await verify_credential({"credential": verifiableCredential})
-
+        partial_times.vc_verify_time = time.time() - start_time
+        print(f"[verify_user()] VC Response: {vc_response}")
         # Error response if not verified
         if not vc_response.get("verified", False):
             print(f"[verify_user()] VC Response: {vc_response.get("verified")}")
             return JSONResponse(
-                content={"error": "Invalid Verifiable Credential"}, status_code=400
+                content={"error": "Invalid Verifiable Credential: VC Not Verified"}, status_code=400
             )
         print(f"[verify_user()] VC Response: {vc_response.get("verified")}")
     else:
@@ -435,6 +458,9 @@ async def verify_user(verifiablePresentation: VerifiablePresentation) -> JSONRes
 
         # Verify the user on the Sparse Merkle Tree (SMT)
         result, updated_smtProofs = verifyUserOnSMT(did_str=did, smt_proof=smt_proof)
+        partial_times.smt_local_verify_time = result.get("smt_local_verify_time", 0)
+        partial_times.smt_onchain_verify_time = result.get("smt_onchain_verify_time", 0)
+        partial_times.smt_proof_gen_time = result.get("smt_proof_gen_time", 0)
     elif proof_type == "merkle":
         result = verifyUserOnMerkle(merkleHash)
     elif proof_type == "accumulator":
@@ -489,8 +515,8 @@ async def verify_user(verifiablePresentation: VerifiablePresentation) -> JSONRes
                             (
                                 did,
                                 duration,
-                                result.get("auth_Offchain_duration", 0),
-                                result.get("auth_Onchain_duration", 0),
+                                result.get("smt_local_verify_time", 0),
+                                result.get("smt_onchain_verify_time", 0),
                             ),
                         )
                         conn.commit()
@@ -530,6 +556,24 @@ async def verify_user(verifiablePresentation: VerifiablePresentation) -> JSONRes
             "refresh_token": refresh_token,
             "duration": duration,
             **({"smt_proofs": updated_smtProofs} if proof_type == "smt" else {}),
+            "times": {
+                # From /register
+                "wallet_gen_time": partial_times.wallet_gen_time,
+                "wallet_enc_time": partial_times.wallet_enc_time,
+                "network_info_time": partial_times.network_info_time,
+                # From /poll
+                "smt_local_add_time": partial_times.smt_local_add_time if proof_type == "smt" else None,
+                "vc_issuance_time": partial_times.vc_issuance_time if proof_type == "smt" else None,
+                "smt_onchain_add_time": partial_times.smt_onchain_add_time if proof_type == "smt" else None,
+                
+                # From /verify
+                "vp_gen_time": partial_times.vp_gen_time,
+                "vp_verify_time": partial_times.vp_verify_time,
+                "vc_verify_time": partial_times.vc_verify_time,
+                "smt_local_verify_time": partial_times.smt_local_verify_time if proof_type == "smt" else None,
+                "smt_onchain_verify_time": partial_times.smt_onchain_verify_time if proof_type == "smt" else None,
+                "smt_proof_gen_time": partial_times.smt_proof_gen_time if proof_type == "smt" else None,
+            },
         }
     )
 
@@ -568,3 +612,56 @@ async def verify_vp(request: Request) -> JSONResponse:
         return JSONResponse(
             content={"authenticated": False, "error": str(e)}, status_code=500
         )
+
+@router.post("/update-metrics/{did_str}")
+async def updateMetrics(
+    did_str: str,
+    metrics: timesOfTime):
+    # Setup the query to update for the given did_str
+    query = """
+        UPDATE requests
+        SET add_user_time = %s,
+            wallet_gen_time = %s,
+            wallet_enc_time = %s,
+            network_info_time = %s,
+            zkp_gen_time = %s,
+            proof_gen_time = %s,
+            onchain_add_time = %s,
+            onchain_verify_time = %s,
+            vc_issue_time = %s,
+            vc_verify_time = %s,
+            vp_gen_time = %s,
+            vp_verify_time = %s
+        WHERE did_str = %s
+    """
+
+    print(f"[updateMetrics] Query: {query}")
+    print(f"[updateMetrics] Metrics: {metrics.model_dump()}")
+    # try:
+    #     execute_query(
+    #         query,
+    #         (
+    #             metrics.add_user_time,
+    #             metrics.wallet_gen_time,
+    #             metrics.wallet_enc_time,
+    #             metrics.network_info_time,
+    #             metrics.zkp_gen_time,
+    #             metrics.proof_gen_time,
+    #             metrics.onchain_add_time,
+    #             metrics.onchain_verify_time,
+    #             metrics.vc_issue_time,
+    #             metrics.vc_verify_time,
+    #             metrics.vp_gen_time,
+    #             metrics.vp_verify_time,
+    #             did_str
+    #         )
+    #     )
+    #     return JSONResponse(
+    #         content={"message": "Metrics updated successfully"},
+    #         status_code=200
+    #     )
+    # except Exception as e:
+    #     print(f"[ERROR]: {e}")
+    #     return JSONResponse(
+    #         content={"error": str(e)}, status_code=500
+    #     )

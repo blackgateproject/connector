@@ -35,6 +35,7 @@ class NetworkInfo(BaseModel):
     location_lat: float
     location_long: float
     user_language: str
+    user_info_time: Optional[float] = 0  # in ms
 
 
 class Issuer(BaseModel):

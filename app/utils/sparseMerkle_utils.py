@@ -97,6 +97,7 @@ class sparseMerkleTreeUtils:
         return self._get_node(0, 0)
 
     def generate_proof(self, key) -> SMTMerkleProof:
+        start_time = time.time()
         pos = self._index_to_position(key)
         proof = []
 
@@ -111,10 +112,13 @@ class sparseMerkleTreeUtils:
                 )
             )
             pos //= 2
+        proof_gen_time = time.time() - start_time
+        return SMTMerkleProof(key=key, proof=proof, smt_proof_gen_time=proof_gen_time)
 
-        return SMTMerkleProof(key=key, proof=proof)
-
-    def verify_proof(self, value_raw, proof: SMTMerkleProof, root_hash):
+    def verify_proof(self, value_raw, proof: SMTMerkleProof, root_hash) -> bool:
+        # Remove proof_gen_time for verification
+        proof_dict = proof.model_dump(exclude={"proof_gen_time"})
+        proof = SMTMerkleProof(**proof_dict)
         value_hash = hashlib.sha256(value_raw.encode()).digest()
         current_hash = value_hash
 
