@@ -60,9 +60,9 @@ class sparseMerkleTree:
             raise
 
     def verify_user(self, user_id: str, credentials, provided_proof: SMTMerkleProof):
-        # print(f"[SMT->verify_user()]: (DEBUG) Verifying user {user_id}")
-        # print(f"[SMT->verify_user()]: (DEBUG) Credentials: {credentials}")
-        # print(f"[SMT->verify_user()]: (DEBUG) Provided proof: {provided_proof.model_dump(mode='json')}")
+        print(f"[SMT->verify_user()]: (DEBUG) Verifying user {user_id}")
+        print(f"[SMT->verify_user()]: (DEBUG) Credentials: {credentials}")
+        print(f"[SMT->verify_user()]: (DEBUG) Provided proof: {provided_proof.model_dump(mode='json')}")
 
         # Deserialize the JSON proof into MerkleProof object
         if isinstance(provided_proof, str):
@@ -76,16 +76,21 @@ class sparseMerkleTree:
             print(f"[SMT->verify_user()]: (DEBUG) Proof Type: {type(provided_proof)}")
 
         value_raw = f"{user_id}|{credentials}"
+        key = provided_proof.key
+        print(f"[SMT->verify_user()]: (DEBUG) Key from proof: {key}")
         root_hash = self.smt.get_root()
-        if self.smt.verify_proof(user_id, value_raw, provided_proof, root_hash):
+        if self.smt.verify_proof(value_raw=value_raw, proof=provided_proof, root_hash=root_hash):
             return True, provided_proof
+        
 
         # Fallback verification
-        if user_id in self.smt.used_indexes:
-            fresh_proof = self.smt.generate_proof(user_id)
-            if self.smt.verify_proof(user_id, value_raw, fresh_proof, root_hash):
+        if key in self.smt.used_indexes:
+            print(f"[SMT->verify_user()]: (DEBUG) User ID found in used indexes, using fallback verification")
+            fresh_proof = self.smt.generate_proof(key=key)
+            if self.smt.verify_proof(value_raw=value_raw, proof=fresh_proof, root_hash=root_hash):
                 return True, fresh_proof
-
+        print(f"[SMT->verify_user()]: (DEBUG) SMT Proof Verification failed for user {user_id}")
+        print(f"[SMT->verify_user()]: (DEBUG) Fallback Indexes: {self.smt.used_indexes}")
         return False, provided_proof
 
     def update_user(self, user_id, new_credentials):

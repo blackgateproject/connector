@@ -114,7 +114,7 @@ class sparseMerkleTreeUtils:
 
         return SMTMerkleProof(key=key, proof=proof)
 
-    def verify_proof(self, key, value_raw, proof: SMTMerkleProof, root_hash):
+    def verify_proof(self, value_raw, proof: SMTMerkleProof, root_hash):
         value_hash = hashlib.sha256(value_raw.encode()).digest()
         current_hash = value_hash
 
