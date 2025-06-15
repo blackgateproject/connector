@@ -170,21 +170,37 @@ async def pollRequestStatus(did_str: str) -> JSONResponse:
         if rows:
             req = rows[0]
 
-            # Load formData and networkInfo from supabase
+            # Load formData and networkInfo from supabase using Pydantic models
             if isinstance(req["form_data"], str):
-                req["form_data"] = json.loads(req["form_data"])
+                try:
+                    req["form_data"] = FormData.model_validate_json(req["form_data"])
+                except Exception as e:
+                    print(f"Error parsing form_data: {e}")
+                    req["form_data"] = json.loads(req["form_data"])
+            elif isinstance(req["form_data"], dict):
+                req["form_data"] = FormData.model_validate(req["form_data"])
+
             if isinstance(req["network_info"], str):
-                req["network_info"] = json.loads(req["network_info"])
+                try:
+                    req["network_info"] = NetworkInfo.model_validate_json(
+                        req["network_info"]
+                    )
+                except Exception as e:
+                    print(f"Error parsing network_info: {e}")
+                    req["network_info"] = json.loads(req["network_info"])
+            elif isinstance(req["network_info"], dict):
+                req["network_info"] = NetworkInfo.model_validate(req["network_info"])
 
             # If request status has been set to approved then issue the credential
             if req["request_status"] == "approved" and not req["isVCSent"]:
-                formData = req["form_data"]
-                networkInfo = req["network_info"]
-                proof_type = formData.get("proof_type")
+                formData: FormData = req["form_data"]
+                networkInfo: NetworkInfo = req["network_info"]
+                proof_type = formData.proof_type
                 public_key = did_str.replace("did:ethr:blackgate:", "")
                 proofs = None  # Track proofs only for SMT
                 if proof_type == "smt":
                     # Add user to the Sparse Merkle Tree (SMT) locally
+                    print(f"Poll (DEBUG): Adding user to SMT locally")
                     zkpData, proofs = addUserToSMTLocal(did_str=did_str)
 
                     print(
@@ -192,16 +208,14 @@ async def pollRequestStatus(did_str: str) -> JSONResponse:
                     )
                     # Prepare the data for issuing the credential
                     data = {
-                        "formData": formData,
-                        "networkInfo": networkInfo,
+                        "formData": formData.model_dump(),
+                        "networkInfo": networkInfo.model_dump(),
                         "ZKP": zkpData,
                     }
                     print(f"Issuing credential")
                     # Issue the verifiable credential
                     verifiableCredential = await issue_credential(data)
 
-                    # if debug >= 0:
-                    #     print(f"Verifiable Credential: {verifiableCredential}")
                     # Keccak hash the VC
                     print(f"Keccak hashing the VC")
                     vcHash = await keccakHash(
@@ -218,14 +232,10 @@ async def pollRequestStatus(did_str: str) -> JSONResponse:
                         verifiableCredential.get("credential").get("issuer").get("id")
                     ).replace("did:ethr:blackgate:", "")
 
-                    # Convert device_id to a string
-
-                    # if isinstance(formData["device_id"], int):
-                    # formData["device_id"] = str(formData["device_id"])
                     onChainResults = addUserToSMTOnChain(
                         merkleRoot=zkpData["merkleRoot"],
                         vc_hash=vcHash,
-                        device_id=formData["device_id"],
+                        device_id=formData.device_id,
                         fog_node_pubkey=fog_node_publicKey,
                     )
                     print(f"OnChain Results: {onChainResults}")
@@ -237,20 +247,6 @@ async def pollRequestStatus(did_str: str) -> JSONResponse:
                 else:
                     merkle_data = {}
 
-                # merkle_data.pop("merkleRoot", None)
-                # merkle_data.pop("userProof", None)
-
-                # data = {
-                #     "formData": formData,
-                #     "networkInfo": networkInfo,
-                #     "ZKP": merkle_data,
-                # }
-
-                # print(f"Data before issue_credential(): {data}")
-
-                # verifiableCredential = await issue_credential(data)
-
-                # SET "isVCSent" = TRUE,
                 print(f"Updating request status in Postgres")
                 update_query = """
                     UPDATE requests
@@ -265,13 +261,13 @@ async def pollRequestStatus(did_str: str) -> JSONResponse:
                     (
                         json.dumps(verifiableCredential),
                         datetime.datetime.now().isoformat(),
-                        formData.get("did"),
+                        formData.did,
                     ),
                 )
 
                 # Build the response, only include proofs if SMT
                 returnResponse = {
-                    "message": f"Request approved for role '{formData.get('selected_role')}' using ZKP '{proof_type}'",
+                    "message": f"Request approved for role '{formData.selected_role}' using ZKP '{proof_type}'",
                     "verifiable_credential": verifiableCredential,
                     "request_status": f"{req['request_status']}",
                 }
@@ -279,19 +275,19 @@ async def pollRequestStatus(did_str: str) -> JSONResponse:
                     returnResponse["smt_proofs"] = proofs
             elif req["request_status"] == "approved" and req["isVCSent"]:
                 # If the request is already approved and the VC is sent, return the verifiable credential
-                returnResponse += {
+                returnResponse |= {
                     "message": f"User already added to ZKP module",
                     "request_status": f"{req['request_status']}",
                 }
             elif req["request_status"] == "rejected":
                 # If the request is rejected, return a rejection message
-                returnResponse += {
+                returnResponse |= {
                     "message": f"Request rejected",
                     "request_status": f"{req['request_status']}",
                 }
             elif req["request_status"] == "pending":
                 # If the request is still pending, return a pending message
-                returnResponse += {
+                returnResponse |= {
                     "message": f"Request pending",
                     "request_status": f"{req['request_status']}",
                 }
@@ -528,7 +524,7 @@ async def verify_user(verifiablePresentation: VerifiablePresentation) -> JSONRes
             "access_token": access_token,
             "refresh_token": refresh_token,
             "duration": duration,
-            **({"smt_proofs": updated_smtProofs} if proof_type == "smt" else {})
+            **({"smt_proofs": updated_smtProofs} if proof_type == "smt" else {}),
         }
     )
 
