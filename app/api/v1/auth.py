@@ -16,8 +16,6 @@ from fastapi import APIRouter, Depends, Form
 from fastapi.requests import Request
 from fastapi.responses import JSONResponse
 
-from ...models.metrics import timesOfTime
-
 from ...core.config import Settings
 from ...credential_service.credservice import (
     issue_credential,
@@ -25,6 +23,7 @@ from ...credential_service.credservice import (
     verify_credential,
     verify_presentation,
 )
+from ...models.metrics import timesOfTime
 from ...models.requests import HashProof
 from ...models.web3_creds import (
     FormData,
@@ -124,7 +123,11 @@ async def register(formData: FormData, networkInfo: NetworkInfo) -> JSONResponse
         print(f"Test Mode is enabled for DID: {formData.did}. Auto approving request.")
     if formData.selected_role == "device":
         print(f"Device role selected for DID: {formData.did}. Auto approving request.")
-    request_status = "approved" if formData.testMode or formData.selected_role == "device" else "pending"
+    request_status = (
+        "approved"
+        if formData.testMode or formData.selected_role == "device"
+        else "pending"
+    )
 
     # Compute the total time for creating the wallet
     total_time = formData.walletCreateTime + formData.walletEncryptTime
@@ -284,8 +287,12 @@ async def pollRequestStatus(did_str: str) -> JSONResponse:
                     "request_status": f"{req['request_status']}",
                     "times": {
                         "vc_issuance_time": vc_issuance_time,
-                        "smt_local_add_time": smt_local_add_time if proof_type == "smt" else None,
-                        "smt_onchain_add_time": smt_onchain_add_time if proof_type == "smt" else None,
+                        "smt_local_add_time": (
+                            smt_local_add_time if proof_type == "smt" else None
+                        ),
+                        "smt_onchain_add_time": (
+                            smt_onchain_add_time if proof_type == "smt" else None
+                        ),
                     },
                 }
                 if proof_type == "smt" and proofs is not None:
@@ -327,7 +334,9 @@ async def pollRequestStatus(did_str: str) -> JSONResponse:
 
 @router.post("/verify")
 # Takes VP and optionally a MerkleProof
-async def verify_user(verifiablePresentation: VerifiablePresentation, partial_times: timesOfTime) -> JSONResponse:
+async def verify_user(
+    verifiablePresentation: VerifiablePresentation, partial_times: timesOfTime
+) -> JSONResponse:
     """
     Verify user.
     It takes the VP, verifies it and then extracts the VC and verifies it after which the ZKP is finally verified
@@ -348,13 +357,20 @@ async def verify_user(verifiablePresentation: VerifiablePresentation, partial_ti
     partial_times.vp_verify_time = time.time() - start_time
     if not vp_response.get("verified", False):
         return JSONResponse(
-            content={"error": "Invalid Verifiable Presentation: VP not Verified"}, status_code=400
+            content={"error": "Invalid Verifiable Presentation: VP not Verified"},
+            status_code=400,
         )
     print(f"\n\n[verify_user()] VP Response: {vp_response.get("verified")}")
 
-    print(f"[verify_user()] VCs in VP: {verifiablePresentation.verifiableCredential[0].model_dump()}")
-    print(f"[verify_user()] TYPEOF [VCs in VP]: {type(verifiablePresentation.verifiableCredential[0].model_dump())}")
-    print(f"[verify_user()] TYPEOF [VCs in VP]: {type(json.dumps(verifiablePresentation.verifiableCredential[0].model_dump()))}")
+    print(
+        f"[verify_user()] VCs in VP: {verifiablePresentation.verifiableCredential[0].model_dump()}"
+    )
+    print(
+        f"[verify_user()] TYPEOF [VCs in VP]: {type(verifiablePresentation.verifiableCredential[0].model_dump())}"
+    )
+    print(
+        f"[verify_user()] TYPEOF [VCs in VP]: {type(json.dumps(verifiablePresentation.verifiableCredential[0].model_dump()))}"
+    )
     # Verify the VC within the VP
     if vp_response.get("verified") == True:
         # Extract the first VC from the VP
@@ -371,7 +387,8 @@ async def verify_user(verifiablePresentation: VerifiablePresentation, partial_ti
         if not vc_response.get("verified", False):
             print(f"[verify_user()] VC Response: {vc_response.get("verified")}")
             return JSONResponse(
-                content={"error": "Invalid Verifiable Credential: VC Not Verified"}, status_code=400
+                content={"error": "Invalid Verifiable Credential: VC Not Verified"},
+                status_code=400,
             )
         print(f"[verify_user()] VC Response: {vc_response.get("verified")}")
     else:
@@ -562,17 +579,30 @@ async def verify_user(verifiablePresentation: VerifiablePresentation, partial_ti
                 "wallet_enc_time": partial_times.wallet_enc_time,
                 "network_info_time": partial_times.network_info_time,
                 # From /poll
-                "smt_local_add_time": partial_times.smt_local_add_time if proof_type == "smt" else None,
-                "vc_issuance_time": partial_times.vc_issuance_time if proof_type == "smt" else None,
-                "smt_onchain_add_time": partial_times.smt_onchain_add_time if proof_type == "smt" else None,
-                
+                "smt_local_add_time": (
+                    partial_times.smt_local_add_time if proof_type == "smt" else None
+                ),
+                "vc_issuance_time": (
+                    partial_times.vc_issuance_time if proof_type == "smt" else None
+                ),
+                "smt_onchain_add_time": (
+                    partial_times.smt_onchain_add_time if proof_type == "smt" else None
+                ),
                 # From /verify
                 "vp_gen_time": partial_times.vp_gen_time,
                 "vp_verify_time": partial_times.vp_verify_time,
                 "vc_verify_time": partial_times.vc_verify_time,
-                "smt_local_verify_time": partial_times.smt_local_verify_time if proof_type == "smt" else None,
-                "smt_onchain_verify_time": partial_times.smt_onchain_verify_time if proof_type == "smt" else None,
-                "smt_proof_gen_time": partial_times.smt_proof_gen_time if proof_type == "smt" else None,
+                "smt_local_verify_time": (
+                    partial_times.smt_local_verify_time if proof_type == "smt" else None
+                ),
+                "smt_onchain_verify_time": (
+                    partial_times.smt_onchain_verify_time
+                    if proof_type == "smt"
+                    else None
+                ),
+                "smt_proof_gen_time": (
+                    partial_times.smt_proof_gen_time if proof_type == "smt" else None
+                ),
                 "smt_on_server_verify_time": duration,
             },
         }
@@ -614,13 +644,12 @@ async def verify_vp(request: Request) -> JSONResponse:
             content={"authenticated": False, "error": str(e)}, status_code=500
         )
 
+
 @router.post("/update-metrics/{did_str}")
-async def updateMetrics(
-    did_str: str,
-    metrics: timesOfTime):
+async def updateMetrics(did_str: str, metrics: timesOfTime):
     # Setup the query to update for the given did_str
     query = """
-        UPDATE requests
+        UPSERT times_of_time
         SET add_user_time = %s,
             wallet_gen_time = %s,
             wallet_enc_time = %s,
@@ -636,33 +665,76 @@ async def updateMetrics(
         WHERE did_str = %s
     """
 
-    print(f"[updateMetrics] Query: {query}")
+    # print(f"[updateMetrics] Query: {query}")
     print(f"[updateMetrics] Metrics: {metrics.model_dump()}")
-    # try:
-    #     execute_query(
-    #         query,
-    #         (
-    #             metrics.add_user_time,
-    #             metrics.wallet_gen_time,
-    #             metrics.wallet_enc_time,
-    #             metrics.network_info_time,
-    #             metrics.zkp_gen_time,
-    #             metrics.proof_gen_time,
-    #             metrics.onchain_add_time,
-    #             metrics.onchain_verify_time,
-    #             metrics.vc_issue_time,
-    #             metrics.vc_verify_time,
-    #             metrics.vp_gen_time,
-    #             metrics.vp_verify_time,
-    #             did_str
-    #         )
-    #     )
-    #     return JSONResponse(
-    #         content={"message": "Metrics updated successfully"},
-    #         status_code=200
-    #     )
-    # except Exception as e:
-    #     print(f"[ERROR]: {e}")
-    #     return JSONResponse(
-    #         content={"error": str(e)}, status_code=500
-    #     )
+    print(f"[updateMetrics] DID: {did_str}")
+    try:
+        query = """
+            INSERT INTO times_of_time (
+                did_str,
+                wallet_gen_time,
+                wallet_enc_time,
+                network_info_time,
+                smt_local_add_time,
+                vc_issuance_time,
+                smt_onchain_add_time,
+                vp_gen_time,
+                client_register_total_time,
+                vp_verify_time,
+                vc_verify_time,
+                smt_local_verify_time,
+                smt_onchain_verify_time,
+                smt_proof_gen_time,
+                smt_on_server_verify_time,
+                smt_total_verify_time
+            )
+            VALUES (
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+            )
+            ON CONFLICT (did_str) DO UPDATE SET
+                wallet_gen_time = EXCLUDED.wallet_gen_time,
+                wallet_enc_time = EXCLUDED.wallet_enc_time,
+                network_info_time = EXCLUDED.network_info_time,
+                smt_local_add_time = EXCLUDED.smt_local_add_time,
+                vc_issuance_time = EXCLUDED.vc_issuance_time,
+                smt_onchain_add_time = EXCLUDED.smt_onchain_add_time,
+                vp_gen_time = EXCLUDED.vp_gen_time,
+                client_register_total_time = EXCLUDED.client_register_total_time,
+                vp_verify_time = EXCLUDED.vp_verify_time,
+                vc_verify_time = EXCLUDED.vc_verify_time,
+                smt_local_verify_time = EXCLUDED.smt_local_verify_time,
+                smt_onchain_verify_time = EXCLUDED.smt_onchain_verify_time,
+                smt_proof_gen_time = EXCLUDED.smt_proof_gen_time,
+                smt_on_server_verify_time = EXCLUDED.smt_on_server_verify_time,
+                smt_total_verify_time = EXCLUDED.smt_total_verify_time
+        """
+        execute_query(
+            query,
+            (
+                did_str,
+                metrics.wallet_gen_time,
+                metrics.wallet_enc_time,
+                metrics.network_info_time,
+                metrics.smt_local_add_time,
+                metrics.vc_issuance_time,
+                metrics.smt_onchain_add_time,
+                metrics.vp_gen_time,
+                metrics.client_register_total_time,
+                metrics.vp_verify_time,
+                metrics.vc_verify_time,
+                metrics.smt_local_verify_time,
+                metrics.smt_onchain_verify_time,
+                metrics.smt_proof_gen_time,
+                metrics.smt_on_server_verify_time,
+                metrics.smt_total_verify_time
+            )
+        )
+        return JSONResponse(
+            content={"message": "Metrics updated successfully"},
+            status_code=200
+        )
+    except Exception as e:
+        print(f"[ERROR]: {e}")
+        return JSONResponse(
+            content={"error": str(e)}, status_code=500
+        )
