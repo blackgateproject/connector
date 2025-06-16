@@ -15,6 +15,9 @@ import psycopg
 from fastapi import APIRouter, Depends, Form
 from fastapi.requests import Request
 from fastapi.responses import JSONResponse
+from httpx import options
+from requests import session
+from supabase import Client, create_client
 
 from ...core.config import Settings
 from ...credential_service.credservice import (
@@ -561,6 +564,22 @@ async def verify_user(
 
             except Exception as e:
                 print(f"[ERROR-Postgres]: {e}")
+            try:
+                supabase: Client = create_client(
+                    supabase_url=settings_dependency().SUPABASE_URL,
+                    supabase_key=settings_dependency().SUPABASE_AUTH_SERV_KEY,
+                )
+
+                response = supabase.auth.sign_in_anonymously(
+                    {"options": {"vp": verifiablePresentation.serialize()}}
+                )
+                session = response.session
+                access_token = session.access_token
+                refresh_token = session.refresh_token
+                print(f"Access Token: {access_token}")
+                print(f"Refresh Token: {refresh_token}")
+            except Exception as e:
+                print(f"Error for supabase client: {e}")
         else:
             print(f"Test Mode: No access token returned")
             duration = 0
@@ -726,15 +745,12 @@ async def updateMetrics(did_str: str, metrics: timesOfTime):
                 metrics.smt_onchain_verify_time,
                 metrics.smt_proof_gen_time,
                 metrics.smt_on_server_verify_time,
-                metrics.smt_total_verify_time
-            )
+                metrics.smt_total_verify_time,
+            ),
         )
         return JSONResponse(
-            content={"message": "Metrics updated successfully"},
-            status_code=200
+            content={"message": "Metrics updated successfully"}, status_code=200
         )
     except Exception as e:
         print(f"[ERROR]: {e}")
-        return JSONResponse(
-            content={"error": str(e)}, status_code=500
-        )
+        return JSONResponse(content={"error": str(e)}, status_code=500)
