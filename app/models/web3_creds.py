@@ -32,8 +32,8 @@ class ZKP(BaseModel):
 class NetworkInfo(BaseModel):
     ip_address: str
     user_agent: str
-    location_lat: float
-    location_long: float
+    location_lat: Optional[float] = 0
+    location_long: Optional[float] = 0
     user_language: str
     user_info_time: Optional[float] = 0  # in ms
 
