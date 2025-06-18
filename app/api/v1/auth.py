@@ -1,33 +1,22 @@
-import asyncio
 import datetime
 import json
-import random
 import time
-from calendar import c
 from functools import lru_cache
-from operator import ne
-from turtle import st
-from types import NoneType
 from typing import Annotated, Any, List, Optional, Tuple
-from uuid import UUID
 
 import psycopg
 from fastapi import APIRouter, Depends, Form
 from fastapi.requests import Request
 from fastapi.responses import JSONResponse
-from httpx import options
-from requests import session
 from supabase import Client, create_client
 
 from ...core.config import Settings
 from ...credential_service.credservice import (
     issue_credential,
-    resolve_did,
     verify_credential,
     verify_presentation,
 )
 from ...models.metrics import timesOfTime
-from ...models.requests import HashProof
 from ...models.web3_creds import (
     FormData,
     NetworkInfo,
@@ -35,20 +24,12 @@ from ...models.web3_creds import (
     VerifiablePresentation,
 )
 from ...models.zkp import SMTMerkleProof
-from ...utils.core_utils import (
-    extract_user_details_for_passwordless,
-    extractUserInfo,
-    log_user_action,
-    settings_dependency,
-    verify_jwt,
-)
+from ...utils.core_utils import settings_dependency, verify_jwt
 from ...utils.web3_utils import (
     addUserToAccumulator,
     addUserToMerkle,
-    addUserToSMT,
     addUserToSMTLocal,
     addUserToSMTOnChain,
-    get_merkle_verifier,
     keccakHash,
     verifyUserOnAccumulator,
     verifyUserOnMerkle,
