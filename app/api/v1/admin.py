@@ -497,6 +497,7 @@ async def get_dashboard_stats(
         # Fetch users
         users_response = supabase.auth.admin.list_users(page=1, per_page=100)
         users = users_response
+        print(f"/dashboard (DEBUG) Users: {users}")
 
         total_users = len(users)
         online_users = sum(
@@ -510,7 +511,7 @@ async def get_dashboard_stats(
         requests_response = supabase.table("requests").select("*").execute()
         requests = requests_response.data
         pending_requests = sum(
-            1 for ticket in requests if ticket["status"] == "pending"
+            1 for ticket in requests if ticket["request_status"] == "pending"
         )
 
         # Fetch user activities
@@ -534,4 +535,5 @@ async def get_dashboard_stats(
             status_code=200,
         )
     except Exception as e:
+        print(f"[ERR_get_dashboard_stats] Error: {e}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
