@@ -143,9 +143,10 @@ async def pollRequestStatus(did_str: str) -> JSONResponse:
         returnResponse = {}
         if rows:
             req = rows[0]
+            print(f"Request found for did_str: {req}")
 
             # Check if the DID is revoked before proceeding
-            if req.get("isRevoked", False):
+            if req.get("isRevoked", True):
                 return JSONResponse(
                     content={
                         "authenticated": False,
@@ -379,6 +380,31 @@ async def verify_user(
         return JSONResponse(
             content={"error": "Missing 'credentialSubject' in Verifiable Credential."},
             status_code=400,
+        )
+
+    # Check if DID is revoked before proceeding
+    check_revoked_query = 'SELECT "isRevoked" FROM requests WHERE did_str = %s'
+    try:
+        with psycopg.connect(db_url) as conn:
+            with conn.cursor() as cur:
+                cur.execute(check_revoked_query, (credentialSubject.get("did"),))
+                row = cur.fetchone()
+                if row and row[0]:
+                    return JSONResponse(
+                        content={
+                            "authenticated": False,
+                            "error": "This DID has been revoked and cannot be authenticated.",
+                        },
+                        status_code=403,
+                    )
+    except Exception as e:
+        print(f"[ERROR] Checking revoked status in /verify: {e}")
+        return JSONResponse(
+            content={
+                "authenticated": False,
+                "error": "Internal error checking revoked status.",
+            },
+            status_code=500,
         )
 
     # All 3 proof types require these
