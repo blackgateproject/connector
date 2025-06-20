@@ -5,13 +5,18 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 from supabase import AuthApiError, Client, ClientOptions, create_client
 
+from ...models.requests import RevokeRequest
 from ...utils.core_utils import (
     json_serialize,
     log_user_action,
     settings_dependency,
     verify_jwt,
 )
-from ...utils.web3_utils import addUserToMerkle
+from ...utils.pscopg_utils import (
+    execute_query,
+    fetch_all,
+    fetch_one
+)
 
 debug = settings_dependency().DEBUG
 router = APIRouter()
@@ -345,32 +350,33 @@ async def reject_request(
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
-@router.delete("/deleteUser/{user_id}")
-async def delete_user(
-    user_id: str,
-    settings: settings_dependency,
-    # user_id: str, settings: settings_dependency, _: dict = Depends(verify_jwt)
-):
-    supabase: Client = create_client(
-        supabase_url=settings.SUPABASE_URL,
-        supabase_key=settings.SUPABASE_AUTH_SERV_KEY,
-        options=ClientOptions(auto_refresh_token=False, persist_session=False),
-    )
-
-    try:
-        await log_user_action(user_id, "Deleted user", settings, type="User Deletion")
-        response = supabase.auth.admin.delete_user(user_id)
-        print(f"[DELETE USER] Response: {response}")
+@router.delete("/revoke/{did_str}")
+async def revoke_user(
+    revokeRequest: RevokeRequest):
+    # Ensure the caller_role is admin
+    if revokeRequest.caller_role != "admin":
         return JSONResponse(
-            content={"message": "User deleted successfully"}, status_code=200
+            content={"error": "Unauthorized: Only admin can revoke users"},
+            status_code=403,
         )
-    except AuthApiError as e:
-        print(f"[ERR_SUPABASE] Error: {e}")
-        return JSONResponse(content={"error": str(e)}, status_code=401)
+    
+    # Update isRevoked in requests table
+    query = """
+    UPDATE requests
+    SET "isRevoked" = TRUE, updated_at = NOW()
+    WHERE did_str = %s
+    """
+    params = (revokeRequest.did_str,)
+    try:
+        execute_query(query, params)
+        return JSONResponse(
+            content={"message": f"Revoked user with DID: {revokeRequest.did_str}"},
+            status_code=200
+        )
     except Exception as e:
         print(f"[ERR_SUPABASE] Error: {e}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
-
+    
 
 # @router.put("/editUser")
 # async def edit_user(

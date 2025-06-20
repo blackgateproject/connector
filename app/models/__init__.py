@@ -1,4 +1,4 @@
-from .requests import HashProof, MerkleInput
+from .requests import HashProof, MerkleInput, RevokeRequest
 from .token import Token
 from .user import User, UserIdentity
 from .web3_creds import (

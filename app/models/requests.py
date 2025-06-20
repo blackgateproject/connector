@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import List, Optional
+from unittest.mock import Base
 from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field
@@ -26,3 +27,14 @@ class MerkleInput(BaseModel):
 
     user_id: str
     credentials: dict
+
+class RevokeRequest(BaseModel):
+    """
+    RevokeRequest model for the request body.
+    :param did_str: The DID of the user. Type str.
+    :param caller_role: The role of the caller. Type str.
+    """
+
+    did_str: str
+    caller_role: str
+
