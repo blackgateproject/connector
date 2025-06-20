@@ -25,6 +25,7 @@ from ...models.web3_creds import (
 )
 from ...models.zkp import SMTMerkleProof
 from ...utils.core_utils import settings_dependency, verify_jwt
+from ...utils.pscopg_utils import execute_query, fetch_all, fetch_one
 from ...utils.web3_utils import (
     addUserToAccumulator,
     addUserToMerkle,
@@ -50,46 +51,6 @@ router = APIRouter()
 debug = settings_dependency().DEBUG
 
 
-def fetch_one(query: str, params: Optional[Tuple] = None) -> Optional[dict]:
-    with psycopg.connect(db_url) as conn:
-        with conn.cursor() as cur:
-            cur.execute(query, params)
-            row = cur.fetchone()
-            if row:
-                columns = [desc[0] for desc in cur.description]
-                return dict(zip(columns, row))
-            return None
-
-
-def fetch_all(query: str, params: Optional[Tuple] = None) -> list:
-    with psycopg.connect(db_url) as conn:
-        with conn.cursor() as cur:
-            cur.execute(query, params)
-            rows = cur.fetchall()
-            columns = [desc[0] for desc in cur.description]
-            return [dict(zip(columns, row)) for row in rows]
-
-
-def execute_query(query: str, params: Optional[Tuple] = None) -> int:
-    with psycopg.connect(db_url) as conn:
-        with conn.cursor() as cur:
-            cur.execute(query, params)
-            affected = cur.rowcount
-            conn.commit()
-            return affected
-
-
-def execute_returning(query: str, params: Optional[Tuple] = None) -> Optional[dict]:
-    with psycopg.connect(db_url) as conn:
-        with conn.cursor() as cur:
-            cur.execute(query, params)
-            row = cur.fetchone()
-            if row:
-                columns = [desc[0] for desc in cur.description]
-                return dict(zip(columns, row))
-            return None
-
-
 @router.get("/")
 async def health_check():
     return "Reached Auth Endpoint, Router Auth is Active"
@@ -101,6 +62,29 @@ async def register(formData: FormData, networkInfo: NetworkInfo) -> JSONResponse
     if debug >= 0:
         print(f"Recieved Data: {formData.model_dump()}")
         print(f"Recieved Data: {networkInfo.model_dump()}")
+
+    # Check if DID exists and is revoked
+    try:
+        check_query = 'SELECT "isRevoked" FROM requests WHERE did_str = %s'
+        result = fetch_one(check_query, (formData.did,))
+        if result:
+            if result.get("isRevoked", False):
+                return JSONResponse(
+                    content={
+                        "authenticated": False,
+                        "error": "This DID has been revoked and cannot register again.",
+                    },
+                    status_code=403,
+                )
+    except Exception as e:
+        print(f"[ERROR] Checking revoked status: {e}")
+        return JSONResponse(
+            content={
+                "authenticated": False,
+                "error": "Internal error checking revoked status.",
+            },
+            status_code=500,
+        )
 
     # Auto-approve all requests for devices or test_mode users/devices
     if formData.testMode:
@@ -133,8 +117,8 @@ async def register(formData: FormData, networkInfo: NetworkInfo) -> JSONResponse
     # Prepare the SQL query to insert the request
     try:
         query = """
-            INSERT INTO requests (did_str, form_data, network_info, request_status, "isVCSent", wallet_generate_time, total_time)
-            VALUES (%(did_str)s, %(form_data)s, %(network_info)s, %(request_status)s, %(isVCSent)s, %(wallet_generate_time)s, %(total_time)s)
+            INSERT INTO requests (did_str, form_data, network_info, request_status, "isVCSent")
+            VALUES (%(did_str)s, %(form_data)s, %(network_info)s, %(request_status)s, %(isVCSent)s)
         """
         execute_query(query, requests_data)
         return JSONResponse(
@@ -159,6 +143,17 @@ async def pollRequestStatus(did_str: str) -> JSONResponse:
         returnResponse = {}
         if rows:
             req = rows[0]
+
+            # Check if the DID is revoked before proceeding
+            if req.get("isRevoked", False):
+                return JSONResponse(
+                    content={
+                        "authenticated": False,
+                        "error": "This DID has been revoked and cannot be verified or used.",
+                        "request_status": "revoked",
+                    },
+                    status_code=403,
+                )
 
             # Load formData and networkInfo from supabase using Pydantic models
             if isinstance(req["form_data"], str):

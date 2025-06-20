@@ -1,23 +1,14 @@
-import hashlib
 import json
 import os
-import re
 import time
-from datetime import datetime, timezone
 from functools import lru_cache
 
-from eth_abi import decode as decode_abi
 from eth_account import Account
 from eth_account.signers.local import LocalAccount
 from fastapi import Depends
-from regex import F
 from typing_extensions import Annotated
 from web3 import Web3
 from web3.contract import Contract
-from zksync2.account.wallet import Wallet
-from zksync2.module.module_builder import ZkSyncBuilder
-from zksync2.module.zksync_provider import ZkSyncProvider
-from zksync2.signer.eth_signer import BaseAccount, PrivateKeyEthSigner
 
 from ..core.accumulator import accumulatorCore
 from ..core.config import Settings
