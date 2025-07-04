@@ -97,6 +97,14 @@ async def register(formData: FormData, networkInfo: NetworkInfo) -> JSONResponse
         else "pending"
     )
 
+    # Add user to Sparse Merkle Tree (SMT) locally
+    if formData.proof_type == "smt":
+        print(f"Adding user to SMT locally for DID: {formData.did}")
+        start_time = time.time()
+        zkpData = addUserToSMTLocal(did_str=formData.did)
+        smt_local_add_time = float(time.time() - start_time)
+        # formData.smt_proofs.proofGenTime = float(time.time() - start_time)
+
     # Compute the total time for creating the wallet
     total_time = formData.walletCreateTime + formData.walletEncryptTime
 
@@ -122,7 +130,12 @@ async def register(formData: FormData, networkInfo: NetworkInfo) -> JSONResponse
         """
         execute_query(query, requests_data)
         return JSONResponse(
-            content={"authenticated": True, "message": "Request added to DB"},
+            content={
+                "authenticated": True,
+                "message": "Request added to DB",
+                "zkpData": zkpData,
+                "smt_local_add_time": smt_local_add_time,
+            },
             status_code=200,
         )
     except Exception as e:
