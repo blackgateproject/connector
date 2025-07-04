@@ -1,6 +1,9 @@
 import base64
 import hashlib
+from itertools import count
+from queue import Queue
 import random
+from threading import Lock
 import time
 
 from ..models.zkp import MerkleProofElement, SMTMerkleProof
@@ -13,6 +16,10 @@ class sparseMerkleTreeUtils:
         self.nodes = {}
         self.default_hashes = self._precompute_default_hashes()
         self.used_indexes = set()
+
+        self.lock = Lock()
+        self.available_indexes: Queue = Queue()  # Freed indexes to recycle
+        self.index_counter = count(0)  # For new, never-used indexes
 
     def _precompute_default_hashes(self) -> list:
         hashes = []
@@ -39,8 +46,15 @@ class sparseMerkleTreeUtils:
         return index
 
     def add_user_auto(self, value_raw):
-        """Add user at the smallest empty index."""
-        index = self._find_smallest_empty_index()
+        with self.lock:
+            if not self.available_indexes.empty():
+                index = self.available_indexes.get()
+            else:
+                index = next(self.index_counter)
+
+            if index in self.used_indexes:
+                raise RuntimeError(f"Index {index} is still marked used!")
+
         return self.update_with_key(index, value_raw)
 
     def update_with_key(self, key, value_raw):
@@ -69,29 +83,46 @@ class sparseMerkleTreeUtils:
 
     def delete(self, key):
         """Delete a value at a given key (set it to default hash)."""
-        if key not in self.used_indexes:
-            raise ValueError("Key not found in the tree.")
+        with self.lock:
+            if key not in self.used_indexes:
+                raise ValueError("Key not found in the tree.")
 
-        pos = self._index_to_position(key)
-        value_hash = self.default_hashes[self.depth]
-        self.nodes[(pos, self.depth)] = value_hash
-        self.used_indexes.remove(key)
+            self.used_indexes.remove(key)
 
-        current_hash = value_hash
-        for level in reversed(range(self.depth)):
-            is_right = pos % 2
-            sibling_pos = pos - 1 if is_right else pos + 1
-            sibling_hash = self._get_node(sibling_pos, level + 1)
+            # Step 1: Set the leaf to default
+            pos = self._index_to_position(key)
+            level = self.depth
+            self.nodes.pop((pos, level), None)  # Remove leaf node
 
-            if is_right:
-                current_hash = self._hash(sibling_hash, current_hash)
-            else:
-                current_hash = self._hash(current_hash, sibling_hash)
+            current_hash = self.default_hashes[level]
 
-            pos //= 2
-            self.nodes[(pos, level)] = current_hash
+            # Step 2: Recalculate up and delete unnecessary nodes
+            for level in reversed(range(self.depth)):
+                is_right = pos % 2
+                sibling_pos = pos - 1 if is_right else pos + 1
+                sibling_hash = self._get_node(sibling_pos, level + 1)
 
-        return key, current_hash
+                # Optimization: if both children are default, delete parent
+                if (
+                    sibling_hash == self.default_hashes[level + 1]
+                    and current_hash == self.default_hashes[level + 1]
+                ):
+                    self.nodes.pop((pos // 2, level), None)
+                    current_hash = self.default_hashes[level]
+                else:
+                    current_hash = (
+                        self._hash(sibling_hash, current_hash)
+                        if is_right
+                        else self._hash(current_hash, sibling_hash)
+                    )
+                    self.nodes[(pos // 2, level)] = current_hash
+
+                pos //= 2
+
+            # Step 3: Add the index back to the reuse queue
+            self.available_indexes.put(key)
+
+            return key, current_hash
 
     def get_root(self):
         return self._get_node(0, 0)
