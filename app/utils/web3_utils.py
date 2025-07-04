@@ -309,6 +309,9 @@ def addUserToSMTLocal(did_str: str):
     """
     # Remove prefix from the did and send did
     public_key = did_str.replace("did:ethr:blackgate:", "")
+
+    # Proofs wont be returned in IdRegister anymore, so we can remove it
+    # userHashAndData, proof, zkp_times = smtCore.add_user(
     userHashAndData, proof, zkp_times = smtCore.add_user(
         did_str=did_str, credentials=public_key
     )
@@ -323,8 +326,23 @@ def addUserToSMTLocal(did_str: str):
 
     return (
         data,
-        proof,
+        # Proofs won't be returned in IdRegister anymore, so we can remove it
+        # proof,
     )
+
+
+# Function for IdProof, generates proofs given a user
+def getUserSMTProofs(did_str: str):
+    """
+    Get the user proofs for the given did_str
+    """
+    # Remove prefix from the did and send did
+    public_key = did_str.replace("did:ethr:blackgate:", "")
+
+    # Generate the proof for the user
+    proofs = smtCore.get_proof(public_key)
+
+    return proofs
 
 
 def addUserToSMTOnChain(
