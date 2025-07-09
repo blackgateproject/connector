@@ -1,6 +1,6 @@
 from typing import Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from ..models.zkp import SMTMerkleProof
 
@@ -69,8 +69,7 @@ class VerifiableCredential(BaseModel):
     issuanceDate: str
     proof: Proof
 
-    class Config:
-        validate_by_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
     def serialize(self, **kwargs) -> Dict:
         """Convert the VerifiablePresentation to a JSON-serializable dict."""
@@ -91,8 +90,7 @@ class VerifiablePresentation(BaseModel):
     proof: Proof
     smt_proofs: Optional[SMTMerkleProof] = None
 
-    class Config:
-        validate_by_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
     def serialize(self, **kwargs) -> Dict:
         """Convert the VerifiablePresentation to a JSON-serializable dict."""

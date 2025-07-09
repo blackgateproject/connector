@@ -1,4 +1,5 @@
 import pickle
+from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import HTTPException, RequestValidationError
@@ -23,9 +24,30 @@ from .core.tasks.credserver_keepalive import (
 )
 from .utils.core_utils import settings_dependency, setup_state, verify_jwt
 
-app = FastAPI()
 debug = settings_dependency().DEBUG
 API_VERSION = "v1"
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    print(f"[CORE] Starting up health service check for credserver")
+    start_health_check_scheduler()
+
+    yield
+
+    # Shutdown
+    if debug >= 3:
+        print(f"[CORE] Shutting down merkle tree.")
+    # Save the merkle tree to a file
+    merkleCore.save_tree_to_file("merkle_tree.pkl")
+    if debug >= 3:
+        print(f"[CORE] Shutting down SMT.")
+    smtCore.save_tree_to_file("smt.pkl")
+    shutdown_scheduler()
+
+
+app = FastAPI(lifespan=lifespan)
 
 # CORS Middleware
 origins = ["*"]
@@ -65,13 +87,6 @@ app.add_middleware(
 #     return response
 
 
-# Add startup events
-@app.on_event("startup")
-async def startup_event():
-    print(f"[CORE] Starting up health service check for credserver")
-    start_health_check_scheduler()
-
-
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     print(exc.errors())  # This prints all validation errors to the console
@@ -79,19 +94,6 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         status_code=422,
         content={"detail": exc.errors()},
     )
-
-
-# Add a shutdown event to dump the merkle tree
-@app.on_event("shutdown")
-async def shutdown_event():
-    if debug >= 3:
-        print(f"[CORE] Shutting down merkle tree.")
-    # Save the merkle tree to a file
-    merkleCore.save_tree_to_file("merkle_tree.pkl")
-    if debug >= 3:
-        print(f"[CORE] Shutting down SMT.")
-    smtCore.save_tree_to_file("smt.pkl")
-    shutdown_scheduler()
 
 
 # Add a redirect middleware for invalid JWT, this will redirect to the login page at "/"
@@ -134,6 +136,7 @@ def root():
             "message": "Connector running! Visit /docs for API documentation.",
         }
     )
+
 
 # Returns an IP address of the requestor
 @app.get("/get-ip")

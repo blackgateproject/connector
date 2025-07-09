@@ -94,3 +94,7 @@ web3==7.9.0
 websockets==13.1
 yarl==1.18.3
 zksync2==2.0.0
+
+# Testing dependencies
+pytest==8.0.0
+pytest-asyncio==0.23.5
