@@ -10,10 +10,7 @@ from typing_extensions import Annotated
 from web3 import Web3
 from web3.contract import Contract
 
-from ..core.accumulator import accumulatorCore
 from ..core.config import Settings
-from ..core.merkle import merkleCore
-from ..core.sparseMerkleTree import smtCore
 from ..models.zkp import SMTMerkleProof
 
 
@@ -143,6 +140,8 @@ def addUserToMerkle(user: str, pw: str):
     """
     Add a user to the Merkle Tree
     """
+    from ..core.merkle import merkleCore
+
     # Add the user to the Merkle Tree
     # print(f"[addUserToMerkle()] Old merkle root: {merkleCore.get_root()}")
     # print(f"[addUserToMerkle()] Adding to local merkle tree")
@@ -205,6 +204,8 @@ def verifyUserOnMerkle(hash: str):
     """
     Verify a user on the Merkle Tree
     """
+    from ..core.merkle import merkleCore
+
     # Verify the user on the Merkle Tree
     before_local_verify = time.time()
     proof = merkleCore.merkle_tree.get_proof(hash)
@@ -246,6 +247,8 @@ def addUserToSMT(user: str, pw: str):
     """
     Add a user to the SMT Tree and update the state Onchain with dummy device/VC/fog values.
     """
+    from ..core.sparseMerkleTree import smtCore
+
     # Remove prefix from the did and send did
     did_str = user
     public_key = user.replace("did:ethr:", "")
@@ -307,6 +310,8 @@ def addUserToSMTLocal(did_str: str):
     """
     Add a user to the SMT Tree Local
     """
+    from ..core.sparseMerkleTree import smtCore
+
     # Remove prefix from the did and send did
     public_key = did_str.replace("did:ethr:blackgate:", "")
 
@@ -336,6 +341,8 @@ def getUserSMTProofs(did_str: str):
     """
     Get the user proofs for the given did_str
     """
+    from ..core.sparseMerkleTree import smtCore
+
     # Remove prefix from the did and send did
     public_key = did_str.replace("did:ethr:blackgate:", "")
 
@@ -407,6 +414,7 @@ def verifyUserOnSMT(did_str, smt_proof: SMTMerkleProof):
     """
     Verify a user on the SMT Tree
     """
+    from ..core.sparseMerkleTree import smtCore
 
     # Remove prefix from the did and send did
     public_key = did_str.replace("did:ethr:blackgate:", "")
@@ -447,6 +455,8 @@ def verifyUserOnSMT(did_str, smt_proof: SMTMerkleProof):
 
 
 def addUserToAccumulator(did: str, vc: str):
+    from ..core.accumulator import accumulatorCore
+
     # Combine the did and vc into json
     userW3creds = json.dumps({"did": did, "vc": vc})
     print(f"[addUserToAccmulator()] UserW3Creds: {userW3creds}")
@@ -466,6 +476,8 @@ def verifyUserOnAccumulator(dataHash: str, accVal: str, proof: str, prime: str):
     """
     Verify the user on the RSA accumulator
     """
+    from ..core.accumulator import accumulatorCore
+
     try:
         # Verify the user on the RSA accumulator
 
