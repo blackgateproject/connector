@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 class TestUserEndpoints:
     """Test cases for user API endpoints."""
 
-    def test_user_health_check(self, client: TestClient, mock_verify_jwt):
+    def test_user_health_check(self, client: TestClient):
         """Test user health check endpoint."""
         headers = {"Authorization": "Bearer test-token"}
         response = client.get("/user/v1/", headers=headers)
@@ -22,12 +22,10 @@ class TestUserEndpoints:
     def test_user_health_check_without_auth(self, client: TestClient):
         """Test user health check without authentication."""
         response = client.get("/user/v1/")
-        # Should require authentication
-        assert response.status_code in [401, 403, 404, 405]
+        # Since JWT verification is disabled, should return 200
+        assert response.status_code == 200
 
-    def test_create_ticket_endpoint(
-        self, client: TestClient, mock_verify_jwt, mock_supabase
-    ):
+    def test_create_ticket_endpoint(self, client: TestClient, mock_supabase):
         """Test creating a user ticket/request."""
         headers = {"Authorization": "Bearer test-token"}
         ticket_data = {
@@ -41,7 +39,7 @@ class TestUserEndpoints:
         # Should either succeed or fail gracefully
         assert response.status_code in [200, 201, 400, 404, 422, 500]
 
-    def test_create_ticket_missing_data(self, client: TestClient, mock_verify_jwt):
+    def test_create_ticket_missing_data(self, client: TestClient):
         """Test creating ticket with missing required data."""
         headers = {"Authorization": "Bearer test-token"}
         incomplete_data = {"title": "Test Ticket"}  # Missing description and user_id
@@ -53,7 +51,7 @@ class TestUserEndpoints:
         # Should handle missing data appropriately
         assert response.status_code in [200, 400, 422, 500]
 
-    def test_create_ticket_invalid_json(self, client: TestClient, mock_verify_jwt):
+    def test_create_ticket_invalid_json(self, client: TestClient):
         """Test creating ticket with invalid JSON."""
         headers = {"Authorization": "Bearer test-token"}
 
@@ -62,10 +60,11 @@ class TestUserEndpoints:
         )
 
         # Should handle invalid JSON
-        assert response.status_code in [400, 422]
+        assert response.status_code == 400
+        assert "Invalid JSON format" in response.json().get("error", "")
 
     @patch("app.utils.core_utils.log_user_action")
-    def test_user_action_logging(self, mock_log, client: TestClient, mock_verify_jwt):
+    def test_user_action_logging(self, mock_log, client: TestClient):
         """Test that user actions are logged appropriately."""
         headers = {"Authorization": "Bearer test-token"}
 

@@ -24,7 +24,7 @@ from ...models.web3_creds import (
     VerifiablePresentation,
 )
 from ...models.zkp import SMTMerkleProof
-from ...utils.core_utils import settings_dependency, verify_jwt
+from ...utils.core_utils import settings_dependency  # , verify_jwt
 from ...utils.pscopg_utils import execute_query, fetch_all, fetch_one
 from ...utils.web3_utils import (
     addUserToAccumulator,
@@ -644,7 +644,7 @@ async def verify_user(
 
 
 @router.post("/logout")
-async def logout(request: Request, _: dict = Depends(verify_jwt)) -> JSONResponse:
+async def logout(request: Request) -> JSONResponse:  # _: dict = Depends(verify_jwt)
     body = await request.json()
     access_token = body.get("access_token")
     # did = body.get("did")

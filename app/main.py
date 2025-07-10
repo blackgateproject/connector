@@ -22,7 +22,7 @@ from .core.tasks.credserver_keepalive import (
     shutdown_scheduler,
     start_health_check_scheduler,
 )
-from .utils.core_utils import settings_dependency, setup_state, verify_jwt
+from .utils.core_utils import settings_dependency, setup_state  # , verify_jwt
 
 debug = settings_dependency().DEBUG
 API_VERSION = "v1"
@@ -150,4 +150,4 @@ async def get_ip(request: Request):
 # return env var
 @app.get("/env")
 def get_env(settings: settings_dependency):
-    return JSONResponse(content=settings.dict())
+    return JSONResponse(content=settings.model_dump())

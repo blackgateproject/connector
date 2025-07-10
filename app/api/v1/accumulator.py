@@ -10,7 +10,7 @@ from supabase import Client, create_client
 
 from ...core.accumulator import accumulatorCore
 from ...models.requests import HashProof, MerkleInput
-from ...utils.core_utils import log_user_action, settings_dependency, verify_jwt
+from ...utils.core_utils import log_user_action, settings_dependency  # , verify_jwt
 from ...utils.web3_utils import (
     addUserToAccumulator,
     getBlockchainModulus,

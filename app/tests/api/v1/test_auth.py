@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 class TestAuthEndpoints:
     """Test cases for auth API endpoints."""
 
-    def test_auth_router_health(self, client: TestClient, mock_verify_jwt):
+    def test_auth_router_health(self, client: TestClient):
         """Test auth router is accessible."""
         # Most auth endpoints likely require authentication
         # We'll test basic connectivity to the auth router
@@ -29,7 +29,7 @@ class TestAuthEndpoints:
         # We expect these to exist but fail validation or auth
         assert response.status_code in [200, 400, 401, 404, 405, 422]
 
-    def test_auth_with_valid_jwt(self, client: TestClient, mock_verify_jwt):
+    def test_auth_with_valid_jwt(self, client: TestClient):
         """Test authenticated requests work with valid JWT."""
         headers = {"Authorization": "Bearer valid-test-token"}
 

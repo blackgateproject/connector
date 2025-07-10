@@ -7,16 +7,11 @@ from supabase import AuthApiError, Client, ClientOptions, create_client
 
 from ...models.requests import RevokeRequest
 from ...utils.core_utils import (
-    json_serialize,
+    json_serialize,  # verify_jwt,
     log_user_action,
     settings_dependency,
-    verify_jwt,
 )
-from ...utils.pscopg_utils import (
-    execute_query,
-    fetch_all,
-    fetch_one
-)
+from ...utils.pscopg_utils import execute_query, fetch_all, fetch_one
 
 debug = settings_dependency().DEBUG
 router = APIRouter()
@@ -74,7 +69,7 @@ async def log_action(
 
 
 @router.get("/")
-async def health_check(_: dict = Depends(verify_jwt)):
+async def health_check():  # _: dict = Depends(verify_jwt)
     # async def health_check(_: dict = Depends(verify_jwt)):
     return "Reached Admin Endpoint, Router Admin is Active"
 
@@ -351,15 +346,14 @@ async def reject_request(
 
 
 @router.delete("/revoke/{did_str}")
-async def revoke_user(
-    revokeRequest: RevokeRequest):
+async def revoke_user(revokeRequest: RevokeRequest):
     # Ensure the caller_role is admin
     if revokeRequest.caller_role != "admin":
         return JSONResponse(
             content={"error": "Unauthorized: Only admin can revoke users"},
             status_code=403,
         )
-    
+
     # Update isRevoked in requests table
     query = """
     UPDATE requests
@@ -371,12 +365,12 @@ async def revoke_user(
         execute_query(query, params)
         return JSONResponse(
             content={"message": f"Revoked user with DID: {revokeRequest.did_str}"},
-            status_code=200
+            status_code=200,
         )
     except Exception as e:
         print(f"[ERR_SUPABASE] Error: {e}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
-    
+
 
 # @router.put("/editUser")
 # async def edit_user(

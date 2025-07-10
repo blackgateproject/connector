@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone, tzinfo
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
-from ...utils.core_utils import settings_dependency, verify_jwt
+from ...utils.core_utils import settings_dependency  # , verify_jwt
 from ...utils.web3_utils import (  # issue_did,; issue_vc,; storeDIDonBlockchain,; storeVCOnBlockchain,
     getContractZKsync,
     w3,

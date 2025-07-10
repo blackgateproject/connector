@@ -8,7 +8,7 @@ from httpx import ASGITransport, AsyncClient
 from app.main import app
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_root():
     """Test the root endpoint returns correct response."""
     async with AsyncClient(
@@ -21,7 +21,7 @@ async def test_root():
     assert "Connector running" in data["message"]
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_get_ip_endpoint():
     """Test the get-ip endpoint returns IP address."""
     async with AsyncClient(
@@ -33,7 +33,7 @@ async def test_get_ip_endpoint():
     assert "ip" in data
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_get_ip_with_forwarded_header():
     """Test get-ip endpoint with X-Forwarded-For header."""
     async with AsyncClient(
@@ -46,7 +46,7 @@ async def test_get_ip_with_forwarded_header():
     assert data["ip"] == "192.168.1.100"
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_env_endpoint():
     """Test the env endpoint returns environment variables."""
     async with AsyncClient(
@@ -60,7 +60,7 @@ async def test_env_endpoint():
     assert data["DEBUG"] == 0
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_cors_headers():
     """Test CORS headers are properly set."""
     async with AsyncClient(
@@ -72,7 +72,7 @@ async def test_cors_headers():
         assert "access-control-allow-origin" in response.headers
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_validation_error_handler():
     """Test custom validation error handler."""
     async with AsyncClient(
@@ -84,7 +84,7 @@ async def test_validation_error_handler():
         assert response.status_code in [404, 422]
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_concurrent_requests():
     """Test that the app handles multiple concurrent requests."""
     import asyncio

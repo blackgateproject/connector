@@ -8,7 +8,7 @@ from httpx import ASGITransport, AsyncClient
 from app.main import app
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_user_endpoints_exist():
     """Test that user endpoints are accessible."""
     async with AsyncClient(
@@ -19,7 +19,7 @@ async def test_user_endpoints_exist():
         assert response.status_code != 404
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_user_profile_endpoint():
     """Test user profile endpoint exists."""
     async with AsyncClient(
@@ -30,7 +30,7 @@ async def test_user_profile_endpoint():
         assert response.status_code != 404
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_user_cors_headers():
     """Test CORS headers on user endpoints."""
     async with AsyncClient(
@@ -42,12 +42,15 @@ async def test_user_cors_headers():
         assert "access-control-allow-origin" in response.headers
 
 
-@pytest.mark.anyio
-async def test_user_info_endpoint():
-    """Test user info endpoint exists."""
+@pytest.mark.asyncio
+async def test_user_requests_endpoint():
+    """Test user requests endpoint exists."""
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as ac:
-        response = await ac.get("/user/v1/info")
+        response = await ac.post(
+            "/user/v1/requests",
+            json={"title": "Test", "description": "Test desc", "user_id": "test-id"},
+        )
         # Should return some status (not 404)
         assert response.status_code != 404

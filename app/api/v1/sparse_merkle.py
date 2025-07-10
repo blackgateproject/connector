@@ -8,7 +8,7 @@ from supabase import Client, create_client
 
 from ...core.sparseMerkleTree import smtCore
 from ...models.requests import HashProof, MerkleInput
-from ...utils.core_utils import log_user_action, settings_dependency, verify_jwt
+from ...utils.core_utils import log_user_action, settings_dependency  # , verify_jwt
 from ...utils.web3_utils import addUserToSMT, getZKSyncMerkleRoot, verifyUserOnSMT
 
 # from ...utils.pki_utils import generate_private_key, generate_public_key

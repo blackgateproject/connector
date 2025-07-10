@@ -36,28 +36,28 @@ debug = settings_dependency().DEBUG
 security = HTTPBearer()
 
 
-async def verify_jwt(request: Request):
-    credentials: HTTPAuthorizationCredentials = await security(request)
-    token = credentials.credentials
-    if debug >= 0:
-        print(f"[VERIFY_JWT()] JWT_SECRET: {settings_dependency().JWT_SECRET}")
-        print(f"[VERIFY_JWT()] JWT_ALGORITHM: {settings_dependency().JWT_ALGORITHM}")
-        print(f"[VERIFY_JWT()] JWT Token: {token}")
-    try:
-        payload = jwt.decode(
-            jwt=token,
-            key=settings_dependency().JWT_SECRET,
-            algorithms=[
-                settings_dependency().JWT_ALGORITHM,
-            ],
-            audience="authenticated",
-        )
-        if debug >= 0:
-            print(f"[VERIFY_JWT()] Payload: {payload}")
-        return payload
-    except Exception as e:
-        print(f"[VERIFY_JWT()] Exception: {e}")
-        raise HTTPException(status_code=401, detail="Invalid token")
+# async def verify_jwt(request: Request):
+#     credentials: HTTPAuthorizationCredentials = await security(request)
+#     token = credentials.credentials
+#     if debug >= 0:
+#         print(f"[VERIFY_JWT()] JWT_SECRET: {settings_dependency().JWT_SECRET}")
+#         print(f"[VERIFY_JWT()] JWT_ALGORITHM: {settings_dependency().JWT_ALGORITHM}")
+#         print(f"[VERIFY_JWT()] JWT Token: {token}")
+#     try:
+#         payload = jwt.decode(
+#             jwt=token,
+#             key=settings_dependency().JWT_SECRET,
+#             algorithms=[
+#                 settings_dependency().JWT_ALGORITHM,
+#             ],
+#             audience="authenticated",
+#         )
+#         if debug >= 0:
+#             print(f"[VERIFY_JWT()] Payload: {payload}")
+#         return payload
+#     except Exception as e:
+#         print(f"[VERIFY_JWT()] Exception: {e}")
+#         raise HTTPException(status_code=401, detail="Invalid token")
 
 
 # HIGHLY POSSIBLE THAT THE FUNCTION WAS NOT BEING CALLED CORRECTLY

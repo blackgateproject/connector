@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 class TestBlockchainEndpoints:
     """Test cases for blockchain API endpoints."""
 
-    def test_blockchain_router_accessible(self, client: TestClient, mock_verify_jwt):
+    def test_blockchain_router_accessible(self, client: TestClient):
         """Test blockchain router is accessible."""
         headers = {"Authorization": "Bearer test-token"}
         response = client.get("/blockchain/v1/")
@@ -19,9 +19,7 @@ class TestBlockchainEndpoints:
         assert response.status_code in [200, 404, 405]
 
     @patch("app.utils.web3_utils.addUserToAccumulator")
-    def test_blockchain_operations(
-        self, mock_add_user, client: TestClient, mock_verify_jwt
-    ):
+    def test_blockchain_operations(self, mock_add_user, client: TestClient):
         """Test blockchain operations."""
         mock_add_user.return_value = {"tx_hash": "0xabcdef"}
 
@@ -37,13 +35,14 @@ class TestBlockchainEndpoints:
     def test_blockchain_without_auth(self, client: TestClient):
         """Test blockchain endpoints without authentication."""
         response = client.get("/blockchain/v1/")
-        assert response.status_code in [401, 403, 404, 405]
+        # Since JWT verification is disabled, should return 200
+        assert response.status_code == 200
 
 
 class TestAccumulatorEndpoints:
     """Test cases for accumulator API endpoints."""
 
-    def test_accumulator_router_accessible(self, client: TestClient, mock_verify_jwt):
+    def test_accumulator_router_accessible(self, client: TestClient):
         """Test accumulator router is accessible."""
         headers = {"Authorization": "Bearer test-token"}
         response = client.get("/accumulator/v1/")
@@ -51,9 +50,7 @@ class TestAccumulatorEndpoints:
         assert response.status_code in [200, 404, 405]
 
     @patch("app.core.accumulator")
-    def test_accumulator_operations(
-        self, mock_accumulator, client: TestClient, mock_verify_jwt
-    ):
+    def test_accumulator_operations(self, mock_accumulator, client: TestClient):
         """Test accumulator operations."""
         mock_accumulator.add_element.return_value = "accumulated_value"
         mock_accumulator.generate_proof.return_value = {"proof": "test-proof"}

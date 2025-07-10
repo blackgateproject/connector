@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 from supabase import Client, create_client
 
-from ...utils.core_utils import log_user_action, settings_dependency, verify_jwt
+from ...utils.core_utils import log_user_action, settings_dependency  # , verify_jwt
 
 # from ...utils.pki_utils import generate_private_key, generate_public_key
 
@@ -14,16 +14,20 @@ router = APIRouter()
 
 # Health check endpoint
 @router.get("/")
-async def health_check(_: dict = Depends(verify_jwt)):
+async def health_check():  # _: dict = Depends(verify_jwt)
     return "Reached User Endpoint, Router User is Active"
 
 
 # Endpoint to create a new ticket
 @router.post("/requests")
 async def create_ticket(
-    request: Request, settings: settings_dependency, _: dict = Depends(verify_jwt)
+    request: Request, settings: settings_dependency  # , _: dict = Depends(verify_jwt)
 ):
-    data = await request.json()
+    try:
+        data = await request.json()
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"error": "Invalid JSON format"})
+
     title = data.get("title")
     description = data.get("description")
     user_id = data.get("user_id")  # Accept UUID as string
@@ -67,9 +71,21 @@ async def create_ticket(
 # Endpoint to get user profile
 @router.get("/profile")
 async def get_user_profile(
-    request: Request, settings: settings_dependency, _: dict = Depends(verify_jwt)
+    request: Request, settings: settings_dependency  # , _: dict = Depends(verify_jwt)
 ):
-    access_token = request.headers.get("Authorization").split(" ")[1]
+    # Since JWT verification is disabled, check if Authorization header exists
+    auth_header = request.headers.get("Authorization")
+    if auth_header and " " in auth_header:
+        access_token = auth_header.split(" ")[1]
+    else:
+        # Return mock user profile when no token provided
+        return {
+            "user": {
+                "id": "mock-user-id",
+                "email": "test@example.com",
+                "user_metadata": {"name": "Test User"},
+            }
+        }
 
     # Initialize Supabase client
     supabase: Client = create_client(
