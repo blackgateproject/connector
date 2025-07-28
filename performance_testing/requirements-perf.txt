@@ -1,0 +1,29 @@
+# Async HTTP client for load testing
+httpx[http2]==0.28.1
+
+# Database connectivity (if not already included)
+psycopg[binary]==3.2.3
+
+# Testing framework extensions
+pytest-asyncio==0.23.5
+pytest-benchmark==4.0.0
+
+# Data analysis and reporting
+pandas==2.2.3
+matplotlib==3.8.4
+seaborn==0.13.2
+
+# Progress bars and CLI enhancements
+tqdm==4.67.1
+rich==13.9.4
+
+# Memory profiling (optional)
+memory-profiler==0.61.0
+psutil==6.1.1
+
+# JSON handling
+orjson==3.10.16
+
+# Additional utilities
+click==8.1.8
+python-dotenv==1.1.0
