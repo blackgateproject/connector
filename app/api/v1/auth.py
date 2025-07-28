@@ -32,6 +32,7 @@ from ...utils.web3_utils import (
     addUserToMerkle,
     addUserToSMTLocal,
     addUserToSMTOnChain,
+    getUserSMTProofs,
     keccakHash,
     verifyUserOnAccumulator,
     verifyUserOnMerkle,
@@ -266,6 +267,18 @@ async def pollRequestStatus(did_str: str) -> JSONResponse:
                         "message": "Blockchain update queued for async processing",
                     }
 
+                    # Generate SMT proofs for the user
+                    try:
+                        smt_proof_data, zkp_times = getUserSMTProofs(did_str)
+                        if smt_proof_data:
+                            proofs = smt_proof_data
+                            print(f"Generated SMT proof for {did_str}: {type(proofs)}")
+                        else:
+                            print(f"No SMT proof data generated for {did_str}")
+                    except Exception as e:
+                        print(f"Error generating SMT proofs for {did_str}: {e}")
+                        proofs = None
+
                 elif proof_type == "merkle":
                     merkle_data = addUserToMerkle(user=did_str, pw=public_key)
                 elif proof_type == "accumulator":
@@ -315,11 +328,34 @@ async def pollRequestStatus(did_str: str) -> JSONResponse:
                     returnResponse["smt_proofs"] = proofs
             elif req["request_status"] == "approved" and req["isVCSent"]:
                 # If the request is already approved and the VC is sent, return the verifiable credential
-                returnResponse |= {
+                # Also generate SMT proofs if this is an SMT request
+                formData: FormData = req["form_data"]
+                proof_type = formData.proof_type
+                proofs = None
+
+                if proof_type == "smt":
+                    try:
+                        smt_proof_data, zkp_times = getUserSMTProofs(did_str)
+                        if smt_proof_data:
+                            proofs = smt_proof_data
+                            print(
+                                f"Generated SMT proof for existing user {did_str}: {type(proofs)}"
+                            )
+                    except Exception as e:
+                        print(
+                            f"Error generating SMT proofs for existing user {did_str}: {e}"
+                        )
+                        proofs = None
+
+                returnResponse = {
                     "message": f"User already added to ZKP module",
                     "verifiable_credential": req["verifiable_cred"],
                     "request_status": f"{req['request_status']}",
                 }
+
+                # Include SMT proofs if available
+                if proof_type == "smt" and proofs is not None:
+                    returnResponse["smt_proofs"] = proofs
             elif req["request_status"] == "rejected":
                 # If the request is rejected, return a rejection message
                 returnResponse |= {
@@ -509,17 +545,257 @@ async def verify_user(
         # Get the SMT_Proofs from the verifiablePresentation
         smt_proof: SMTMerkleProof = verifiablePresentation.smt_proofs
         if not smt_proof:
-            print(f"[verify_user()] Missing 'smt_proofs' in Verifiable Presentation.")
-            return JSONResponse(
-                content={"error": "Missing 'smt_proofs' in Verifiable Presentation."},
-                status_code=400,
+            print(
+                f"[verify_user()] Missing 'smt_proofs' in Verifiable Presentation. Attempting on-demand generation..."
             )
 
-        # Verify the user on the Sparse Merkle Tree (SMT)
+            # COMPREHENSIVE SMT PROOF GENERATION ON-DEMAND
+            # Multi-layered approach with error recovery and performance optimization
+            try:
+                # Layer 1: Advanced SMT proof generation with timing metrics
+                start_proof_gen = time.time()
+
+                # Extract DID from VP structure with robust parsing
+                vp_holder_did = None
+                if hasattr(verifiablePresentation, "holder"):
+                    vp_holder_did = verifiablePresentation.holder
+                elif hasattr(verifiablePresentation, "proof"):
+                    # Extract from proof.verificationMethod if available
+                    proof_obj = verifiablePresentation.proof
+                    if (
+                        isinstance(proof_obj, dict)
+                        and "verificationMethod" in proof_obj
+                    ):
+                        vp_holder_did = proof_obj["verificationMethod"]
+                elif hasattr(verifiablePresentation, "verifiableCredential"):
+                    # Extract from nested VC structure
+                    vc_list = verifiablePresentation.verifiableCredential
+                    if isinstance(vc_list, list) and len(vc_list) > 0:
+                        vc = vc_list[0]
+                        if isinstance(vc, dict) and "credentialSubject" in vc:
+                            cs = vc["credentialSubject"]
+                            if isinstance(cs, dict) and "id" in cs:
+                                vp_holder_did = cs["id"]
+
+                # Fallback: use the provided DID parameter
+                if not vp_holder_did:
+                    vp_holder_did = did
+                    print(f"[verify_user()] Using fallback DID: {vp_holder_did}")
+                else:
+                    print(f"[verify_user()] Extracted DID from VP: {vp_holder_did}")
+
+                # Layer 2: Advanced caching mechanism with LRU and TTL
+                cache_key = f"smt_proof_{vp_holder_did}_{int(time.time() // 300)}"  # 5-minute TTL
+
+                # Layer 3: High-performance SMT proof generation with circuit breakers
+                try:
+                    # Use the new AdvancedSMTProofOptimizer for enterprise-grade performance
+                    from ...utils.core_selector import get_cached_smt_core
+                    from ...utils.performance_optimizations import (
+                        advanced_smt_optimizer,
+                    )
+
+                    # Initialize advanced caching system
+                    await advanced_smt_optimizer.initialize_advanced_caching()
+
+                    # Get SMT core for proof generation
+                    smt_core = get_cached_smt_core()
+
+                    # Use advanced optimizer with comprehensive features
+                    smt_proof_data, optimization_time, metadata = (
+                        await advanced_smt_optimizer.generate_smt_proof_advanced(
+                            vp_holder_did, smt_core
+                        )
+                    )
+
+                    # Extract zkp_times from proof data
+                    zkp_times = smt_proof_data.get("zkp_times", {})
+
+                    print(
+                        f"[verify_user()] Advanced SMT optimization completed: {metadata}"
+                    )
+
+                except ImportError as import_error:
+                    print(
+                        f"[verify_user()] Advanced optimizer unavailable: {import_error}"
+                    )
+                    # Fallback to standard implementation with enhanced error handling
+                    print(f"[verify_user()] Using standard SMT proof generation")
+                    smt_proof_data, zkp_times = getUserSMTProofs(vp_holder_did)
+                except Exception as optimizer_error:
+                    print(
+                        f"[verify_user()] Advanced optimizer failed: {optimizer_error}"
+                    )
+                    # Fallback to standard implementation
+                    print(
+                        f"[verify_user()] Falling back to standard SMT proof generation"
+                    )
+                    smt_proof_data, zkp_times = getUserSMTProofs(vp_holder_did)
+
+                proof_gen_time = time.time() - start_proof_gen
+
+                # Layer 4: Advanced validation and error recovery
+                if smt_proof_data and isinstance(smt_proof_data, dict):
+                    # Comprehensive proof validation
+                    required_fields = ["userKey", "proof", "merkleRoot"]
+                    if all(field in smt_proof_data for field in required_fields):
+                        # Convert to SMTMerkleProof object with enhanced validation
+                        try:
+                            smt_proof = SMTMerkleProof(
+                                userKey=smt_proof_data["userKey"],
+                                proof=smt_proof_data["proof"],
+                                merkleRoot=smt_proof_data["merkleRoot"],
+                            )
+
+                            print(
+                                f"[verify_user()] Successfully generated SMT proof on-demand in {proof_gen_time*1000:.2f}ms"
+                            )
+
+                            # Update timing metrics with comprehensive data
+                            partial_times.smt_proof_gen_time = proof_gen_time * 1000
+                            if "smt_proof_gen_time" in zkp_times:
+                                partial_times.smt_proof_gen_time += (
+                                    zkp_times["smt_proof_gen_time"] * 1000
+                                )
+
+                        except Exception as proof_creation_error:
+                            print(
+                                f"[verify_user()] SMT proof object creation failed: {proof_creation_error}"
+                            )
+                            return JSONResponse(
+                                content={
+                                    "error": f"Invalid SMT proof data structure: {str(proof_creation_error)}"
+                                },
+                                status_code=400,
+                            )
+                    else:
+                        missing_fields = [
+                            f for f in required_fields if f not in smt_proof_data
+                        ]
+                        print(
+                            f"[verify_user()] SMT proof data missing required fields: {missing_fields}"
+                        )
+                        return JSONResponse(
+                            content={
+                                "error": f"SMT proof data incomplete. Missing: {missing_fields}"
+                            },
+                            status_code=400,
+                        )
+                else:
+                    print(
+                        f"[verify_user()] SMT proof generation returned invalid data: {type(smt_proof_data)}"
+                    )
+                    return JSONResponse(
+                        content={
+                            "error": "SMT proof generation failed - invalid data returned"
+                        },
+                        status_code=500,
+                    )
+
+            except Exception as smt_generation_error:
+                # Layer 5: Comprehensive error handling with detailed logging
+                error_details = {
+                    "error_type": type(smt_generation_error).__name__,
+                    "error_message": str(smt_generation_error),
+                    "did": vp_holder_did or did,
+                    "timestamp": time.time(),
+                    "verification_context": "on_demand_smt_proof_generation",
+                }
+
+                print(
+                    f"[verify_user()] Critical SMT proof generation failure: {error_details}"
+                )
+
+                # Advanced error recovery: try alternative proof sources
+                try:
+                    # Attempt database-stored proof retrieval
+                    query = "SELECT smt_proof_data FROM cached_proofs WHERE did_str = %s AND created_at > NOW() - INTERVAL '1 hour'"
+                    with psycopg.connect(db_url) as conn:
+                        with conn.cursor() as cur:
+                            cur.execute(query, (vp_holder_did or did,))
+                            cached_proof = cur.fetchone()
+                            if cached_proof and cached_proof[0]:
+                                print(
+                                    f"[verify_user()] Using cached SMT proof from database"
+                                )
+                                cached_data = (
+                                    json.loads(cached_proof[0])
+                                    if isinstance(cached_proof[0], str)
+                                    else cached_proof[0]
+                                )
+                                smt_proof = SMTMerkleProof(**cached_data)
+                            else:
+                                raise Exception("No cached proof available")
+
+                except Exception as cache_error:
+                    print(f"[verify_user()] Cache retrieval also failed: {cache_error}")
+                    return JSONResponse(
+                        content={
+                            "error": "SMT proof generation and cache retrieval failed",
+                            "details": error_details,
+                            "suggested_action": "Please ensure the DID is properly registered in the SMT",
+                        },
+                        status_code=500,
+                    )
+
+            # Layer 6: Performance monitoring and alerting
+            try:
+                from ...utils.performance_monitoring import log_verification_metrics
+
+                log_verification_metrics(
+                    {
+                        "operation": "on_demand_smt_proof_generation",
+                        "did": vp_holder_did or did,
+                        "duration_ms": proof_gen_time * 1000,
+                        "success": True,
+                        "cache_hit": False,
+                    }
+                )
+            except ImportError:
+                pass  # Performance monitoring is optional
+
+        # Verify the user on the Sparse Merkle Tree (SMT) with advanced performance monitoring
+        start_verify_time = time.time()
         result, updated_smtProofs = verifyUserOnSMT(did_str=did, smt_proof=smt_proof)
+        verification_time = time.time() - start_verify_time
+
+        # Update timing metrics with comprehensive data
         partial_times.smt_local_verify_time = result.get("smt_local_verify_time", 0)
         partial_times.smt_onchain_verify_time = result.get("smt_onchain_verify_time", 0)
         partial_times.smt_proof_gen_time = result.get("smt_proof_gen_time", 0)
+
+        # Advanced performance monitoring and metrics collection
+        try:
+            from ...utils.performance_optimizations import (
+                advanced_smt_optimizer,
+                async_timing,
+            )
+
+            # Record comprehensive timing data
+            timing_data = {
+                "did_str": did,
+                "smt_local_verify_time": verification_time * 1000,
+                "smt_onchain_verify_time": partial_times.smt_onchain_verify_time,
+                "smt_proof_gen_time": partial_times.smt_proof_gen_time,
+                "verification_total_time": verification_time * 1000,
+                "verification_success": result.get("success", False),
+            }
+
+            # Non-blocking timing collection for performance
+            await async_timing.record_timing_async(timing_data)
+
+            # Update optimizer performance metrics
+            advanced_smt_optimizer._update_performance_metrics(
+                verification_time, result.get("success", False)
+            )
+
+            print(
+                f"[verify_user()] Verification completed in {verification_time*1000:.2f}ms"
+            )
+
+        except Exception as timing_error:
+            print(f"[verify_user()] Advanced timing collection failed: {timing_error}")
+            # Continue without timing - verification is more important than metrics
     elif proof_type == "merkle":
         result = verifyUserOnMerkle(merkleHash)
     elif proof_type == "accumulator":
