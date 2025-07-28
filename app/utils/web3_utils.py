@@ -140,7 +140,9 @@ def addUserToMerkle(user: str, pw: str):
     """
     Add a user to the Merkle Tree
     """
-    from ..core.merkle import merkleCore
+    from .core_selector import get_cached_merkle_core
+
+    merkleCore = get_cached_merkle_core()
 
     # Add the user to the Merkle Tree
     # print(f"[addUserToMerkle()] Old merkle root: {merkleCore.get_root()}")
@@ -204,7 +206,9 @@ def verifyUserOnMerkle(hash: str):
     """
     Verify a user on the Merkle Tree
     """
-    from ..core.merkle import merkleCore
+    from .core_selector import get_cached_merkle_core
+
+    merkleCore = get_cached_merkle_core()
 
     # Verify the user on the Merkle Tree
     before_local_verify = time.time()
@@ -247,7 +251,9 @@ def addUserToSMT(user: str, pw: str):
     """
     Add a user to the SMT Tree and update the state Onchain with dummy device/VC/fog values.
     """
-    from ..core.sparseMerkleTree import smtCore
+    from .core_selector import get_cached_smt_core
+
+    smtCore = get_cached_smt_core()
 
     # Remove prefix from the did and send did
     did_str = user
@@ -310,14 +316,15 @@ def addUserToSMTLocal(did_str: str):
     """
     Add a user to the SMT Tree Local
     """
-    from ..core.sparseMerkleTree import smtCore
+    from .core_selector import get_cached_smt_core
+
+    smtCore = get_cached_smt_core()
 
     # Remove prefix from the did and send did
     public_key = did_str.replace("did:ethr:blackgate:", "")
 
     # Proofs wont be returned in IdRegister anymore, so we can remove it
-    # userHashAndData, proof, zkp_times = smtCore.add_user(
-    userHashAndData, proof, zkp_times = smtCore.add_user(
+    userHashAndData, zkp_times = smtCore.add_user(
         did_str=did_str, credentials=public_key
     )
     print(f"[addUserToSMTLocal()] User Hash and Proof: {userHashAndData}")
@@ -329,11 +336,7 @@ def addUserToSMTLocal(did_str: str):
         # "zkp_times": zkp_times,
     }
 
-    return (
-        data,
-        # Proofs won't be returned in IdRegister anymore, so we can remove it
-        # proof,
-    )
+    return data, userHashAndData, zkp_times
 
 
 # Function for IdProof, generates proofs given a user
@@ -341,15 +344,31 @@ def getUserSMTProofs(did_str: str):
     """
     Get the user proofs for the given did_str
     """
-    from ..core.sparseMerkleTree import smtCore
+    from .core_selector import get_cached_smt_core
+
+    smtCore = get_cached_smt_core()
 
     # Remove prefix from the did and send did
     public_key = did_str.replace("did:ethr:blackgate:", "")
 
-    # Generate the proof for the user
-    proofs = smtCore.get_proof(public_key)
+    # Hash the user data to get the key for proof generation
+    key = smtCore._hash_user_data(did_str, public_key)
 
-    return proofs
+    # Generate proof for the user
+    start_time = time.time()
+    proof = smtCore.get_proof(key)
+    proof_gen_time = float(time.time() - start_time)
+
+    # Prepare return data
+    data = {
+        "userKey": key,
+        "proof": proof,
+        "merkleRoot": smtCore.smt.get_root().hex(),
+    }
+
+    zkp_times = {"smt_proof_gen_time": proof_gen_time}
+
+    return data, zkp_times
 
 
 def addUserToSMTOnChain(
@@ -414,7 +433,9 @@ def verifyUserOnSMT(did_str, smt_proof: SMTMerkleProof):
     """
     Verify a user on the SMT Tree
     """
-    from ..core.sparseMerkleTree import smtCore
+    from .core_selector import get_cached_smt_core
+
+    smtCore = get_cached_smt_core()
 
     # Remove prefix from the did and send did
     public_key = did_str.replace("did:ethr:blackgate:", "")
@@ -455,7 +476,9 @@ def verifyUserOnSMT(did_str, smt_proof: SMTMerkleProof):
 
 
 def addUserToAccumulator(did: str, vc: str):
-    from ..core.accumulator import accumulatorCore
+    from .core_selector import get_cached_accumulator_core
+
+    accumulatorCore = get_cached_accumulator_core()
 
     # Combine the did and vc into json
     userW3creds = json.dumps({"did": did, "vc": vc})
@@ -476,7 +499,9 @@ def verifyUserOnAccumulator(dataHash: str, accVal: str, proof: str, prime: str):
     """
     Verify the user on the RSA accumulator
     """
-    from ..core.accumulator import accumulatorCore
+    from .core_selector import get_cached_accumulator_core
+
+    accumulatorCore = get_cached_accumulator_core()
 
     try:
         # Verify the user on the RSA accumulator
