@@ -22,34 +22,182 @@ from .core.tasks.credserver_keepalive import (
     shutdown_scheduler,
     start_health_check_scheduler,
 )
+from .utils.async_blockchain_multiworker import (
+    initialize_blockchain_processor,
+    shutdown_blockchain_processor,
+)
 from .utils.core_utils import settings_dependency, setup_state  # , verify_jwt
 
 debug = settings_dependency().DEBUG
 API_VERSION = "v1"
 
+# Multi-worker configuration
+import os
+
+WORKER_COUNT = int(os.getenv("WORKER_COUNT", "1"))
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
+WORKER_ID = os.getenv("WORKER_ID", str(os.getpid()))
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
+    worker_id = os.getenv("WORKER_ID", "main")
+    print(f"[CORE] Starting FastAPI worker {worker_id}")
     print(f"[CORE] Starting up health service check for credserver")
     start_health_check_scheduler()
+
+    print(f"[CORE] Starting multi-worker async blockchain processor")
+    await initialize_blockchain_processor()
+
+    # Initialize multi-worker proof systems if in multi-worker mode
+    multi_worker_mode = os.getenv("MULTI_WORKER_MODE", "false").lower() == "true"
+    if multi_worker_mode:
+        print(f"[CORE] Initializing multi-worker proof systems (Worker: {worker_id})")
+
+        # Import and initialize multi-worker cores
+        from .core.multiworker_accumulator import (
+            accumulatorCore as multiworker_accumulator,
+        )
+        from .core.multiworker_merkle import merkleCore as multiworker_merkle
+        from .core.multiworker_smt import smtCore as multiworker_smt
+
+        await multiworker_smt.initialize()
+        await multiworker_merkle.initialize()
+        await multiworker_accumulator.initialize()
+
+        print(f"[CORE] Multi-worker proof systems initialized (Worker: {worker_id})")
 
     yield
 
     # Shutdown
+    print(f"[CORE] Shutting down worker {worker_id}")
     if debug >= 3:
         print(f"[CORE] Shutting down merkle tree.")
-    # Save the merkle tree to a file
-    merkleCore.save_tree_to_file("merkle_tree.pkl")
-    if debug >= 3:
-        print(f"[CORE] Shutting down SMT.")
-    smtCore.save_tree_to_file("smt.pkl")
+
+    # Save trees (only from main worker to avoid conflicts)
+    if worker_id == "main" or worker_id == "0":
+        if multi_worker_mode:
+            # Use multi-worker cores for saving
+            from .core.multiworker_merkle import merkleCore as multiworker_merkle
+            from .core.multiworker_smt import smtCore as multiworker_smt
+
+            multiworker_merkle.save_tree_to_file("merkle_tree.pkl")
+            if debug >= 3:
+                print(f"[CORE] Shutting down SMT.")
+            multiworker_smt.save_tree_to_file("smt.pkl")
+        else:
+            # Use original cores
+            merkleCore.save_tree_to_file("merkle_tree.pkl")
+            if debug >= 3:
+                print(f"[CORE] Shutting down SMT.")
+            smtCore.save_tree_to_file("smt.pkl")
+
+    # Shutdown multi-worker proof systems
+    if multi_worker_mode:
+        print(f"[CORE] Shutting down multi-worker proof systems (Worker: {worker_id})")
+        from .core.multiworker_accumulator import (
+            accumulatorCore as multiworker_accumulator,
+        )
+        from .core.multiworker_merkle import merkleCore as multiworker_merkle
+        from .core.multiworker_smt import smtCore as multiworker_smt
+
+        await multiworker_smt.shutdown()
+        await multiworker_merkle.shutdown()
+        await multiworker_accumulator.shutdown()
+
+    print(f"[CORE] Shutting down async blockchain processor")
+    await shutdown_blockchain_processor()
+
     shutdown_scheduler()
 
 
 app = FastAPI(lifespan=lifespan)
 
 # CORS Middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# Exception handlers
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"message": exc.detail},
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    return JSONResponse(
+        status_code=422,
+        content={"message": "Validation error", "detail": str(exc)},
+    )
+
+
+# Health check endpoint
+@app.get("/")
+async def root():
+    return RedirectResponse(url="/docs")
+
+
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "worker_id": WORKER_ID}
+
+
+# Include routers
+app.include_router(auth.router, prefix=f"/auth/{API_VERSION}", tags=["auth"])
+app.include_router(admin.router, prefix=f"/admin/{API_VERSION}", tags=["admin"])
+app.include_router(user.router, prefix=f"/user/{API_VERSION}", tags=["user"])
+app.include_router(setup.router, prefix=f"/setup/{API_VERSION}", tags=["setup"])
+app.include_router(merkle.router, prefix=f"/merkle/{API_VERSION}", tags=["merkle"])
+app.include_router(
+    sparse_merkle.router, prefix=f"/sparse_merkle/{API_VERSION}", tags=["sparse_merkle"]
+)
+app.include_router(
+    accumulator.router, prefix=f"/accumulator/{API_VERSION}", tags=["accumulator"]
+)
+app.include_router(
+    blockchain.router, prefix=f"/blockchain/{API_VERSION}", tags=["blockchain"]
+)
+
+# Multi-worker startup
+if __name__ == "__main__":
+    import sys
+
+    import uvicorn
+
+    # Check if workers argument is provided
+    workers = 5  # Default to 5 workers as requested
+    if len(sys.argv) > 1 and sys.argv[1].isdigit():
+        workers = int(sys.argv[1])
+
+    print(f"🚀 Starting FastAPI with {workers} workers")
+    print("⚠️  Multi-worker mode: Shared state will use Redis/Database")
+
+    # Set environment variables for multi-worker support
+    import os
+
+    os.environ["MULTI_WORKER_MODE"] = "true"
+    os.environ["BLOCKCHAIN_WORKERS"] = "3"
+    os.environ["BLOCKCHAIN_BATCH_SIZE"] = "5"
+
+    # Run with multiple workers
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=8000,
+        workers=workers,
+        reload=False,  # Disable reload in multi-worker mode
+        log_level="info",
+    )
 origins = ["*"]
 app.add_middleware(
     CORSMiddleware,
