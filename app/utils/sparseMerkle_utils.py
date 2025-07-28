@@ -1,10 +1,11 @@
 import base64
 import hashlib
+import random
+import threading
+import time
 from itertools import count
 from queue import Queue
-import random
 from threading import Lock
-import time
 
 from ..models.zkp import MerkleProofElement, SMTMerkleProof
 
@@ -46,6 +47,22 @@ class sparseMerkleTreeUtils:
         return index
 
     def add_user_auto(self, value_raw):
+        # Add thread safety check
+        if not hasattr(self, "lock"):
+            self.lock = Lock()
+
+        # Check for available_indexes attribute
+        if not hasattr(self, "available_indexes"):
+            self.available_indexes = Queue()
+
+        # Check for index_counter attribute
+        if not hasattr(self, "index_counter"):
+            self.index_counter = count(0)
+
+        # Check for used_indexes attribute
+        if not hasattr(self, "used_indexes"):
+            self.used_indexes = set()
+
         with self.lock:
             if not self.available_indexes.empty():
                 index = self.available_indexes.get()
