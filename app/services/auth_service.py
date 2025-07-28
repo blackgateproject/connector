@@ -1,14 +1,10 @@
-"""
-Authentication service for handling user registration and verification.
-"""
-
+# --- Proper imports at the top ---
 import json
 import time
 from typing import Any, Dict, Optional
 
 from fastapi.responses import JSONResponse
 
-from ..credential_service.credservice import issue_credential
 from ..models.web3_creds import FormData, NetworkInfo
 from ..utils.pscopg_utils import execute_query, fetch_all, fetch_one
 from ..utils.web3_utils import addUserToSMTLocal
@@ -16,6 +12,65 @@ from .base_service import BaseService
 
 
 class AuthService(BaseService):
+
+    async def verify_credential(self, credential) -> JSONResponse:
+        """Verify a verifiable credential using the credential service."""
+        try:
+            from ..credential_service.credservice import (
+                verify_credential as verify_cred_fn,
+            )
+
+            result = await verify_cred_fn(credential.model_dump())
+            response = self.create_success_response(
+                "Credential verified", {"result": result}
+            )
+            return JSONResponse(content=response, status_code=200)
+        except Exception as e:
+            error_response = self.create_error_response(
+                "Credential verification failed", e
+            )
+            return JSONResponse(content=error_response, status_code=500)
+
+    async def verify_presentation(self, presentation) -> JSONResponse:
+        """Verify a verifiable presentation using the credential service."""
+        try:
+            from ..credential_service.credservice import (
+                verify_presentation as verify_presentation_fn,
+            )
+
+            result = await verify_presentation_fn(presentation.model_dump())
+            response = self.create_success_response(
+                "Presentation verified", {"result": result}
+            )
+            return JSONResponse(content=response, status_code=200)
+        except Exception as e:
+            error_response = self.create_error_response(
+                "Presentation verification failed", e
+            )
+            return JSONResponse(content=error_response, status_code=500)
+
+    async def logout(self, request) -> JSONResponse:
+        """Logout endpoint (token/session management)."""
+        try:
+            # Token/session invalidation logic goes here (stub)
+            # For now, just return success
+            response = self.create_success_response("Logout successful")
+            return JSONResponse(content=response, status_code=200)
+        except Exception as e:
+            error_response = self.create_error_response("Logout failed", e)
+            return JSONResponse(content=error_response, status_code=500)
+
+    async def update_metrics(self, metrics: dict) -> JSONResponse:
+        """Update performance/statistics metrics (stub)."""
+        try:
+            # Insert metrics update logic here (e.g., DB insert, logging, etc.)
+            self.log_debug(f"Received metrics: {metrics}")
+            response = self.create_success_response("Metrics updated")
+            return JSONResponse(content=response, status_code=200)
+        except Exception as e:
+            error_response = self.create_error_response("Metrics update failed", e)
+            return JSONResponse(content=error_response, status_code=500)
+
     """Service for authentication-related operations."""
 
     def check_revoked_status(self, did: str) -> Optional[Dict[str, Any]]:
@@ -190,3 +245,61 @@ class AuthService(BaseService):
             "Request status retrieved", {"request": request_data}
         )
         return JSONResponse(content=response_data, status_code=200)
+
+    async def verify_credential(self, credential) -> JSONResponse:
+        """Verify a verifiable credential using the credential service."""
+        try:
+            from ..credential_service.credservice import (
+                verify_credential as verify_cred_fn,
+            )
+
+            result = await verify_cred_fn(credential.model_dump())
+            response = self.create_success_response(
+                "Credential verified", {"result": result}
+            )
+            return JSONResponse(content=response, status_code=200)
+        except Exception as e:
+            error_response = self.create_error_response(
+                "Credential verification failed", e
+            )
+            return JSONResponse(content=error_response, status_code=500)
+
+    async def verify_presentation(self, presentation) -> JSONResponse:
+        """Verify a verifiable presentation using the credential service."""
+        try:
+            from ..credential_service.credservice import (
+                verify_presentation as verify_presentation_fn,
+            )
+
+            result = await verify_presentation_fn(presentation.model_dump())
+            response = self.create_success_response(
+                "Presentation verified", {"result": result}
+            )
+            return JSONResponse(content=response, status_code=200)
+        except Exception as e:
+            error_response = self.create_error_response(
+                "Presentation verification failed", e
+            )
+            return JSONResponse(content=error_response, status_code=500)
+
+    async def logout(self, request) -> JSONResponse:
+        """Logout endpoint (token/session management)."""
+        try:
+            # Token/session invalidation logic goes here (stub)
+            # For now, just return success
+            response = self.create_success_response("Logout successful")
+            return JSONResponse(content=response, status_code=200)
+        except Exception as e:
+            error_response = self.create_error_response("Logout failed", e)
+            return JSONResponse(content=error_response, status_code=500)
+
+    async def update_metrics(self, metrics: dict) -> JSONResponse:
+        """Update performance/statistics metrics (stub)."""
+        try:
+            # Insert metrics update logic here (e.g., DB insert, logging, etc.)
+            self.log_debug(f"Received metrics: {metrics}")
+            response = self.create_success_response("Metrics updated")
+            return JSONResponse(content=response, status_code=200)
+        except Exception as e:
+            error_response = self.create_error_response("Metrics update failed", e)
+            return JSONResponse(content=error_response, status_code=500)
