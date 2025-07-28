@@ -1,3 +1,5 @@
+from typing import Optional
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -19,3 +21,13 @@ class Settings(BaseSettings):
     CRED_SERVER_URL: str
     ACC_GENERATOR: int
     ACC_MODULUS: int
+
+    # Redis Configuration for Multi-Worker Setup
+    REDIS_URL: str = "redis://127.0.0.1:6379"
+
+    # Multi-Worker Configuration
+    MULTI_WORKER_MODE: bool = False
+    WORKER_COUNT: int = 1
+    WORKER_ID: Optional[str] = None
+    BLOCKCHAIN_WORKERS: int = 3
+    BLOCKCHAIN_BATCH_SIZE: int = 5
