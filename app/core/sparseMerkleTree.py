@@ -37,9 +37,9 @@ SUPABASE_AUTH_ANON_KEY = settings_dependency().SUPABASE_AUTH_ANON_KEY
 # ./SMTHandler.py
 # class SparseRollupGenerator:
 class sparseMerkleTree:
-    def __init__(self):
+    def __init__(self, depth=16):
         # self.supabase: Client = create_client(supabase_url=SUPABASE_URL, supabase_key=SUPABASE_AUTH_ANON_KEY)
-        self.smt = sparseMerkleTreeUtils(depth=16)
+        self.smt = sparseMerkleTreeUtils(depth=depth)
         self.lock = Lock()  # Initialize a lock for thread safety
         print(f"[CORE] SMT Initialized. \n{type(self.smt)}")
 
