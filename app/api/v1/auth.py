@@ -24,6 +24,7 @@ from ...models.web3_creds import (
     VerifiablePresentation,
 )
 from ...models.zkp import SMTMerkleProof
+from ...utils.async_blockchain_multiworker import get_blockchain_processor
 from ...utils.core_utils import settings_dependency  # , verify_jwt
 from ...utils.pscopg_utils import execute_query, fetch_all, fetch_one
 from ...utils.web3_utils import (
@@ -101,7 +102,7 @@ async def register(formData: FormData, networkInfo: NetworkInfo) -> JSONResponse
     if formData.proof_type == "smt":
         print(f"Adding user to SMT locally for DID: {formData.did}")
         start_time = time.time()
-        zkpData = addUserToSMTLocal(did_str=formData.did)
+        zkpData, userHashAndData, zkp_times = addUserToSMTLocal(did_str=formData.did)
         smt_local_add_time = float(time.time() - start_time)
         # formData.smt_proofs.proofGenTime = float(time.time() - start_time)
 
@@ -206,7 +207,9 @@ async def pollRequestStatus(did_str: str) -> JSONResponse:
                     # Add user to the Sparse Merkle Tree (SMT) locally
                     print(f"Poll (DEBUG): Adding user to SMT locally")
                     start_time = time.time()
-                    zkpData, proofs = addUserToSMTLocal(did_str=did_str)
+                    zkpData, userHashAndData, zkp_times = addUserToSMTLocal(
+                        did_str=did_str
+                    )
                     smt_local_add_time = float(time.time() - start_time)
                     print(
                         f"About to issue credential with data: {formData}, {networkInfo}, {zkpData}"
@@ -232,21 +235,36 @@ async def pollRequestStatus(did_str: str) -> JSONResponse:
                     if debug >= 0:
                         print(f"VC Hash: {vcHash}")
 
-                    # Send data onchain
-                    print(f"Sending data onchain")
+                    # Send data onchain (async)
+                    print(f"Queueing blockchain update asynchronously")
                     fog_node_publicKey = (
                         verifiableCredential.get("credential").get("issuer").get("id")
                     ).replace("did:ethr:blackgate:", "")
 
                     start_time = time.time()
-                    onChainResults = addUserToSMTOnChain(
-                        merkleRoot=zkpData["merkleRoot"],
+
+                    # Submit blockchain task asynchronously
+                    blockchain_processor = get_blockchain_processor()
+                    task_id = await blockchain_processor.submit_smt_add_task(
+                        task_id=f"smt_add_{formData.device_id}_{int(time.time())}",
+                        merkle_root=zkpData["merkleRoot"],
                         vc_hash=vcHash,
                         device_id=formData.device_id,
                         fog_node_pubkey=fog_node_publicKey,
                     )
+
                     smt_onchain_add_time = time.time() - start_time
-                    print(f"smt_onchain_add_time Results: {smt_onchain_add_time}")
+                    print(
+                        f"smt_onchain_add_time (async submission): {smt_onchain_add_time}"
+                    )
+                    print(f"Blockchain task submitted: {task_id}")
+
+                    # Store task ID for later retrieval if needed
+                    onChainResults = {
+                        "success": True,
+                        "task_id": task_id,
+                        "message": "Blockchain update queued for async processing",
+                    }
 
                 elif proof_type == "merkle":
                     merkle_data = addUserToMerkle(user=did_str, pw=public_key)
@@ -288,12 +306,18 @@ async def pollRequestStatus(did_str: str) -> JSONResponse:
                         ),
                     },
                 }
+
+                # Include blockchain results if available
+                if proof_type == "smt" and "onChainResults" in locals():
+                    returnResponse["onChainResults"] = onChainResults
+
                 if proof_type == "smt" and proofs is not None:
                     returnResponse["smt_proofs"] = proofs
             elif req["request_status"] == "approved" and req["isVCSent"]:
                 # If the request is already approved and the VC is sent, return the verifiable credential
                 returnResponse |= {
                     "message": f"User already added to ZKP module",
+                    "verifiable_credential": req["verifiable_cred"],
                     "request_status": f"{req['request_status']}",
                 }
             elif req["request_status"] == "rejected":
@@ -768,4 +792,86 @@ async def updateMetrics(did_str: str, metrics: timesOfTime):
         )
     except Exception as e:
         print(f"[ERROR]: {e}")
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
+
+@router.get("/blockchain_task_status/{task_id}")
+async def get_blockchain_task_status(task_id: str):
+    """
+    Get the status of a blockchain task submitted for async processing.
+
+    This endpoint allows checking the status of blockchain operations that were
+    queued during registration to avoid blocking the response.
+    """
+    try:
+        blockchain_processor = get_blockchain_processor()
+        task = await blockchain_processor.get_task_status(task_id)
+
+        if not task:
+            return JSONResponse(content={"error": "Task not found"}, status_code=404)
+
+        # Convert dataclass to dict for JSON response
+        from dataclasses import asdict
+
+        task_data = asdict(task)
+
+        return JSONResponse(
+            content={
+                "task_id": task_id,
+                "status": task.status,
+                "task_type": task.task_type,
+                "timestamp": task.timestamp,
+                "processing_time": task.processing_time,
+                "result": task.result,
+                "error": task.error,
+            },
+            status_code=200,
+        )
+
+    except Exception as e:
+        print(f"[ERROR] Getting blockchain task status: {e}")
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
+
+@router.post("/wait_for_blockchain_task/{task_id}")
+async def wait_for_blockchain_task(task_id: str, timeout: float = 30.0):
+    """
+    Wait for a blockchain task to complete with timeout.
+
+    This endpoint is useful for testing or when you need to ensure
+    blockchain completion before proceeding.
+    """
+    try:
+        blockchain_processor = get_blockchain_processor()
+        task = await blockchain_processor.wait_for_task(task_id, timeout)
+
+        # Convert dataclass to dict for JSON response
+        from dataclasses import asdict
+
+        task_data = asdict(task)
+
+        return JSONResponse(
+            content={
+                "task_id": task_id,
+                "status": task.status,
+                "task_type": task.task_type,
+                "timestamp": task.timestamp,
+                "processing_time": task.processing_time,
+                "result": task.result,
+                "error": task.error,
+                "completed": task.status in ["completed", "failed"],
+            },
+            status_code=200,
+        )
+
+    except TimeoutError as e:
+        return JSONResponse(
+            content={
+                "error": f"Task {task_id} did not complete within {timeout} seconds",
+                "timeout": True,
+            },
+            status_code=408,
+        )
+    except Exception as e:
+        print(f"[ERROR] Waiting for blockchain task: {e}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
