@@ -1,4 +1,20 @@
 services:
+  # Redis service for multi-worker shared state management
+  redis:
+    image: redis:7-alpine
+    container_name: blackgate-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
   connector:
     build: .
     container_name: connector
@@ -20,7 +36,19 @@ services:
       - SUPABASE_JWT_EXPIRES=${SUPABASE_JWT_EXPIRES}
       - CRED_SERVER_URL=${CRED_SERVER_URL}
       - DEBUG=${DEBUG}
+      - REDIS_URL=${REDIS_URL}
+      - MULTI_WORKER_MODE=${MULTI_WORKER_MODE}
+      - WORKER_COUNT=${WORKER_COUNT}
+      - BLOCKCHAIN_WORKERS=${BLOCKCHAIN_WORKERS}
+      - BLOCKCHAIN_BATCH_SIZE=${BLOCKCHAIN_BATCH_SIZE}
     volumes:
       - .:/connector
+    depends_on:
+      redis:
+        condition: service_healthy
     extra_hosts:
-    - "host.docker.internal:host-gateway"
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  redis_data:
+    driver: local
