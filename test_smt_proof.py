@@ -32,9 +32,6 @@ async def test_single_registration_and_poll():
         )
         print(f"Registration status: {response.status_code}")
 
-        # Wait a moment
-        await asyncio.sleep(2)
-
         # Poll for SMT proofs
         print(f"Polling for DID: {account.address}")
         poll_response = await client.get(
