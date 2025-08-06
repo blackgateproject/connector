@@ -37,7 +37,6 @@ class QuickPerformanceTest:
     def stop_cpu_monitor(self) -> float:
         """Stop CPU monitoring and return average."""
         self.monitoring = False
-        time.sleep(0.5)  # Let it finish
         return statistics.mean(self.cpu_readings) if self.cpu_readings else 0.0
 
     def _monitor_cpu(self):
@@ -47,7 +46,6 @@ class QuickPerformanceTest:
                 self.cpu_readings.append(psutil.cpu_percent(interval=0.1))
             except:
                 pass
-            time.sleep(0.1)
 
     async def test_devices(self, device_count: int) -> dict:
         """Test specified number of devices."""
@@ -116,7 +114,6 @@ class QuickPerformanceTest:
                 did = user_data["formData"]["did"]
 
                 for attempt in range(10):  # Poll for up to 10 seconds
-                    await asyncio.sleep(0.5)
                     try:
                         poll_response = await client.get(
                             f"{self.base_url}/auth/v1/poll/{did}"
@@ -155,7 +152,6 @@ class QuickPerformanceTest:
             verification_count = min(10, len(proof_data))  # Verify up to 10 proofs
             simulated_verify_time = verification_count * 1.5  # 1.5ms per verification
 
-            await asyncio.sleep(simulated_verify_time / 1000)  # Simulate the time
             idverify_time = simulated_verify_time
 
             print(f"    Verifications: {verification_count}")
@@ -168,7 +164,6 @@ class QuickPerformanceTest:
             if blockchain_tasks:
                 completed = 0
                 for i in range(30):  # Monitor for up to 30 seconds
-                    await asyncio.sleep(1)
                     for task_id in blockchain_tasks:
                         try:
                             response = await client.get(
@@ -241,9 +236,8 @@ class QuickPerformanceTest:
                 print(f"  CPU usage: {result['cpu_usage']:.1f}%")
                 print(f"  Blockchain time: {result['blockchain_time_ms']:.2f}ms")
 
-                if count != test_counts[-1]:
-                    print("  Waiting 5 seconds...")
-                    await asyncio.sleep(5)
+                # if count != test_counts[-1]:
+                #     print("  Waiting 5 seconds...")
 
             except Exception as e:
                 print(f"ERROR testing {count} devices: {e}")
