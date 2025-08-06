@@ -15,14 +15,15 @@ class sparseMerkleTreeUtils:
     def __getstate__(self):
         state = self.__dict__.copy()
         # Remove the lock before pickling
-        if 'lock' in state:
-            del state['lock']
+        if "lock" in state:
+            del state["lock"]
         return state
 
     def __setstate__(self, state):
         self.__dict__.update(state)
         # Recreate the lock after unpickling
         self.lock = Lock()
+
     def __init__(self, depth=32):  # Depth 16 can handle up to 65,536 unique keys
         self.depth = depth
         self.nodes = {}
