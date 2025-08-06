@@ -109,7 +109,6 @@ class PerformanceSheetTester:
             # Poll for VC and generate VP
             vp_data = None
             for attempt in range(10):  # Poll up to 10 times
-                await asyncio.sleep(0.5)
                 poll_response = await client.get(
                     f"{self.base_url}/auth/v1/poll/{account.address}"
                 )
