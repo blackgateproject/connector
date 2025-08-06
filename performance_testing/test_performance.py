@@ -344,8 +344,6 @@ class TestErrorHandling:
             result = await load_test_runner.run_load_test(num_users=5, max_concurrent=3)
             results.append(result)
 
-            # Small delay between tests
-            await asyncio.sleep(2)
 
         # All tests should have some successful users
         successful_tests = [r for r in results if r.successful_users > 0]
